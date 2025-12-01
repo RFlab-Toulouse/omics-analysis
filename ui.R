@@ -395,7 +395,11 @@ shinyUI(fluidPage(
                                                                                        helpText("xgb.cv: basic cross-validation"),
                                                                                        helpText("GridSearchCV: comprehensive multi-parameter tuning")),
                                                                       conditionalPanel(condition ="input.tuning_method_xgb=='manual'",
+                                                                                       bslib::tooltip(
                                                                                        numericInput("nroundsxgb","Number of rounds" , 100, min =10, max = 1000, step = 10),
+                                                                                       placement =  "right",
+                                                                                       htmltools::span("Also known as num_boost_round; defines the number of boosting iterations.")
+                                                                                       ),
                                                                                        numericInput("maxdepthxgb","Max depth" , 6, min =1, max = 20, step = 1),
                                                                                        numericInput("etaxgb","Learning rate (eta)" , 0.3, min =0.01, max = 1, step = 0.01),
                                                                                        conditionalPanel(condition ="input.help",helpText("Manually set XGBoost hyperparameters"))
