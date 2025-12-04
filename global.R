@@ -914,6 +914,9 @@ SFtest<-function(toto,shaptest=T,Ftest=T,threshold=0.05){
 tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
   library(superml)
   library(randomForest)
+  if(!requireNamespace("superml", quietly = TRUE)) {
+    stop("Package 'superml' is required but not installed")
+  }
 
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
@@ -926,10 +929,10 @@ tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
   }
 
   # Create trainer object
-  rf_trainer <- RFTrainer$new()
+  rf_trainer <- superml:::RFTrainer$new()
 
   # Create GridSearchCV object
-  gst <- GridSearchCV$new(
+  gst <-  superml:::GridSearchCV$new(
     trainer = rf_trainer,
     parameters = param_grid,
     n_folds = n_folds,
@@ -2703,6 +2706,336 @@ positive<-function(x){
   else{x}
   return(x)
 }
+
+#' #' GridSearchCV wrapper for Random Forest using superml
+#' 
+#' #' @param X Feature matrix (data.frame or matrix)
+#' 
+#' #' @param y Target vector
+#' 
+#' #' @param param_grid List of parameters to tune (ntree, mtry, nodesize, maxnodes)
+#' 
+#' #' @param n_folds Number of cross-validation folds
+#' 
+#' #' @param scoring Scoring metric(s)
+#' 
+#' #' @return List with best parameters and best score
+#' 
+#' tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
+#'   
+#'   library(superml)
+#'   
+#'   library(randomForest)
+#'   
+#'   
+#'   
+#'   # Default parameter grid if not provided
+#'   
+#'   if(is.null(param_grid)) {
+#'     
+#'     param_grid <- list(
+#'       
+#'       n_estimators = c(100, 500, 1000),  # ntree in randomForest
+#'       
+#'       max_depth = c(5, 10, 15, 20, NULL),  # maxnodes (NULL = unlimited)
+#'       
+#'       min_samples_split = c(2, 5, 10),  # nodesize
+#'       
+#'       max_features = c("sqrt", "log2", floor(ncol(X)/3), floor(ncol(X)/2))  # mtry
+#'       
+#'     )
+#'     
+#'   }
+#'   
+#'   
+#'   
+#'   # Create trainer object
+#'   
+#'   rf_trainer <- RFTrainer$new()
+#'   
+#'   
+#'   
+#'   # Create GridSearchCV object
+#'   
+#'   gst <- GridSearchCV$new(
+#'     
+#'     trainer = rf_trainer,
+#'     
+#'     parameters = param_grid,
+#'     
+#'     n_folds = n_folds,
+#'     
+#'     scoring = scoring
+#'     
+#'   )
+#'   
+#'   
+#'   
+#'   # Fit the grid search
+#'   
+#'   gst$fit(cbind(y = y, X), "y")
+#'   
+#'   
+#'   
+#'   # Get best iteration
+#'   
+#'   best_result <- gst$best_iteration(metric = scoring[1])
+#'   
+#'   
+#'   
+#'   return(list(
+#'     
+#'     best_params = best_result,
+#'     
+#'     grid_search = gst,
+#'     
+#'     best_score = best_result$score
+#'     
+#'   ))
+#'   
+#' }
+#' 
+#' 
+#' 
+#' #' GridSearchCV wrapper for XGBoost using superml
+#' 
+#' #' @param X Feature matrix (data.frame or matrix)
+#' 
+#' #' @param y Target vector
+#' 
+#' #' @param param_grid List of parameters to tune
+#' 
+#' #' @param n_folds Number of cross-validation folds
+#' 
+#' #' @param scoring Scoring metric(s)
+#' 
+#' #' @return List with best parameters and best score
+#' 
+#' tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
+#'   
+#'   library(superml)
+#'   
+#'   
+#'   
+#'   # Default parameter grid if not provided
+#'   
+#'   if(is.null(param_grid)) {
+#'     
+#'     param_grid <- list(
+#'       
+#'       n_estimators = c(50, 100, 200),  # nrounds
+#'       
+#'       max_depth = c(3, 6, 9, 12),
+#'       
+#'       learning_rate = c(0.01, 0.05, 0.1, 0.3),  # eta
+#'       
+#'       gamma = c(0, 0.1, 0.5),
+#'       
+#'       subsample = c(0.6, 0.8, 1.0),
+#'       
+#'       colsample_bytree = c(0.6, 0.8, 1.0),
+#'       
+#'       min_child_weight = c(1, 3, 5)
+#'       
+#'     )
+#'     
+#'   }
+#'   
+#'   
+#'   
+#'   # Create trainer object
+#'   
+#'   xgb_trainer <- XGBTrainer$new()
+#'   
+#'   
+#'   
+#'   # Create GridSearchCV object
+#'   
+#'   gst <- GridSearchCV$new(
+#'     
+#'     trainer = xgb_trainer,
+#'     
+#'     parameters = param_grid,
+#'     
+#'     n_folds = n_folds,
+#'     
+#'     scoring = scoring
+#'     
+#'   )
+#'   
+#'   
+#'   
+#'   # Fit the grid search
+#'   
+#'   gst$fit(cbind(y = y, X), "y")
+#'   
+#'   
+#'   
+#'   # Get best iteration
+#'   
+#'   best_result <- gst$best_iteration(metric = scoring[1])
+#'   
+#'   
+#'   
+#'   return(list(
+#'     
+#'     best_params = best_result,
+#'     
+#'     grid_search = gst,
+#'     
+#'     best_score = best_result$score
+#'     
+#'   ))
+#'   
+#' }
+#' 
+#' 
+#' 
+#' #' GridSearchCV wrapper for Naive Bayes using superml
+#' #' @param X Feature matrix (data.frame or matrix)
+#' #' @param y Target vector
+#' #' @param param_grid List of parameters to tune
+#' #' @param n_folds Number of cross-validation folds
+#' #' @param scoring Scoring metric(s)
+#' #' @return List with best parameters and best score
+#' 
+#' tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
+#'   
+#'   library(superml)
+#'   # Default parameter grid if not provided
+#'   
+#'   if(is.null(param_grid)) {
+#'     
+#'     param_grid <- list(
+#'       
+#'       laplace = c(0, 0.5, 1, 2, 5)  # Smoothing parameter
+#'       
+#'     )
+#'   }
+#'   # Create trainer object
+#'   nb_trainer <- NBTrainer$new()
+#' 
+#'   # Create GridSearchCV object
+#'   gst <- GridSearchCV$new(
+#'     trainer = nb_trainer,
+#'     parameters = param_grid,
+#'     n_folds = n_folds,
+#'     scoring = scoring
+#'   )
+#'   # Fit the grid search
+#'   
+#'   gst$fit(cbind(y = y, X), "y")
+#'   
+#'   # Get best iteration
+#'   
+#'   best_result <- gst$best_iteration(metric = scoring[1])
+#'   
+#'   return(list(
+#'     best_params = best_result,
+#'     grid_search = gst,
+#'     best_score = best_result$score
+#'   ))
+#'   
+#' }
+#' 
+#' 
+#' 
+#' #' GridSearchCV wrapper for KNN using superml
+#' #' @param X Feature matrix (data.frame or matrix)
+#' #' @param y Target vector
+#' #' @param param_grid List of parameters to tune
+#' #' @param n_folds Number of cross-validation folds
+#' #' @param scoring Scoring metric(s)
+#' #' @return List with best parameters and best score
+#' tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
+#'   library(superml)
+#'   
+#'   # Default parameter grid if not provided
+#'   if(is.null(param_grid)) {
+#'     max_k <- min(floor(sqrt(length(y))), 30)
+#'     param_grid <- list(
+#'       n_neighbors = seq(3, max_k, by = 2),  # k parameter, odd numbers only
+#'       weights = c("uniform", "distance"),
+#'       algorithm = c("brute", "kd_tree")
+#'     )
+#'   }
+#'   
+#'   # Create trainer object
+#'   knn_trainer <- KNNTrainer$new()
+#'   
+#'   # Create GridSearchCV object
+#'   gst <- GridSearchCV$new(
+#'     trainer = knn_trainer,
+#'     parameters = param_grid,
+#'     n_folds = n_folds,
+#'     scoring = scoring
+#'     
+#'   )
+#'   
+#'   
+#'   # Fit the grid search
+#'   gst$fit(cbind(y = y, X), "y")
+#'   
+#'   # Get best iteration
+#'   best_result <- gst$best_iteration(metric = scoring[1])
+#'   
+#'   return(list(
+#'     best_params = best_result,
+#'     grid_search = gst,
+#'     best_score = best_result$score
+#'     
+#'   ))
+#'   
+#' }
+#' 
+#' 
+#' 
+#' #' GridSearchCV wrapper for Logistic Regression (ElasticNet) using superml
+#' #' @param X Feature matrix (data.frame or matrix)
+#' #' @param y Target vector
+#' #' @param param_grid List of parameters to tune
+#' #' @param n_folds Number of cross-validation folds
+#' #' @param scoring Scoring metric(s)
+#' #' @return List with best parameters and best score
+#' 
+#' tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
+#'   
+#'   library(superml)
+#'   # Default parameter grid if not provided
+#'   
+#'   if(is.null(param_grid)) {
+#'     param_grid <- list(
+#'       alpha = c(0, 0.25, 0.5, 0.75, 1.0),  # 0=Ridge, 1=Lasso, 0.5=ElasticNet
+#'       lambda = c(0.001, 0.01, 0.1, 1.0, 10),
+#'       penalty = c("elasticnet")
+#'     )
+#'   }
+#'   
+#'   # Create trainer object
+#'   lm_trainer <- LMTrainer$new()
+#'   
+#'   # Create GridSearchCV object
+#'   gst <- GridSearchCV$new(
+#'     trainer = lm_trainer,
+#'     parameters = param_grid,
+#'     n_folds = n_folds,
+#'     scoring = scoring
+#'   )
+#'   
+#'   # Fit the grid search
+#'   gst$fit(cbind(y = y, X), "y")
+#' 
+#'   # Get best iteration
+#'   best_result <- gst$best_iteration(metric = scoring[1])
+#' 
+#'   return(list(
+#'     best_params = best_result,
+#'     grid_search = gst,
+#'     best_score = best_result$score
+#'   ))
+#'   
+#' }
+
 
 
 ####
