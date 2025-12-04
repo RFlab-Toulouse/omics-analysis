@@ -321,12 +321,14 @@ shinyUI(fluidPage(
                                                                     "XGBoost"="xgboost",
                                                                     #"LightGBM"="lightgbm",
                                                                     "Naive Bayes"="naivebayes",
-                                                                    "K-Nearest Neighbors (KNN)"="knn")),
-                                                     conditionalPanel(condition ="input.help",
-                                                                      helpText("Random Forest: ensemble method with automatic mtry tuning."),
-                                                                      helpText("SVM: automatic hyperparameter tuning (C, gamma)."),
-                                                                      helpText("ElasticNet: penalized logistic regression with L1/L2 regularization."),
-                                                                      helpText("XGBoost: gradient boosting with automatic hyperparameter tuning."))
+                                                                    "K-Nearest Neighbors (KNN)"="knn"))
+                                                     #,
+                                                     # conditionalPanel(condition ="input.help",
+                                                     #                  helpText("Random Forest: ensemble method with automatic mtry tuning."),
+                                                     #                  helpText("SVM: automatic hyperparameter tuning (C, gamma)."),
+                                                     #                  helpText("ElasticNet: penalized logistic regression with L1/L2 regularization."),
+                                                     #                  helpText("XGBoost: gradient boosting with automatic hyperparameter tuning.")
+                                                     #                  )
                                               ),
                                               column(4,
                                                      numericInput("thresholdmodel","Threshold model" ,0, min = -1, max = 1, step = 0.05),
@@ -340,7 +342,8 @@ shinyUI(fluidPage(
                                                      conditionalPanel(condition ="input.model=='elasticnet'",
                                                                       h5("ElasticNet Hyperparameters"),
                                                                       radioButtons("tuning_method_en", "Tuning method:",
-                                                                                   c("Manual parameters" = "manual",
+                                                                                   c(
+                                                                                     #"Manual parameters" = "manual",
                                                                                      "Cross-validation (cv.glmnet)" = "traditional",
                                                                                      "GridSearchCV (superml)" = "gridsearch"),
                                                                                    selected = "traditional"),
@@ -370,18 +373,37 @@ shinyUI(fluidPage(
                                                                       numericInput("ntreerf","Number of trees" , 1000, min =100, max = 5000, step = 100),
                                                                       conditionalPanel(condition ="input.tuning_method_rf=='manual'",
                                                                                        numericInput("mtryrf","mtry (variables per split)" , 5, min =1, max = 100, step = 1),
-                                                                                       conditionalPanel(condition ="input.help",helpText("Number of variables randomly sampled at each split"))
+                                                                                       conditionalPanel(condition ="input.help",
+                                                                                                        helpText("Number of variables randomly sampled at each split"))
                                                                       )
+                                                                      # ,
+                                                                      # conditionalPanel("input.help" #, 
+                                                                      #                  
+                                                                      # )
                                                      ),
                                                      conditionalPanel(condition ="input.model=='svm'",
                                                                       h5("SVM Hyperparameters"),
                                                                       checkboxInput("autotunesvm", "Automatic hyperparameter tuning (tune.svm)" , value = TRUE),
-                                                                      conditionalPanel(condition ="input.help",helpText("Automatically find optimal cost and gamma")),
+                                                                      conditionalPanel(condition ="input.help",
+                                                                                       helpText("Automatically find optimal cost and gamma")
+                                                                                       ),
                                                                       conditionalPanel(condition ="!input.autotunesvm",
                                                                                        numericInput("costsvm","Cost (C)" , 1, min =0.001, max = 100, step = 0.1),
                                                                                        numericInput("gammasvm","Gamma" , 0.1, min =0.00001, max = 10, step = 0.01),
-                                                                                       conditionalPanel(condition ="input.help",helpText("Manually set SVM hyperparameters"))
+                                                                                       selectInput("kernelsvm", "Kernel type:",
+                                                                                                  c("Radial" = "radial",
+                                                                                                    "Linear" = "linear",
+                                                                                                    "Polynomial" = "polynomial",
+                                                                                                    "Sigmoid" = "sigmoid"),
+                                                                                                  selected = "radial"),
+                                                                                       conditionalPanel(condition ="input.help",
+                                                                                                        helpText("Manually set SVM hyperparameters")
+                                                                                                        )
                                                                       )
+                                                                      # ,
+                                                                      # conditionalPanel(condition ="input.help"
+                                                                      #                  
+                                                                      # )
                                                      ),
                                                      conditionalPanel(condition ="input.model=='xgboost'",
                                                                       h5("XGBoost Hyperparameters"),
@@ -404,6 +426,10 @@ shinyUI(fluidPage(
                                                                                        numericInput("etaxgb","Learning rate (eta)" , 0.3, min =0.01, max = 1, step = 0.01),
                                                                                        conditionalPanel(condition ="input.help",helpText("Manually set XGBoost hyperparameters"))
                                                                       )
+                                                                      # ,
+                                                                      # conditionalPanel("input.help" 
+                                                                      #  
+                                                                      # )
                                                      ),
                                                      conditionalPanel(condition ="input.model=='lightgbm'",
                                                                       h5("LightGBM Hyperparameters"),
@@ -426,6 +452,7 @@ shinyUI(fluidPage(
                                                                       conditionalPanel(condition ="input.help",
                                                                                        helpText("No tuning: uses default laplace=0"),
                                                                                        helpText("GridSearchCV: optimizes laplace smoothing parameter"))
+                                                                      #,  conditionalPanel("input.help" )
                                                      ),
 
                                                      conditionalPanel(condition ="input.model=='knn'",
@@ -441,11 +468,102 @@ shinyUI(fluidPage(
                                                                                        helpText("GridSearchCV: systematic grid search")),
                                                                       conditionalPanel(condition ="input.tuning_method_knn=='manual'",
                                                                                        numericInput("kneighbors","Number of neighbors (k)" , 5, min =1, max = 50, step = 2),
-                                                                                       conditionalPanel(condition ="input.help",helpText("Manually set k parameter"))
+                                                                                       conditionalPanel(condition ="input.help",
+                                                                                                        helpText("Manually set k parameter"))
                                                                       )
-                                                                  ) #" paranthses mal placé
-                                              )
+                                                                      ) 
+                                                                  ) 
+                                                
+                                                    # )$$
                                                      ),
+                                                      # affcihage des help en fonction du model
+                                                      fluidRow(
+                                                        conditionalPanel("input.help", 
+                                                                          conditionalPanel(condition ="input.model=='knn'",
+                                                                                        div(
+                                                                                            class =  "myDiv",
+                                                                                            h4("KNN Hyperparameter Explanation"),
+                                                                                            p(strong("Number of Neighbors (k):"), "Determines how many nearest neighbors are considered when classifying a new data point. 
+                                                                                           A smaller k can capture local patterns but may be sensitive to noise, while a larger k provides smoother decision boundaries but may overlook local nuances."
+                                                                                            )
+                                                                                          )
+                                                                                          
+                                                                         ),
+                                                                         conditionalPanel(condition = "input.model== 'naivebayes'",
+                                                                                          div(class = "myDiv",
+                                                                                              h4("Naive Bayes Hyperparameter Explanation"),
+                                                                                              p(strong("Laplace Smoothing:"), "A technique used to handle zero probabilities in categorical data. 
+                                                                                               It adds a small constant (usually 1) to each count to ensure that no probability is exactly zero, 
+                                                                                               which can be particularly useful when dealing with unseen features in the training data.") 
+                                                                                          )
+                                                                                        ),
+                                                                         conditionalPanel(condition = "input.model=='svm'", 
+                                                                                          tags$head(
+                                                                                            tags$style(HTML("
+                                                                                                      .myDiv {
+                                                                                                        border: 5px outset green;
+                                                                                                        background-color: lightblue;    
+                                                                                                        text-align: left;
+                                                                                                      }
+                                                                                                    "))
+                                                                                          ),
+                                                                                          helpText("Lambda controls the strength of regularization. Use automatic 
+                                                                                                selection via cross-validation for optimal results.")
+                                                                                          ,
+                                                                                          div(
+                                                                                            class = "myDiv",
+                                                                                            p("In SVM with RBF (Radial Basis Function) kernel, the hyperparameters C and gamma together control the complexity and generalisation capacity of the model.
+                                                                                                They are linked in the sense that modifying one influences the effect of the other on the decision boundary."),
+                                                                                            p("A high C value with a low gamma can lead to overfitting, while a low C with a high gamma may result in underfitting. 
+                                                                                                 Therefore, it's crucial to tune both parameters together to find the optimal balance 
+                                                                                              for the specific dataset."),
+                                                                                            HTML("<ul>
+                                                                                                    <li>High C + high gamma → very flexible model, high risk of overfitting. </li>
+                                                                                                    <li>Low C + low gamma → very smooth model, risk of underfitting. </li>
+                                                                                                    <li> High C + low gamma → model that tries to classify well but with a generally smooth boundary. </li>
+                                                                                                    <li> Low C + high gamma → model that accepts errors but with complex local boundaries.  </li>
+                                                                                                 </ul>"
+                                                                                              
+                                                                                            )
+                                                                                            # ,
+                                                                                            #   p("High C + high gamma → very flexible model, high risk of overfitting."),
+                                                                                            #   p("Low C + low gamma → very smooth model, risk of underfitting."),
+                                                                                            #   p("High C + low gamma → model that tries to classify well but with a generally smooth boundary."),
+                                                                                            #   p("Low C + high gamma → model that accepts errors but with complex local boundaries. ")
+
+                                                                                          )
+                                                                                          ),
+                                                                         conditionalPanel(condition ="input.model=='randomforest'",
+                                                                                          div(
+                                                                                            class =  "myDiv",
+                                                                                            h4("Random Forest Hyperparameters Explanation"),
+                                                                                            p(strong("ntree:"), "Number of trees in the forest; more trees can improve performance but increase computation time."),
+                                                                                            p(strong("mtry:"), "Number of variables randomly sampled at each split; controls tree diversity and model robustness.")
+                                                                                          )
+                                                                                          ),
+                                                                         conditionalPanel(condition ="input.model=='xgboost'",
+                                                                                          div(
+                                                                                            class =  "myDiv",
+                                                                                            h4("XGBoost Hyperparameters Explanation"),
+                                                                                            p(strong("nrounds:"), "Also known as num_boost_round; defines the number of boosting iterations."),
+                                                                                            p(strong("max_depth:"), "Maximum depth of a tree; controls model complexity and overfitting."),
+                                                                                            p(strong("eta (learning rate):"), "Step size shrinkage used to prevent overfitting; smaller values require more rounds.")
+                                                                                          )
+                                                                                          ),
+                                                                         conditionalPanel(condition = "input.model=='elasticnet'", 
+                                                                                          conditionalPanel(condition ="input.help",
+                                                                                                           div(class =  "myDiv",
+                                                                                                               h4("ElasticNet Hyperparameters Explanation"),
+                                                                                                               p(strong("Alpha:"), "Controls the mix between L1 (Lasso) and L2 (Ridge) regularization.
+                                                                                                                        Alpha=1 corresponds to Lasso, Alpha=0 to Ridge, and values in between represent a combination of both."),
+                                                                                                               p(strong("Lambda:"), "Lambda controls the strength of regularization.
+                                                                                                                        Use automatic selection via cross-validation for optimal results.")
+                                                                                                               
+                                                                                                           )
+                                                                                          )  
+                                                                                        )
+                                                      ) # fin du grand conditionPanel
+                                                      ),
                                                      conditionalPanel(condition ="output.fileUploadedval & input.model!='nomodel'  ",
                                                                       checkboxInput("adjustval","Adjust model on validation data",F)
                                                      )
@@ -465,33 +583,52 @@ shinyUI(fluidPage(
                                                                                          column(12,
                                                                                                 h4("Optimal Hyperparameters (Training)"),
                                                                                                 conditionalPanel(condition ="input.model=='elasticnet'",
-                                                                                                                 fluidRow(
-                                                                                                                   column(3, strong("Alpha:"), textOutput("modelalpha",inline=T)),
-                                                                                                                   column(3, strong("Lambda:"), textOutput("modellambda",inline=T)),
-                                                                                                                   column(3, strong("Lambda (1SE):"), textOutput("modellambda1se",inline=T)),
-                                                                                                                   column(3, strong("Non-zero coef:"), textOutput("modelnonzerocoef",inline=T))
+                                                                                                                 div(
+                                                                                                                   class =  "well",
+                                                                                                                   style = 'color :  blue;',
+                                                                                                                   fluidRow(
+                                                                                                                     column(3, strong("Alpha:"), textOutput("modelalpha",inline=T)),
+                                                                                                                     column(3, strong("Lambda:"), textOutput("modellambda",inline=T)),
+                                                                                                                     column(3, strong("Lambda (1SE):"), textOutput("modellambda1se",inline=T)),
+                                                                                                                     column(3, strong("Non-zero coef:"), textOutput("modelnonzerocoef",inline=T))
+                                                                                                                   )
                                                                                                                  )
+                                                                                                                 
                                                                                                 ),
                                                                                                 conditionalPanel(condition ="input.model=='svm'",
-                                                                                                                 fluidRow(
-                                                                                                                   column(4, strong("Cost (C):"), textOutput("svmcost",inline=T)),
-                                                                                                                   column(4, strong("Gamma:"), textOutput("svmgamma",inline=T)),
-                                                                                                                   column(4, strong("Kernel:"), "Radial")
+                                                                                                                 div(
+                                                                                                                   class =  "well",
+                                                                                                                   style = 'color :  blue;',
+                                                                                                                   fluidRow(
+                                                                                                                     column(4, strong("Cost (C):"), textOutput("svmcost",inline=T)),
+                                                                                                                     column(4, strong("Gamma:"), textOutput("svmgamma",inline=T)),
+                                                                                                                     column(4, strong("Kernel:"), textOutput("svmkernel",inline=T)
+                                                                                                                            #"Radial"
+                                                                                                                            )
+                                                                                                                   )
                                                                                                                  )
                                                                                                 ),
                                                                                                 conditionalPanel(condition ="input.model=='randomforest'",
-                                                                                                                 fluidRow(
-                                                                                                                   column(4, strong("Optimal mtry:"), textOutput("rfmtry",inline=T)),
-                                                                                                                   column(4, strong("Number of trees:"), textOutput("rfntree",inline=T)),
-                                                                                                                   column(4, strong("Tuning method:"), "tuneRF")
+                                                                                                                 div(
+                                                                                                                   class =  "well",
+                                                                                                                   style = 'color :  blue;',
+                                                                                                                   fluidRow(
+                                                                                                                     column(4, strong("Optimal mtry:"), textOutput("rfmtry",inline=T)),
+                                                                                                                     column(4, strong("Number of trees:"), textOutput("rfntree",inline=T)),
+                                                                                                                     column(4, strong("Tuning method:"), "tuneRF")
+                                                                                                                   )
                                                                                                                  )
                                                                                                 ),
                                                                                                 conditionalPanel(condition ="input.model=='xgboost'",
-                                                                                                                 fluidRow(
-                                                                                                                   column(3, strong("Optimal nrounds:"), textOutput("xgbnrounds",inline=T)),
-                                                                                                                   column(3, strong("Max depth:"), textOutput("xgbmaxdepth",inline=T)),
-                                                                                                                   column(3, strong("Learning rate (eta):"), textOutput("xgbeta",inline=T)),
-                                                                                                                   column(3, strong("Min child weight:"), textOutput("xgbminchild",inline=T))
+                                                                                                                 div(
+                                                                                                                   class =  "well",
+                                                                                                                   style = 'color :  blue;',
+                                                                                                                   fluidRow(
+                                                                                                                     column(3, strong("Optimal nrounds:"), textOutput("xgbnrounds",inline=T)),
+                                                                                                                     column(3, strong("Max depth:"), textOutput("xgbmaxdepth",inline=T)),
+                                                                                                                     column(3, strong("Learning rate (eta):"), textOutput("xgbeta",inline=T)),
+                                                                                                                     column(3, strong("Min child weight:"), textOutput("xgbminchild",inline=T))
+                                                                                                                   )
                                                                                                                  )
                                                                                                 ),
                                                                                                 conditionalPanel( condition = "input.model=='knn'",

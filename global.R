@@ -1126,7 +1126,12 @@ tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, sco
 
 ####
 
-modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformdataparameters,datastructuresfeatures=NULL,learningselect){
+modelfunction <- function(learningmodel,
+                          validation=NULL,
+                          modelparameters,
+                          transformdataparameters,
+                          datastructuresfeatures=NULL,
+                          learningselect){
   if(modelparameters$modeltype!="nomodel"){
     colnames(learningmodel)[1]<-"group"
     
@@ -1222,9 +1227,7 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
 
       # Build final model with optimal or manual parameters
       model <- randomForest(x = x, y = learningmodel[,1],
-
                            ntree = ntree_param,
-
                            mtry = optimal_mtry,
                            nodesize = nodesize_param,
                            importance = TRUE)
@@ -1260,23 +1263,43 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
         tune_result <- tune.svm(group ~ ., data = learningmodel,
                                gamma = 10^(-5:2), cost = 10^(-3:2),
                                cross=min(dim(learningmodel)[1]-2,10),
+                               #kernel=c("linear", "polynomial", "radial", "sigmoid"),
+                               # ranges=list(kernel=c("linear", "polynomial",
+                               #                      "radial", "sigmoid")),
                                tunecontrol = tune.control(sampling = "cross"))
 
         # Extract best model and parameters
-        model <- tune_result$best.model
-        model$cost <- tune_result$best.parameters$cost
-        model$gamma <- tune_result$best.parameters$gamma
+        # model <- tune_result$best.model
+        # model$cost <- tune_result$best.parameters$cost
+        # model$gamma <- tune_result$best.parameters$gamma
+        cat('tunning results :  \n')
+        print(tune_result)
+        cost_param <- tune_result$best.parameters$cost
+        gamma_param <- tune_result$best.parameters$gamma
+        
       } else {
         # Use manual hyperparameters
+        cat("define svm parameters manually \n")
         cost_param <- ifelse(is.null(modelparameters$cost), 1, modelparameters$cost)
         gamma_param <- ifelse(is.null(modelparameters$gamma), 0.1, modelparameters$gamma)
+        # kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
 
-        model <- svm(group ~ ., data = learningmodel,
-                    kernel="radial", cost=cost_param, gamma=gamma_param,
-                    probability=FALSE)
-        model$cost <- cost_param
-        model$gamma <- gamma_param
+        # model <- svm(group ~ ., data = learningmodel,
+        #             kernel= kernel_param , 
+        #             cost=cost_param, gamma=gamma_param,
+        #             probability=FALSE)
+        # model$cost <- cost_param
+        # model$gamma <- gamma_param
+        # model$kernel <- kernel_param
       }
+      
+      model <- svm(group ~ ., data = learningmodel,
+                   kernel= 'radial' , #kernel_param , 
+                   cost=cost_param, gamma=gamma_param,
+                   probability=TRUE)
+      model$cost <- cost_param
+      model$gamma <- gamma_param
+      #model$kernel <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
 
       if(modelparameters$fs){
 
@@ -1285,11 +1308,19 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
         model<-featureselect$model
         learningmodel<-featureselect$dataset
       }
+      
       scorelearning <-model$decision.values
+      #scorelearning = attr(e1071:::predict.svm(model, learningmodel[,-1], probability  = TRUE), "probabilities") 
       if(sum(lev==(strsplit(colnames(scorelearning),split = "/")[[1]]))==0){
         scorelearning<-scorelearning*(-1)
         colnames(scorelearning)<-paste(lev[1],"/",lev[2],sep="")
       }
+      
+      # Obtenir les probabilités au lieu des decision values
+      # pred_probs <- attr(predict(model, learningmodel[,-1], probability=TRUE), "probabilities")
+      # scorelearning <- data.frame(pred_probs[, lev["positif"]])
+      # colnames(scorelearning) <- paste(lev[1],"/",lev[2],sep="")
+      
       predictclasslearning<-factor(levels = lev)
       predictclasslearning[which(scorelearning>=modelparameters$thresholdmodel)]<-lev["positif"]
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
@@ -1597,22 +1628,22 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
       # IMPORTANT: Encode y so that 1 = lev["positif"] (first level), 0 = lev["negatif"] (second level)
       # This ensures that predict returns P(lev["positif"])
       y <- ifelse(learningmodel[,1] == lev["positif"], 1, 0)
-
+      
       # Get hyperparameters (use defaults if not provided)
       alpha_param <- ifelse(is.null(modelparameters$alpha), 0.5, modelparameters$alpha)
       lambda_param <- modelparameters$lambda  # NULL for CV selection
-
+      
       # Check if GridSearchCV should be used
       if(!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch && is.null(lambda_param)){
         # Use GridSearchCV from superml for comprehensive hyperparameter tuning
         cat("Using GridSearchCV for ElasticNet hyperparameter tuning...\n")
-
+        
         # Prepare parameter grid
         param_grid <- list(
           alpha = if(!is.null(modelparameters$en_grid_alpha)) modelparameters$en_grid_alpha else c(0, 0.25, 0.5, 0.75, 1.0),
           lambda = if(!is.null(modelparameters$en_grid_lambda)) modelparameters$en_grid_lambda else c(0.001, 0.01, 0.1, 1.0)
         )
-
+        
         # Run GridSearchCV
         grid_result <- tryCatch({
           X_df <- as.data.frame(x)
@@ -1624,37 +1655,37 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
           cat("GridSearchCV failed, falling back to cv.glmnet:", e$message, "\n")
           NULL
         })
-
+        
         if(!is.null(grid_result)) {
           best_params <- grid_result$best_params
           alpha_param <- if(!is.null(best_params$alpha)) best_params$alpha else 0.5
           lambda_param <- if(!is.null(best_params$lambda)) best_params$lambda else NULL
-
+          
           cat(sprintf("GridSearchCV best params: alpha=%.3f, lambda=%.4f, score=%.4f\n",
-                     alpha_param, lambda_param, grid_result$best_score))
-
+                      alpha_param, lambda_param, grid_result$best_score))
+          
           # Use the best parameters to fit with cv.glmnet for consistency
           set.seed(20011203)
           cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                            type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                             type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
           lambda_param <- cvfit$lambda.min
           model <- list(glmnet_model=cvfit, lambda=lambda_param, alpha=alpha_param,
-                       cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
+                        cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
         } else {
           # Fallback to traditional cv.glmnet if GridSearchCV fails
           set.seed(20011203)
           cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                            type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                             type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
           lambda_param <- cvfit$lambda.min
           model <- list(glmnet_model=cvfit, lambda=lambda_param, alpha=alpha_param,
-                       cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
+                        cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
         }
       } else if(is.null(lambda_param)){
         # Perform cross-validation to find optimal lambda if not provided
         #cat("on est dans le if du is.null(lambda_param) \n")
         set.seed(20011203)
         cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                          type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                           type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
         lambda_param <- cvfit$lambda.min
         # if(!is.null(cvfit$glmnet.fit)){
         #   fit <- cvfit$glmnet.fit
@@ -1662,17 +1693,17 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
         #   fit <- glmnet(x, y, family="binomial", alpha=alpha_param)
         # }
         model <- list(glmnet_model=cvfit, lambda=lambda_param, alpha=alpha_param,
-                     cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
-      } 
+                      cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
+      } else {
+        # Manual mode: use specified lambda and alpha parameters
+        cat("Creating ElasticNet model with manual parameters: alpha=", alpha_param, ", lambda=", lambda_param, "\n")
+        fit <- glmnet(x, y, family="binomial", alpha=alpha_param, lambda=lambda_param)
+        model <- list(glmnet_model=fit, lambda=lambda_param, alpha=alpha_param,
+                      cvfit=NULL, optimal_lambda=lambda_param, lambda_1se=NULL)
+      }
       
-      cat("la classe de model$glmnet_model est : ", class(model$glmnet_model) )
-      # else {
-      #     cat("on rest dans le else du is.null(lambda_param) \n")
-      #   fit <- glmnet(x, y, family="binomial", alpha=alpha_param, lambda=lambda_param)
-      #   model <- list(glmnet_model=fit, lambda=lambda_param, alpha=alpha_param,
-      #                cvfit=NULL, optimal_lambda=lambda_param, lambda_1se=NULL)
-      #   }
-
+      cat("la classe de model$glmnet_model est : ", class(model$glmnet_model), "\n" )
+      
       # Feature selection based on non-zero coefficients
       if(modelparameters$fs){
         coef_values <- as.matrix(coef(model$glmnet_model, s=lambda_param))
@@ -1683,26 +1714,31 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
           # Refit model with selected features
           if(is.null(modelparameters$lambda)){
             cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                              type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                               type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
             lambda_param <- cvfit$lambda.min
             # Refit model with optimal lambda to ensure we have a valid glmnet object
             fit <- glmnet(x, y, family="binomial", alpha=alpha_param, lambda=lambda_param)
             cat("class of fitted modele :  ", class(fit))
             model <- list(glmnet_model=fit, lambda=lambda_param, alpha=alpha_param,
-                         cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
+                          cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
           } else {
             fit <- glmnet(x, y, family="binomial", alpha=alpha_param, lambda=lambda_param)
             model <- list(glmnet_model=fit, lambda=lambda_param, alpha=alpha_param,
-                         cvfit=NULL, optimal_lambda=lambda_param, lambda_1se=NULL)
+                          cvfit=NULL, optimal_lambda=lambda_param, lambda_1se=NULL)
           }
         }
       }
-
+      
       # Make predictions (probabilities)
-      scorelearning <- as.vector(glmnet:::predict.cv.glmnet(model$glmnet_model, newx=x, s=lambda_param, type="response"))
+      # Use appropriate predict method based on model class
+      if(inherits(model$glmnet_model, "cv.glmnet")){
+        scorelearning <- as.vector(glmnet:::predict.cv.glmnet(model$glmnet_model, newx=x, s=lambda_param, type="response"))
+      } else {
+        scorelearning <- as.vector(glmnet::predict.glmnet(model$glmnet_model, newx=x, s=lambda_param, type="response"))
+      }
       scorelearning <- data.frame(scorelearning)
       colnames(scorelearning) <- paste(lev[1],"/",lev[2],sep="")
-
+      
       predictclasslearning<-factor(levels = lev)
       predictclasslearning[which(scorelearning>=modelparameters$thresholdmodel)]<-lev["positif"]
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
@@ -1982,19 +2018,36 @@ modelfunction<-function(learningmodel,validation=NULL,modelparameters,transformd
       }
       
       if(modelparameters$modeltype=="svm"){
-        scoreval =attr(e1071:::predict.svm(model,newdata =  validationmodel,decision.values=T),"decision.values")
-        if(sum(lev==(strsplit(colnames(scoreval),split = "/")[[1]]))==0){scoreval<-scoreval*(-1)}
-        predictclassval<-vector(length = length(scoreval) )
-        predictclassval[which(scoreval>=modelparameters$thresholdmodel)]<-lev["positif"]
-        predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
-        predictclassval<-as.factor(predictclassval)
+        if(!is.null(model)){
+          # SVM validation predictions
+          print("On est dans le SVM pour la validation")
+          print(str(model))
+          print(str(validationmodel))
+          scoreval =attr(e1071:::predict.svm(model,newdata =  validationmodel,decision.values=T),"decision.values")
+          if(sum(lev==(strsplit(colnames(scoreval),split = "/")[[1]]))==0){scoreval<-scoreval*(-1)}
+          # Utiliser les probabilités pour la validation
+          # pred_probs_val <- attr(e1071:::predict.svm(model, newdata = validationmodel, probability=TRUE), "probabilities")
+          # scoreval <- pred_probs_val[, lev["positif"]]
+          
+          predictclassval<-vector(length = length(scoreval) )
+          predictclassval[which(scoreval>=modelparameters$thresholdmodel)]<-lev["positif"]
+          predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
+          predictclassval<-as.factor(predictclassval)
+        }
+        
       }
 
       if(modelparameters$modeltype=="elasticnet"){
         req(model$glmnet_model)
         # ElasticNet validation predictions
         x_val <- as.matrix(validationmodel)
-        scoreval <- as.vector(glmnet:::predict.cv.glmnet(model$glmnet_model, newx=x_val, s=model$lambda, type="response"))
+        # scoreval <- as.vector(glmnet:::predict.cv.glmnet(model$glmnet_model, newx=x_val, s=model$lambda, type="response"))
+        if(inherits(model$glmnet_model, "cv.glmnet")){
+          scoreval <- as.vector(glmnet:::predict.cv.glmnet(model$glmnet_model,
+                                                           newx=x_val, s=model$lambda, type="response"))
+        } else {
+          scoreval <- as.vector(glmnet::predict.glmnet(model$glmnet_model, newx=x_val, s=model$lambda, type="response"))
+        }
         # scoreval <- as.vector(glmnet::predict.glmnet(model$glmnet_model, newx=x_val, s=model$lambda, type="response"))
         predictclassval<-vector(length = length(scoreval) )
         predictclassval[which(scoreval>=modelparameters$thresholdmodel)]<-lev["positif"]
@@ -2327,7 +2380,11 @@ importancemodelsvm<-function(model,modeltype,tabdiff,criterion){
           tabdiffmodif[,i]<-tabdiffmodif[sample(1:nrow(tabdiff)),i]
           #tabdiffmodif<-tabdiffmodif[,-i]
           
-          resmodeldiff<-svm(y =tabdiffmodif[,1],x=tabdiffmodif[,-1],cross=10,type ="C-classification", kernel="radial",cost=model$cost,gamma=model$gamma)
+          resmodeldiff<-svm(y =tabdiffmodif[,1],x=tabdiffmodif[,-1],cross=10,
+                            type ="C-classification",
+                            kernel= ifelse(is.null(model$kernel),"radial",model$kernel),
+                            cost=model$cost,
+                            gamma=model$gamma)
           vec[j]<-abs(resmodeldiff$tot.accuracy-model$tot.accuracy)
         }
         importancevar[i]<-mean(vec)}
@@ -2435,15 +2492,23 @@ testparametersfunction<-function(learning,validation,tabparameters){
     else{learningmodel<-restest$tabdiff}
     
     if(ncol(learningmodel)!=0){
-    modelparameters<<-list("modeltype"=parameters$model,"invers"=FALSE,"thresholdmodel"=parameters$thresholdmodel,"fs"=as.logical(parameters$fs),"adjustval"=!is.null(validation))
+    modelparameters<<-list("modeltype"=parameters$model,
+                           "invers"=FALSE,
+                           "thresholdmodel"=parameters$thresholdmodel,
+                           "fs"=as.logical(parameters$fs),
+                           "adjustval"=!is.null(validation))
     validate(need(ncol(learning)!=0,"No select dataset"))
     
 
     #resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,modelparameters = modelparameters,
     #                         transformdataparameters = transformdataparameters,datastructuresfeatures =  datastructuresfeatures)
-    out<- tryCatch(modelfunction(learningmodel = learningmodel,validation = validation,modelparameters = modelparameters,
-                                 transformdataparameters = transformdataparameters,datastructuresfeatures =  datastructuresfeatures,
-                                 learningselect = resselectdata$learningselect), error = function(e) e)
+    out<- tryCatch(modelfunction(learningmodel = learningmodel,
+                                 validation = validation,
+                                 modelparameters = modelparameters,
+                                 transformdataparameters = transformdataparameters,
+                                 datastructuresfeatures =  datastructuresfeatures,
+                                 learningselect = resselectdata$learningselect), 
+                   error = function(e) e)
     if(any(class(out)=="error"))parameters$model<-"nomodel"
     else{resmodel<-out}
     }
@@ -2638,445 +2703,6 @@ positive<-function(x){
   else{x}
   return(x)
 }
-
-#' GridSearchCV wrapper for Random Forest using superml
-
-#' @param X Feature matrix (data.frame or matrix)
-
-#' @param y Target vector
-
-#' @param param_grid List of parameters to tune (ntree, mtry, nodesize, maxnodes)
-
-#' @param n_folds Number of cross-validation folds
-
-#' @param scoring Scoring metric(s)
-
-#' @return List with best parameters and best score
-
-tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  
-  library(superml)
-  
-  library(randomForest)
-  
-  
-  
-  # Default parameter grid if not provided
-  
-  if(is.null(param_grid)) {
-    
-    param_grid <- list(
-      
-      n_estimators = c(100, 500, 1000),  # ntree in randomForest
-      
-      max_depth = c(5, 10, 15, 20, NULL),  # maxnodes (NULL = unlimited)
-      
-      min_samples_split = c(2, 5, 10),  # nodesize
-      
-      max_features = c("sqrt", "log2", floor(ncol(X)/3), floor(ncol(X)/2))  # mtry
-      
-    )
-    
-  }
-  
-  
-  
-  # Create trainer object
-  
-  rf_trainer <- RFTrainer$new()
-  
-  
-  
-  # Create GridSearchCV object
-  
-  gst <- GridSearchCV$new(
-    
-    trainer = rf_trainer,
-    
-    parameters = param_grid,
-    
-    n_folds = n_folds,
-    
-    scoring = scoring
-    
-  )
-  
-  
-  
-  # Fit the grid search
-  
-  gst$fit(cbind(y = y, X), "y")
-  
-  
-  
-  # Get best iteration
-  
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  
-  
-  return(list(
-    
-    best_params = best_result,
-    
-    grid_search = gst,
-    
-    best_score = best_result$score
-    
-  ))
-  
-}
-
-
-
-#' GridSearchCV wrapper for XGBoost using superml
-
-#' @param X Feature matrix (data.frame or matrix)
-
-#' @param y Target vector
-
-#' @param param_grid List of parameters to tune
-
-#' @param n_folds Number of cross-validation folds
-
-#' @param scoring Scoring metric(s)
-
-#' @return List with best parameters and best score
-
-tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  
-  library(superml)
-  
-  
-  
-  # Default parameter grid if not provided
-  
-  if(is.null(param_grid)) {
-    
-    param_grid <- list(
-      
-      n_estimators = c(50, 100, 200),  # nrounds
-      
-      max_depth = c(3, 6, 9, 12),
-      
-      learning_rate = c(0.01, 0.05, 0.1, 0.3),  # eta
-      
-      gamma = c(0, 0.1, 0.5),
-      
-      subsample = c(0.6, 0.8, 1.0),
-      
-      colsample_bytree = c(0.6, 0.8, 1.0),
-      
-      min_child_weight = c(1, 3, 5)
-      
-    )
-    
-  }
-  
-  
-  
-  # Create trainer object
-  
-  xgb_trainer <- XGBTrainer$new()
-  
-  
-  
-  # Create GridSearchCV object
-  
-  gst <- GridSearchCV$new(
-    
-    trainer = xgb_trainer,
-    
-    parameters = param_grid,
-    
-    n_folds = n_folds,
-    
-    scoring = scoring
-    
-  )
-  
-  
-  
-  # Fit the grid search
-  
-  gst$fit(cbind(y = y, X), "y")
-  
-  
-  
-  # Get best iteration
-  
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  
-  
-  return(list(
-    
-    best_params = best_result,
-    
-    grid_search = gst,
-    
-    best_score = best_result$score
-    
-  ))
-  
-}
-
-
-
-#' GridSearchCV wrapper for Naive Bayes using superml
-
-#' @param X Feature matrix (data.frame or matrix)
-
-#' @param y Target vector
-
-#' @param param_grid List of parameters to tune
-
-#' @param n_folds Number of cross-validation folds
-
-#' @param scoring Scoring metric(s)
-
-#' @return List with best parameters and best score
-
-tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  
-  library(superml)
-  
-  
-  
-  # Default parameter grid if not provided
-  
-  if(is.null(param_grid)) {
-    
-    param_grid <- list(
-      
-      laplace = c(0, 0.5, 1, 2, 5)  # Smoothing parameter
-      
-    )
-    
-  }
-  
-  
-  
-  # Create trainer object
-  
-  nb_trainer <- NBTrainer$new()
-  
-  
-  
-  # Create GridSearchCV object
-  
-  gst <- GridSearchCV$new(
-    
-    trainer = nb_trainer,
-    
-    parameters = param_grid,
-    
-    n_folds = n_folds,
-    
-    scoring = scoring
-    
-  )
-  
-  
-  
-  # Fit the grid search
-  
-  gst$fit(cbind(y = y, X), "y")
-  
-  
-  
-  # Get best iteration
-  
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  
-  
-  return(list(
-    
-    best_params = best_result,
-    
-    grid_search = gst,
-    
-    best_score = best_result$score
-    
-  ))
-  
-}
-
-
-
-#' GridSearchCV wrapper for KNN using superml
-
-#' @param X Feature matrix (data.frame or matrix)
-
-#' @param y Target vector
-
-#' @param param_grid List of parameters to tune
-
-#' @param n_folds Number of cross-validation folds
-
-#' @param scoring Scoring metric(s)
-
-#' @return List with best parameters and best score
-
-tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  
-  library(superml)
-  
-  
-  
-  # Default parameter grid if not provided
-  
-  if(is.null(param_grid)) {
-    
-    max_k <- min(floor(sqrt(length(y))), 30)
-    
-    param_grid <- list(
-      
-      n_neighbors = seq(3, max_k, by = 2),  # k parameter, odd numbers only
-      
-      weights = c("uniform", "distance"),
-      
-      algorithm = c("brute", "kd_tree")
-      
-    )
-    
-  }
-  
-  
-  
-  # Create trainer object
-  
-  knn_trainer <- KNNTrainer$new()
-  
-  
-  
-  # Create GridSearchCV object
-  
-  gst <- GridSearchCV$new(
-    
-    trainer = knn_trainer,
-    
-    parameters = param_grid,
-    
-    n_folds = n_folds,
-    
-    scoring = scoring
-    
-  )
-  
-  
-  
-  # Fit the grid search
-  
-  gst$fit(cbind(y = y, X), "y")
-  
-  
-  
-  # Get best iteration
-  
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  
-  
-  return(list(
-    
-    best_params = best_result,
-    
-    grid_search = gst,
-    
-    best_score = best_result$score
-    
-  ))
-  
-}
-
-
-
-#' GridSearchCV wrapper for Logistic Regression (ElasticNet) using superml
-
-#' @param X Feature matrix (data.frame or matrix)
-
-#' @param y Target vector
-
-#' @param param_grid List of parameters to tune
-
-#' @param n_folds Number of cross-validation folds
-
-#' @param scoring Scoring metric(s)
-
-#' @return List with best parameters and best score
-
-tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  
-  library(superml)
-  
-  
-  
-  # Default parameter grid if not provided
-  
-  if(is.null(param_grid)) {
-    
-    param_grid <- list(
-      
-      alpha = c(0, 0.25, 0.5, 0.75, 1.0),  # 0=Ridge, 1=Lasso, 0.5=ElasticNet
-      
-      lambda = c(0.001, 0.01, 0.1, 1.0, 10),
-      
-      penalty = c("elasticnet")
-      
-    )
-    
-  }
-  
-  
-  
-  # Create trainer object
-  
-  lm_trainer <- LMTrainer$new()
-  
-  
-  
-  # Create GridSearchCV object
-  
-  gst <- GridSearchCV$new(
-    
-    trainer = lm_trainer,
-    
-    parameters = param_grid,
-    
-    n_folds = n_folds,
-    
-    scoring = scoring
-    
-  )
-  
-  
-  
-  # Fit the grid search
-  
-  gst$fit(cbind(y = y, X), "y")
-  
-  
-  
-  # Get best iteration
-  
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  
-  
-  return(list(
-    
-    best_params = best_result,
-    
-    grid_search = gst,
-    
-    best_score = best_result$score
-    
-  ))
-  
-}
-
 
 
 ####

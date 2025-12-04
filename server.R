@@ -44,14 +44,32 @@ shinyServer(function(input, output,session) {
 #Save state#############  
   state <- reactiveValues()
   observe({
-    importparameters<<-list("learningfile"=input$learningfile,"validationfile"=input$validationfile,"modelfile"=input$modelfile,"extension" = input$filetype,
-                            "NAstring"=input$NAstring,"sheetn"=input$sheetn,"skipn"=input$skipn,"dec"=input$dec,"sep"=input$sep,
-                            "transpose"=input$transpose,"zeroegalNA"=input$zeroegalNA,confirmdatabutton=input$confirmdatabutton)
+    importparameters<<-list("learningfile"=input$learningfile,
+                            "validationfile"=input$validationfile,
+                            "modelfile"=input$modelfile,
+                            "extension" = input$filetype,
+                            "NAstring"=input$NAstring,
+                            "sheetn"=input$sheetn,
+                            "skipn"=input$skipn,
+                            "dec"=input$dec,
+                            "sep"=input$sep,
+                            "transpose"=input$transpose,
+                            "zeroegalNA"=input$zeroegalNA,
+                            confirmdatabutton=input$confirmdatabutton)
     
-    selectdataparameters<<-list("prctvalues"=input$prctvalues,"selectmethod"=input$selectmethod,"NAstructure"=input$NAstructure,"structdata"=input$structdata,
-                                "thresholdNAstructure"=input$thresholdNAstructure,"maxvaluesgroupmin"=input$maxvaluesgroupmin,"minvaluesgroupmax"=input$minvaluesgroupmax)
+    selectdataparameters<<-list("prctvalues"=input$prctvalues,
+                                "selectmethod"=input$selectmethod,
+                                "NAstructure"=input$NAstructure,
+                                "structdata"=input$structdata,
+                                "thresholdNAstructure"=input$thresholdNAstructure,
+                                "maxvaluesgroupmin"=input$maxvaluesgroupmin,
+                                "minvaluesgroupmax"=input$minvaluesgroupmax)
     
-    transformdataparameters<<-list("log"=input$log,"logtype"=input$logtype,"standardization"=input$standardization,"arcsin"=input$arcsin,"rempNA"=input$rempNA)
+    transformdataparameters<<-list("log"=input$log,
+                                   "logtype"=input$logtype,
+                                   "standardization"=input$standardization,
+                                   "arcsin"=input$arcsin,
+                                   "rempNA"=input$rempNA)
     
     
     testparameters<<-list("SFtest"=input$SFtest,"test"=input$test,"adjustpv"=input$adjustpv,"thresholdpv"=input$thresholdpv,"thresholdFC"=input$thresholdFC)
@@ -646,6 +664,7 @@ MODEL<-reactive({
   autotunesvm_param <- TRUE
   cost_model <- NULL
   gamma_model <- NULL
+  kernel_model <- NULL
   autotunexgb_param <- TRUE
   nrounds_model <- NULL
   maxdepth_model <- NULL
@@ -678,6 +697,7 @@ MODEL<-reactive({
     if(!input$autotunesvm){
       cost_model <- input$costsvm
       gamma_model <- input$gammasvm
+      kernel_model <- input$kernelsvm
     }
   }
 
@@ -739,6 +759,7 @@ MODEL<-reactive({
                          "alpha"=alpha_model,"lambda"=lambda_model,
                          "ntree"=ntree_model,"autotunerf"=autotunerf_param,"mtry"=mtry_model,
                          "autotunesvm"=autotunesvm_param,"cost"=cost_model,"gamma"=gamma_model,
+                         "kernel"= kernel_model , #ifelse(is.null(kernel_model),"radial",kernel_model),
                          "autotunexgb"=autotunexgb_param,"nrounds"=nrounds_model,
                          "max_depth"=maxdepth_model,"eta"=eta_model,
                          "autotunelgb"=autotunelgb_param,"nrounds_lgb"=nrounds_lgb_model,
@@ -748,14 +769,18 @@ MODEL<-reactive({
   validate(need(ncol(learningmodel)>1,"Not enough features"))
 
 
-  resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,modelparameters = modelparameters,
-                           transformdataparameters = transformdataparameters,datastructuresfeatures =  datastructuresfeatures,
+  resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,
+                           modelparameters = modelparameters,
+                           transformdataparameters = transformdataparameters,
+                           datastructuresfeatures =  datastructuresfeatures,
                            learningselect = learningselect)
   
- list("DATALEARNINGMODEL"=resmodel$datalearningmodel,"MODEL"=resmodel$model,"DATAVALIDATIONMODEL"=resmodel$datavalidationmodel,
+ list("DATALEARNINGMODEL"=resmodel$datalearningmodel,"MODEL"=resmodel$model,
+      "DATAVALIDATIONMODEL"=resmodel$datavalidationmodel,
       "GROUPS"=resmodel$groups,"modelparameters"=resmodel$modelparameters)
   
   })
+
 
 observe({
   if (input$model=="svm") { updateNumericInput(session, "thresholdmodel", value = 0)}
@@ -816,6 +841,18 @@ output$svmgamma<-renderText({
     "N/A"
   }
 })
+
+output$svmkernel<-renderText({
+  if(input$model=="svm" && !is.null(MODEL()$MODEL)){
+    MODEL()$MODEL$kernel
+    cat("Kernel  type  :  ", MODEL()$MODEL$kernel, "\n")
+    cat("kernel :", MODEL()$modelparameters$kernel, " \n")
+    cat("Kernel  :  ", input$kernelsvm, "\n")
+    input$kernelsvm
+  } else {
+    "N/A"
+  }
+  })
 
 output$rfmtry<-renderText({
   if(input$model=="randomforest" && !is.null(MODEL()$MODEL)){
