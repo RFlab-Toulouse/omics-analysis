@@ -4,6 +4,9 @@ source("global.R")
 #options(xtable.include.rownames=T)
 
 shinyServer(function(input, output,session) {
+  #if(requireNamespace("superml", quietly = TRUE)) {
+    #attachNamespace("superml")
+  #}
   
   output$modelUploaded <- reactive({
     return(!is.null(input$modelfile))

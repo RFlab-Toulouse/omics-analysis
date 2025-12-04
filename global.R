@@ -16,6 +16,7 @@ usePackage("e1071")#svm
 usePackage("pROC")#roccurve
 usePackage("devtools")
 usePackage("readxl")
+usePackage("superml")
 usePackage("shiny")
 # if (!is.element("factoextra", installed.packages()[,1]))
 #   install_github("kassambara/factoextra")
@@ -35,7 +36,7 @@ usePackage("survival")#for cox regression
 usePackage("xgboost")#for xgboost gradient boosting
 usePackage("lightgbm")#for lightgbm gradient boosting
 usePackage("class")#for k-nearest neighbors
-usePackage("superml")
+
 
 ##########################
 importfile<-function (datapath,extension,NAstring="NA",sheet=1,skiplines=0,dec=".",sep=","){
@@ -912,8 +913,8 @@ SFtest<-function(toto,shaptest=T,Ftest=T,threshold=0.05){
 #' @param scoring Scoring metric(s)
 #' @return List with best parameters and best score
 tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  library(superml)
-  library(randomForest)
+  # library(superml)
+  # library(randomForest)
   if(!requireNamespace("superml", quietly = TRUE)) {
     stop("Package 'superml' is required but not installed")
   }
@@ -929,10 +930,10 @@ tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
   }
 
   # Create trainer object
-  rf_trainer <- superml:::RFTrainer$new()
+  rf_trainer <- superml::RFTrainer$new()
 
   # Create GridSearchCV object
-  gst <-  superml:::GridSearchCV$new(
+  gst <-  superml::GridSearchCV$new(
     trainer = rf_trainer,
     parameters = param_grid,
     n_folds = n_folds,
@@ -960,7 +961,7 @@ tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
 #' @param scoring Scoring metric(s)
 #' @return List with best parameters and best score
 tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  library(superml)
+  # library(superml)
 
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
@@ -1007,7 +1008,7 @@ tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
 #' @param scoring Scoring metric(s)
 #' @return List with best parameters and best score
 tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  library(superml)
+  # library(superml)
 
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
@@ -1048,7 +1049,7 @@ tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
 #' @param scoring Scoring metric(s)
 #' @return List with best parameters and best score
 tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  library(superml)
+  # library(superml)
 
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
@@ -1061,7 +1062,7 @@ tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
   }
 
   # Create trainer object
-  knn_trainer <- KNNTrainer$new()
+  knn_trainer <- KNNTrainer$new(type = "class")
 
   # Create GridSearchCV object
   gst <- GridSearchCV$new(
@@ -1092,7 +1093,7 @@ tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
 #' @param scoring Scoring metric(s)
 #' @return List with best parameters and best score
 tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  library(superml)
+  # library(superml)
 
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
