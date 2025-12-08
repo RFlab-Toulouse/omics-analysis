@@ -2580,8 +2580,12 @@ testparametersfunction<-function(learning,validation,tabparameters){
     parameters<-tabparameters[i,]
     if(!parameters$NAstructure){tabparameters[i,c("thresholdNAstructure","structdata","maxvaluesgroupmin","minvaluesgroupmax")]<-rep(x = NA,4)    }
     #selectdataparameterst<-parameters[1:7]
-    selectdataparameters<<-list("prctvalues"=parameters$prctvalues,"selectmethod"=parameters$selectmethod,"NAstructure"=parameters$NAstructure,"structdata"=parameters$structdata,
-                                "thresholdNAstructure"=parameters$thresholdNAstructure,"maxvaluesgroupmin"=parameters$maxvaluesgroupmin,"minvaluesgroupmax"=parameters$minvaluesgroupmax)
+    selectdataparameters<<-list("prctvalues"=parameters$prctvalues,
+                                "selectmethod"=parameters$selectmethod,
+                                "NAstructure"=parameters$NAstructure,
+                                "structdata"=parameters$structdata,
+                                "thresholdNAstructure"=parameters$thresholdNAstructure,
+                                "maxvaluesgroupmin"=parameters$maxvaluesgroupmin,"minvaluesgroupmax"=parameters$minvaluesgroupmax)
     resselectdata<<-selectdatafunction(learning = learning,selectdataparameters = selectdataparameters)
     
     #transformdataparameters<<-parameters[8:11]

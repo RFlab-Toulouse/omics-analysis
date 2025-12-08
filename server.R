@@ -1414,6 +1414,23 @@ plotbarstest =  function(dataset_test_params, type, filter_invalid = FALSE, show
     data_long$model <- factor(data_long$model, levels = model_order)
   }
   
+  if(type == 'both'){
+    scale_fill_manual(fill = c("AUC Learning" = "#E41A1C",
+                               "Sensitivity Learning" = "#377EB8",
+                               "Specificity Learning" = "#4DAF4A",
+                               "AUC Validation" = "#E41A1C",
+                               "Sensitivity Validation" = "#377EB8",
+                               "Specificity Validation" = "#4DAF4A"))  
+  }else if(type == 'learning'){
+    scale_fill_manual(fill = c("AUC Learning" = "#E41A1C",
+                               "Sensitivity Learning" = "#377EB8",
+                               "Specificity Learning" = "#4DAF4A")) 
+  }else if(type == 'validation'){
+    scale_fill_manual(fill = c("AUC Validation" = "#E41A1C",
+                               "Sensitivity Validation" = "#377EB8",
+                               "Specificity Validation" = "#4DAF4A")) 
+  }
+  
   # Créer le graphique à barres avec intervalles de confiance
   p <- ggplot(data_long, aes(x = model, y = value, fill = metric)) +
     geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
@@ -1443,7 +1460,7 @@ plotbarstest =  function(dataset_test_params, type, filter_invalid = FALSE, show
           legend.text = element_text(size =10, face = 'bold'),
           legend.title = element_text(size =12, face = 'bold')
     ) + 
-    scale_fill_brewer(palette = "Set1") +
+    # scale_fill_brewer(palette = "Set1") +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
   
   return(p)
