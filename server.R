@@ -875,6 +875,7 @@ output$rfntree<-renderText({
 
 output$optiTuning_K = renderText({
   if(input$model=="knn" && !is.null(MODEL()$MODEL)){
+    cat("the optimal k is :", MODEL()$MODEL$optimal_k, " \n")
      MODEL()$MODEL$optimal_k
   } else {
     "N/A"
@@ -931,8 +932,6 @@ output$lgbnumleaves<-renderText({
   }
 
 })
-
- 
 
 output$lgblearningrate<-renderText({
   if(input$model=="lightgbm" && !is.null(MODEL()$MODEL)){
@@ -1117,16 +1116,64 @@ outputOptions(output, 'testNAstructure', suspendWhenHidden=FALSE)
 
 TESTPARAMETERS <- eventReactive(input$tunetest, { 
   prctvaluestest<-seq(input$prctvaluestest[1],input$prctvaluestest[2],by = 5)
-  listparameters<<-list("prctvalues"=prctvaluestest,"selectmethod"=input$selectmethodtest,"NAstructure"=as.logical(input$NAstructuretest),
-                        "thresholdNAstructure"=input$thresholdNAstructuretest,"structdata"=input$structdatatest,"maxvaluesgroupmin"=input$maxvaluesgroupmintest,
-                        "minvaluesgroupmax"=input$minvaluesgroupmaxtest,"rempNA"=input$rempNAtest,"log"=as.logical(input$logtest),"logtype"=input$logtypetest,
-                        "standardization"=as.logical(input$standardizationtest),"arcsin"=as.logical(input$arcsintest),"test"=input$testtest,"adjustpv"=as.logical(input$adjustpvtest),
-                        "thresholdpv"=input$thresholdpvtest,"thresholdFC"=input$thresholdFCtest,"model"=input$modeltest,"thresholdmodel"=0,"fs"=as.logical(input$fstest))
+  listparameters<<-list("prctvalues"=prctvaluestest,
+                        "selectmethod"=input$selectmethodtest,
+                        "NAstructure"=as.logical(input$NAstructuretest),
+                        "thresholdNAstructure"=input$thresholdNAstructuretest,
+                        "structdata"=input$structdatatest,
+                        "maxvaluesgroupmin"=input$maxvaluesgroupmintest,
+                        "minvaluesgroupmax"=input$minvaluesgroupmaxtest,
+                        "rempNA"=input$rempNAtest,
+                        "log"=as.logical(input$logtest),
+                        "logtype"=input$logtypetest,
+                        "standardization"=as.logical(input$standardizationtest),
+                        "arcsin"=as.logical(input$arcsintest),"test"=input$testtest,
+                        "adjustpv"=as.logical(input$adjustpvtest),
+                        "thresholdpv"=input$thresholdpvtest,
+                        "thresholdFC"=input$thresholdFCtest,
+                        "model"=input$modeltest,
+                        "thresholdmodel"=0,"fs"=as.logical(input$fstest),
+                        "threshold_method"=input$threshold_method_test, 
+                        "tuning_method"=input$tuning_method_test)
     length(listparameters$prctvalues)
     validate(need( sum(do.call(rbind, lapply(listparameters, FUN=function(x){length(x)==0})))==0,"One of the parameters is empty"))
     tabparameters<<-constructparameters(listparameters)
-    # tabparameters$thresholdmodel[which(tabparameters$model=="randomforest")]<-0.5
-    # Set appropriate threshold for each model type
+    # Set initial thresholds for probabilistic models
+    # Note: If threshold_method != "fixed", these values will be recalculated
+    # in testparametersfunction(). The 0.5 here serves as:
+    # - Final threshold if threshold_method = "fixed" (default for probabilistic models)
+    # - Initial placeholder if threshold_method = "youden" or "equiprob" (will be optimized)
+    
+    if(input$threshold_method_test == "fixed"){
+      # No optimization: 0.5 is the final threshold for probabilistic models
+      cat("✓ Using fixed thresholds: 0.5 for probabilistic models, 0 for SVM\n")
+    } else if(input$threshold_method_test == "youden"){
+      # Youden optimization enabled: 0.5 is a placeholder, will be recalculated
+      cat("✓ Threshold optimization enabled: Youden method (maximize sensitivity + specificity)\n")
+      cat("  Initial threshold: 0.5 (placeholder, will be optimized)\n")
+      cat("\n")
+      cat("⚠️  IMPORTANT NOTE about threshold optimization in Test Parameters:\n")
+      cat("   - The threshold is optimized on TRAINING data for each parameter combination\n")
+      cat("   - This is CORRECT methodology: fit threshold on train, apply to validation\n")
+      cat("   - However, when comparing many combinations, the best validation result may be\n")
+      cat("     slightly optimistic due to multiple testing (similar to hyperparameter tuning)\n")
+      cat("   - Recommendation: Use these results to SELECT the best configuration,\n")
+      cat("     then RE-VALIDATE on independent test data if available\n")
+      cat("\n")
+    } else if(input$threshold_method_test == "equiprob"){
+      # Equiprobability optimization enabled: 0.5 is a placeholder, will be recalculated
+      cat("✓ Threshold optimization enabled: Equiprobability method (minimize |FP-FN|)\n")
+      cat("  Initial threshold: 0.5 (placeholder, will be optimized)\n")
+      cat("\n")
+      cat("⚠️  IMPORTANT NOTE about threshold optimization in Test Parameters:\n")
+      cat("   - The threshold is optimized on TRAINING data for each parameter combination\n")
+      cat("   - This is CORRECT methodology: fit threshold on train, apply to validation\n")
+      cat("   - However, when comparing many combinations, the best validation result may be\n")
+      cat("     slightly optimistic due to multiple testing (similar to hyperparameter tuning)\n")
+      cat("   - Recommendation: Use these results to SELECT the best configuration,\n")
+      cat("     then RE-VALIDATE on independent test data if available\n")
+      cat("\n")
+    }
     
     tabparameters$thresholdmodel[which(tabparameters$model=="randomforest")]<-0.5
     tabparameters$thresholdmodel[which(tabparameters$model=="elasticnet")]<-0.5
@@ -1168,12 +1215,514 @@ output$tabtestparameters<-renderDataTable({
             )
             )
 
+
 output$downloadtabtestparameters <- downloadHandler(
   filename = function() { paste('dataset', '.',input$paramdowntable, sep='') },
   content = function(file) {
     downloaddataset(   TESTPARAMETERS(), file) })
 
+
+
+
+# Nouveaux graphiques améliorés
+output$plottestparametersthreshold = renderPlot({
+  resparameters<<-TESTPARAMETERS()
+  plot_threshold_performance(dataset_test_params = resparameters)
+})
+
+output$downloadplottestparametersthreshold = downloadHandler(
+  filename = function() {paste('graph_threshold_performance','.',input$paramdownplot, sep='')},
+  content = function(file) {
+    ggsave(file, plot = plot_threshold_performance(dataset_test_params = TESTPARAMETERS()),  
+           device = input$paramdownplot)},
+  contentType=NA)
+
+output$plottestparametersoverfitting = renderPlot({
+  resparameters<<-TESTPARAMETERS()
+  plot_overfitting(dataset_test_params = resparameters)
+})
+
+output$downloadplottestparametersoverfitting = downloadHandler(
+  filename = function() {paste('graph_overfitting','.',input$paramdownplot, sep='')},
+  content = function(file) {
+    ggsave(file, plot = plot_overfitting(dataset_test_params = TESTPARAMETERS()),  
+           device = input$paramdownplot)},
+  contentType=NA)
+
+
+# Fonction améliorée avec filtrage, tri et intervalles de confiance
+plotbarstest =  function(dataset_test_params, type, filter_invalid = FALSE, show_ci = FALSE){
+  # Filtrer les résultats non valides (AUC < 0.5 ou NA)
+  if(filter_invalid){
+    dataset_test_params <- dataset_test_params %>%
+      filter(
+        (`auc learning` > 0.5 | is.na(`auc learning`)),
+        (`auc validation` > 0.5 | is.na(`auc validation`)),
+        !is.na(`threshold used`) | is.na(`threshold used`)
+      )
+  }
+  
+  if(type ==  'learning'){
+    new_dataset  =  dataset_test_params %>% 
+      group_by(model, test) %>%
+      summarise(
+        mean_auc_learning = mean(`auc learning`, na.rm = TRUE),
+        se_auc_learning = sd(`auc learning`, na.rm = TRUE) / sqrt(n()),
+        mean_sensibility_learning = mean(`sensibility learning`, na.rm = TRUE),
+        se_sensibility_learning = sd(`sensibility learning`, na.rm = TRUE) / sqrt(n()),
+        mean_specificity_learning = mean(`specificity learning`, na.rm = TRUE),
+        se_specificity_learning = sd(`specificity learning`, na.rm = TRUE) / sqrt(n()),
+        .groups = 'drop',
+        count = n()
+      )
+    
+    # Trier les modèles par performance moyenne (AUC)
+    model_order <- new_dataset %>%
+      group_by(model) %>%
+      summarise(mean_perf = mean(mean_auc_learning, na.rm = TRUE)) %>%
+      arrange(desc(mean_perf)) %>%
+      pull(model)
+    
+    # Convertir le jeu de données en format long
+    data_long <- pivot_longer(new_dataset, 
+                              cols = starts_with("mean_"), 
+                              names_to = "metric", 
+                              values_to = "value")
+    
+    se_long <- pivot_longer(new_dataset,
+                            cols = starts_with("se_"),
+                            names_to = "metric_se",
+                            values_to = "se")
+    
+    # Joindre les erreurs standard
+    data_long$se <- se_long$se[match(
+      paste(data_long$model, data_long$test, gsub("mean_", "", data_long$metric)),
+      paste(se_long$model, se_long$test, gsub("se_", "", se_long$metric_se))
+    )]
+    
+    data_long = data_long  %>% mutate(metric = recode(metric,
+                                                      "mean_auc_learning" = "AUC Learning",
+                                                      "mean_sensibility_learning" = "Sensitivity Learning",
+                                                      "mean_specificity_learning" = "Specificity Learning")
+    )
+    
+    # Trier les modèles
+    data_long$model <- factor(data_long$model, levels = model_order)
+    
+  } else if(type == 'validation'){
+    new_dataset  =  dataset_test_params %>% 
+      group_by(model, test) %>%
+      summarise(
+        mean_auc_validation = mean(`auc validation`, na.rm = TRUE),
+        se_auc_validation = sd(`auc validation`, na.rm = TRUE) / sqrt(n()),
+        mean_sensibility_validation = mean(`sensibility validation`, na.rm = TRUE),
+        se_sensibility_validation = sd(`sensibility validation`, na.rm = TRUE) / sqrt(n()),
+        mean_specificity_validation = mean(`specificity validation`, na.rm = TRUE),
+        se_specificity_validation = sd(`specificity validation`, na.rm = TRUE) / sqrt(n()),
+        .groups = 'drop',
+        count = n()
+      )
+    
+    # Trier les modèles par performance moyenne (AUC)
+    model_order <- new_dataset %>%
+      group_by(model) %>%
+      summarise(mean_perf = mean(mean_auc_validation, na.rm = TRUE)) %>%
+      arrange(desc(mean_perf)) %>%
+      pull(model)
+    
+    # Convertir le jeu de données en format long
+    data_long <- pivot_longer(new_dataset, 
+                              cols = starts_with("mean_"), 
+                              names_to = "metric", 
+                              values_to = "value")
+    
+    se_long <- pivot_longer(new_dataset,
+                            cols = starts_with("se_"),
+                            names_to = "metric_se",
+                            values_to = "se")
+    
+    # Joindre les erreurs standard
+    data_long$se <- se_long$se[match(
+      paste(data_long$model, data_long$test, gsub("mean_", "", data_long$metric)),
+      paste(se_long$model, se_long$test, gsub("se_", "", se_long$metric_se))
+    )]
+    
+    data_long = data_long  %>% mutate(metric = recode(metric,
+                                                      "mean_auc_validation" = "AUC Validation",
+                                                      "mean_sensibility_validation" = "Sensitivity Validation",
+                                                      "mean_specificity_validation" = "Specificity Validation"
+    )
+    )
+    
+    # Trier les modèles
+    data_long$model <- factor(data_long$model, levels = model_order)
+    
+  }else if (type == 'both'){
+    new_dataset  =  dataset_test_params %>% 
+      group_by(model, test) %>%
+      summarise(
+        mean_auc_validation = mean(`auc validation`, na.rm = TRUE),
+        se_auc_validation = sd(`auc validation`, na.rm = TRUE) / sqrt(n()),
+        mean_sensibility_validation = mean(`sensibility validation`, na.rm = TRUE),
+        se_sensibility_validation = sd(`sensibility validation`, na.rm = TRUE) / sqrt(n()),
+        mean_specificity_validation = mean(`specificity validation`, na.rm = TRUE),
+        se_specificity_validation = sd(`specificity validation`, na.rm = TRUE) / sqrt(n()),
+        mean_auc_learning = mean(`auc learning`, na.rm = TRUE),
+        se_auc_learning = sd(`auc learning`, na.rm = TRUE) / sqrt(n()),
+        mean_sensibility_learning = mean(`sensibility learning`, na.rm = TRUE),
+        se_sensibility_learning = sd(`sensibility learning`, na.rm = TRUE) / sqrt(n()),
+        mean_specificity_learning = mean(`specificity learning`, na.rm = TRUE),
+        se_specificity_learning = sd(`specificity learning`, na.rm = TRUE) / sqrt(n()),
+        .groups = 'drop',
+        count = n()
+      )
+    
+    # Trier les modèles par performance moyenne (AUC validation, ou learning si validation NA)
+    model_order <- new_dataset %>%
+      group_by(model) %>%
+      summarise(mean_perf = mean(ifelse(is.na(mean_auc_validation), mean_auc_learning, mean_auc_validation), na.rm = TRUE)) %>%
+      arrange(desc(mean_perf)) %>%
+      pull(model)
+    
+    # Convertir le jeu de données en format long
+    data_long <- pivot_longer(new_dataset, 
+                              cols = starts_with("mean_"), 
+                              names_to = "metric", 
+                              values_to = "value")
+    
+    se_long <- pivot_longer(new_dataset,
+                            cols = starts_with("se_"),
+                            names_to = "metric_se",
+                            values_to = "se")
+    
+    # Joindre les erreurs standard
+    data_long$se <- se_long$se[match(
+      paste(data_long$model, data_long$test, gsub("mean_", "", data_long$metric)),
+      paste(se_long$model, se_long$test, gsub("se_", "", se_long$metric_se))
+    )]
+    
+    data_long = data_long  %>% mutate(metric = recode(metric,
+                                                      "mean_auc_validation" = "AUC Validation",
+                                                      "mean_sensibility_validation" = "Sensitivity Validation",
+                                                      "mean_specificity_validation" = "Specificity Validation",
+                                                      "mean_auc_learning" = "AUC Learning",
+                                                      "mean_sensibility_learning" = "Sensitivity Learning",
+                                                      "mean_specificity_learning" = "Specificity Learning")
+    )
+    
+    # Trier les modèles
+    data_long$model <- factor(data_long$model, levels = model_order)
+  }
+  
+  # Créer le graphique à barres avec intervalles de confiance
+  p <- ggplot(data_long, aes(x = model, y = value, fill = metric)) +
+    geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+    geom_text(aes(label = round(value*100, 1)), 
+              position = position_dodge(width = 0.8), 
+              vjust = -0.5, size = 3) 
+  
+  # Ajouter les intervalles de confiance si demandé
+  if(show_ci && !all(is.na(data_long$se))){
+    p <- p + geom_errorbar(aes(ymin = value - 1.96*se, ymax = value + 1.96*se),
+                           position = position_dodge(width = 0.9), 
+                           width = 0.2, alpha = 0.7)
+  }
+  
+  p <- p +
+    facet_wrap(~ test, ncol = 2) +
+    labs(x = "Models (sorted by performance)", 
+         y = "Scores", 
+         title = "Comparison of metrics by model and by test") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size =  12,face = 'bold'),
+          axis.text.y =  element_text(size =  12,face = 'bold'),
+          plot.title = element_text(size = 14, face = "bold"),
+          axis.title.x = element_text(size = 13, face = "bold"),
+          axis.title.y = element_text(size = 13, face = "bold"),
+          strip.text = element_text(size = 12, face = "bold"),
+          legend.text = element_text(size =10, face = 'bold'),
+          legend.title = element_text(size =12, face = 'bold')
+    ) + 
+    scale_fill_brewer(palette = "Set1") +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+  
+  return(p)
+}
+
+# Nouvelle fonction : Graphique seuil vs performance
+plot_threshold_performance = function(dataset_test_params, filter_invalid = TRUE){
+  # Filtrer les résultats non valides
+  if(filter_invalid){
+    dataset_test_params <- dataset_test_params %>%
+      filter(
+        (`auc learning` > 0.5 | is.na(`auc learning`)),
+        (`auc validation` > 0.5 | is.na(`auc validation`)),
+        !is.na(`threshold used`)
+      )
+  }
+  
+  # Filtrer les valeurs NA
+  dataset_clean <- dataset_test_params %>%
+    filter(!is.na(`threshold used`), 
+           !is.na(`auc validation`) | !is.na(`auc learning`))
+  
+  if(nrow(dataset_clean) == 0){
+    return(ggplot() + 
+             annotate("text", x = 0.5, y = 0.5, label = "No valid data to plot", size = 6) +
+             theme_void())
+  }
+  
+  # Créer le graphique
+  p <- ggplot(dataset_clean, aes(x = `threshold used`, y = `auc validation`, color = model)) +
+    geom_point(alpha = 0.6, size = 2) +
+    geom_smooth(method = "loess", se = TRUE, alpha = 0.2) +
+    facet_wrap(~ test, ncol = 2) +
+    labs(x = "Optimal Threshold", 
+         y = "AUC Validation",
+         title = "Relationship between optimal threshold and validation performance",
+         color = "Model") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 10, face = 'bold'),
+          axis.text.y = element_text(size = 10, face = 'bold'),
+          plot.title = element_text(size = 14, face = "bold"),
+          strip.text = element_text(size = 11, face = "bold"),
+          legend.text = element_text(size = 9),
+          legend.title = element_text(size = 11, face = "bold"))
+  
+  return(p)
+}
+
+# Nouvelle fonction : Graphique overfitting
+plot_overfitting = function(dataset_test_params, filter_invalid = TRUE){
+  # Filtrer les résultats non valides
+  if(filter_invalid){
+    dataset_test_params <- dataset_test_params %>%
+      filter(
+        (`auc learning` > 0.5 | is.na(`auc learning`)),
+        (`auc validation` > 0.5 | is.na(`auc validation`))
+      )
+  }
+  
+  # Calculer les différences (overfitting)
+  dataset_overfit <- dataset_test_params %>%
+    filter(!is.na(`auc learning`), !is.na(`auc validation`)) %>%
+    mutate(
+      overfitting_auc = `auc learning` - `auc validation`,
+      overfitting_sens = `sensibility learning` - `sensibility validation`,
+      overfitting_spec = `specificity learning` - `specificity validation`
+    ) %>%
+    select(model, test, overfitting_auc, overfitting_sens, overfitting_spec)
+  
+  if(nrow(dataset_overfit) == 0){
+    return(ggplot() + 
+             annotate("text", x = 0.5, y = 0.5, label = "No valid data to plot", size = 6) +
+             theme_void())
+  }
+  
+  # Calculer moyennes et erreurs standard par groupe
+  dataset_summary <- dataset_overfit %>%
+    pivot_longer(cols = starts_with("overfitting_"), 
+                 names_to = "metric", 
+                 values_to = "overfitting") %>%
+    group_by(model, test, metric) %>%
+    summarise(
+      mean_overfitting = mean(overfitting, na.rm = TRUE),
+      se_overfitting = sd(overfitting, na.rm = TRUE) / sqrt(n()),
+      .groups = 'drop'
+    ) %>%
+    mutate(metric = recode(metric,
+                           "overfitting_auc" = "AUC Overfitting",
+                           "overfitting_sens" = "Sensitivity Overfitting",
+                           "overfitting_spec" = "Specificity Overfitting"))
+  
+  # Trier les modèles par overfitting moyen (AUC)
+  model_order <- dataset_summary %>%
+    filter(metric == "AUC Overfitting") %>%
+    group_by(model) %>%
+    summarise(mean_overfit = mean(mean_overfitting, na.rm = TRUE)) %>%
+    arrange(desc(mean_overfit)) %>%
+    pull(model)
+  
+  dataset_summary$model <- factor(dataset_summary$model, levels = model_order)
+  
+  # Créer le graphique
+  p <- ggplot(dataset_summary, aes(x = model, y = mean_overfitting, fill = model)) +
+    geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+    geom_errorbar(aes(ymin = mean_overfitting - 1.96*se_overfitting,
+                      ymax = mean_overfitting + 1.96*se_overfitting),
+                  position = position_dodge(width = 0.9),
+                  width = 0.2) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
+    facet_grid(metric ~ test) +
+    labs(x = "Models (sorted by AUC overfitting)", 
+         y = "Mean Overfitting (Learning - Validation)",
+         title = "Model overfitting analysis (positive = overfitting)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 10, face = 'bold', angle = 45, hjust = 1),
+          axis.text.y = element_text(size = 10, face = 'bold'),
+          plot.title = element_text(size = 14, face = "bold"),
+          strip.text = element_text(size = 10, face = "bold"),
+          legend.position = "none")
+  
+  return(p)
+}
+
+
+# # PARTIE LEARNING
+output$plottestparameterslearning = renderPlot({
+  resparameters<<-TESTPARAMETERS()
+  plotbarstest(dataset_test_params = resparameters, type ='learning')
+})
+
+output$downloadplottestparametersvalidation = downloadHandler(
+  filename = function() {paste('graph','.',input$paramdownplot, sep='')},
+  content = function(file) {
+    ggsave(file, plot =   plotbarstest(dataset_test_params = TESTPARAMETERS() , type ='learning' ),
+           device = input$paramdownplot)},
+  contentType=NA)
+
+
+# PARTIE VALIDATION
+output$plottestparametersvalidation =  renderPlot({
+  resparameters<<-TESTPARAMETERS()
+  plotbarstest(dataset_test_params = resparameters, type ='validation')
+})
+
+output$downloadplottestparameterslearning = downloadHandler(
+  filename = function() {paste('graph','.',input$paramdownplot, sep='')},
+  content = function(file) {
+    ggsave(file, plot =   plotbarstest(dataset_test_params = TESTPARAMETERS() , type ='validation' ),
+           device = input$paramdownplot)},
+  contentType=NA)
+
+# PARTIE GLOBAL
+output$plottestparametersboth =  renderPlot({
+  resparameters<<-TESTPARAMETERS()
+  plotbarstest(dataset_test_params = resparameters, type ='both')
+})
+
+
+output$downloadplottestparametersboth = downloadHandler(
+  filename = function() {paste('graph','.',input$paramdownplot, sep='')},
+  content = function(file) {
+    ggsave(file, plot =   plotbarstest(dataset_test_params = TESTPARAMETERS() , type ='both' ),
+           device = input$paramdownplot)},
+  contentType=NA)
+
+# 
+# plotbarstest =  function(dataset_test_params, type){
+#   # library(dplyr)
+#   if(type ==  'learning'){
+#     new_dataset  =  dataset_test_params %>% 
+#       group_by(model, test) %>%
+#       summarise(mean_auc_learning = mean(`auc learning`, na.rm = TRUE),
+#                 mean_sensibility_learning = mean(`sensibility learning`, na.rm = TRUE),
+#                 mean_specificity_learning = mean(`specificity learning`, na.rm = TRUE),
+#                 .groups = 'drop',
+#                 count = n())
+#     
+#     # Convertir le jeu de données en format long
+#     data_long <- pivot_longer(new_dataset, 
+#                               cols = starts_with("mean_"), 
+#                               names_to = "metric", 
+#                               values_to = "value")
+#     
+#     data_long = data_long  %>% mutate(metric = recode(metric,
+#                                                       "mean_auc_learning" = "AUC Learning",
+#                                                       "mean_sensibility_learning" = "Sensitivity Learning",
+#                                                       "mean_specificity_learning" = "Specificity Learning")
+#     )
+#     
+#   } else if(type == 'validation'){
+#     new_dataset  =  dataset_test_params %>% 
+#       group_by(model, test) %>%
+#       summarise(mean_auc_validation = mean(`auc validation`, na.rm = TRUE),
+#                 mean_sensibility_validation = mean(`sensibility validation`, na.rm = TRUE),
+#                 mean_specificity_validation = mean(`specificityvalidation`, na.rm = TRUE),
+#                 .groups = 'drop',
+#                 count = n())
+#     
+#     # Convertir le jeu de données en format long
+#     data_long <- pivot_longer(new_dataset, 
+#                               cols = starts_with("mean_"), 
+#                               names_to = "metric", 
+#                               values_to = "value")
+#     
+#     data_long = data_long  %>% mutate(metric = recode(metric,
+#                                                       "mean_auc_validation" = "AUC Validation",
+#                                                       "mean_sensibility_validation" = "Sensitivity Validation",
+#                                                       "mean_specificity_validation" = "Specificity Validation"
+#                                                       )
+#     )
+#     
+#   }else if (type == 'both'){
+#     new_dataset  =  dataset_test_params %>% 
+#       group_by(model, test) %>%
+#       summarise(mean_auc_validation = mean(`auc validation`, na.rm = TRUE),
+#                 mean_sensibility_validation = mean(`sensibility validation`, na.rm = TRUE),
+#                 mean_specificity_validation = mean(`specificityvalidation`, na.rm = TRUE),
+#                 mean_auc_learning = mean(`auc learning`, na.rm = TRUE),
+#                 mean_sensibility_learning = mean(`sensibility learning`, na.rm = TRUE),
+#                 mean_specificity_learning = mean(`specificity learning`, na.rm = TRUE),
+#                 .groups = 'drop',
+#                 count = n())
+#     
+#     # Convertir le jeu de données en format long
+#     data_long <- pivot_longer(new_dataset, 
+#                               cols = starts_with("mean_"), 
+#                               names_to = "metric", 
+#                               values_to = "value")
+#     
+#     data_long = data_long  %>% mutate(metric = recode(metric,
+#                                                       "mean_auc_validation" = "AUC Validation",
+#                                                       "mean_sensibility_validation" = "Sensitivity Validation",
+#                                                       "mean_specificity_validation" = "Specificity Validation",
+#                                                       "mean_auc_learning" = "AUC Learning",
+#                                                       "mean_sensibility_learning" = "Sensitivity Learning",
+#                                                       "mean_specificity_learning" = "Specificity Learning")
+#     )
+#     
+#   }
+#   
+#   # Créer le graphique à barres
+#   # ggplot(data_long, aes(x = interaction(model, test), y = value, fill = metric)) +
+#   #   geom_bar(stat = "identity", position = "dodge") +
+#   #   labs(x = "Modèle et Test", y = "Valeur", title = "Comparaison des métriques par modèle et test") +
+#   #   theme_minimal() +
+#   #   theme(axis.text.x = element_text(size =  12,face = 'bold'),
+#   #         axis.text.y =  element_text(size =  12,face = 'bold'),
+#   #         plot.title = element_text(size = 14, face = "bold"),
+#   #         axis.title.x = element_text(size = 13, face = "bold"),
+#   #         axis.title.y = element_text(size = 13, face = "bold")
+#   #   ) +
+#   #   scale_fill_brewer(palette = "Set1") +
+#   #   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#   
+#   
+#   # Créer le graphique à barres avec des facettes pour chaque test
+#   ggplot(data_long, aes(x = model, y = value, fill = metric)) +
+#     geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+#     geom_text(aes(label = round(value*100, 1)), 
+#               position = position_dodge(width = 0.8), 
+#               vjust = -0.5) + 
+#     facet_wrap(~ test, ncol = 2) +
+#     labs(x = "Models", y = "Scores", title = "Comparaison des métriques par modèle et test") +
+#     theme_minimal() +
+#     theme(axis.text.x = element_text(size =  12,face = 'bold'),
+#           axis.text.y =  element_text(size =  12,face = 'bold'),
+#           plot.title = element_text(size = 14, face = "bold"),
+#           axis.title.x = element_text(size = 13, face = "bold"),
+#           axis.title.y = element_text(size = 13, face = "bold"),
+#           strip.text = element_text(size = 12, face = "bold"),
+#           legend.text = element_text(size =10, face = 'bold'),
+#           legend.title = element_text(size =12, face = 'bold')
+#     ) + 
+#     scale_fill_brewer(palette = "Set1") +
+#     # scale_fill_manual(values = custom_colors) +
+#     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+#   
+# }
+
 }) 
 
-
- 
+# 
