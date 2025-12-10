@@ -19,6 +19,8 @@ usePackage("devtools")
 usePackage("readxl")
 usePackage("superml")
 usePackage("shiny")
+usePackage("shinythemes")
+usePackage("bslib")
 # if (!is.element("factoextra", installed.packages()[,1]))
 #   install_github("kassambara/factoextra")
 #usePackage("factoextra")#PCA graphs
@@ -621,8 +623,11 @@ testfunction<-function(tabtransform,testparameters){
       indvar<-(colnames(tabtransform)%in%selected_vars)
       indvar[1]<-T #keep the categorial variable
       tabdiff<<-tabtransform[,indvar]
-      useddata<-data.frame("names"=datatest$name,"coefficient"=datatest$coefficient,
-                          "logFC"=datatest$logFoldChange,"mean1"=datatest$mean_group1,"mean2"=datatest$mean_group2)
+      useddata<-data.frame("names"=datatest$name,
+                           "coefficient"=datatest$coefficient,
+                          "logFC"=datatest$logFoldChange,
+                          "mean1"=datatest$mean_group1,
+                          "mean2"=datatest$mean_group2)
     }
   }
   else{
@@ -643,10 +648,18 @@ testfunction<-function(tabtransform,testparameters){
       indvar[1]<-T #keep the categorial variable
       tabdiff<<-tabtransform[,indvar]
     }
-    useddata<-data.frame("names"=datatest[,1],"pval"=pval,"logFC"=datatest[,5],"mean1"=datatest[,9],"mean2"=datatest[,10])
+    useddata<-data.frame("names"=datatest[,1],
+                         "pval"=pval,
+                         "logFC"=datatest[,5],
+                         "mean1"=datatest[,9],
+                         "mean2"=datatest[,10])
   }
-  return(list("tabdiff"=tabdiff,"datatest"=datatest,"hypothesistest"=datatesthypothesis,"useddata"=useddata,
-              "testparameters"=testparameters,"multivariateresults"=multivariateresults))
+  return(list("tabdiff"=tabdiff,
+              "datatest"=datatest,
+              "hypothesistest"=datatesthypothesis,
+              "useddata"=useddata,
+              "testparameters"=testparameters,
+              "multivariateresults"=multivariateresults))
 }
   
 
@@ -734,7 +747,8 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
   if(is.null(lambda)){
     set.seed(20011203)
     cvfit <- cv.glmnet(x, group, family="binomial", alpha=alpha, nlambda=nlambda,
-                       type.measure="auc", nfolds=min(10, nrow(toto)-1))
+                       type.measure="auc", nfolds=min(5, nrow(toto)-1)
+                       )
     lambda <- cvfit$lambda.min  # lambda that gives minimum CV error
     lambda_1se <- cvfit$lambda.1se  # lambda within 1 SE of minimum
   } else {
@@ -764,7 +778,9 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
     mlev1 <- colMeans(x[which(group==0), selected_vars, drop=FALSE], na.rm=TRUE)
     mlev2 <- colMeans(x[which(group==1), selected_vars, drop=FALSE], na.rm=TRUE)
 
-    # Fold change
+    # Fold change : class 1 sur class 2:  case versus control
+    # class 1 : first level (positif)
+    # class 2 : second level (negatif)
     FC1o2 <- mlev1 / (mlev2 + 0.0001)
     logFC1o2 <- log2(abs(FC1o2))
 
@@ -1330,6 +1346,7 @@ modelfunction <- function(learningmodel,
                            ntree = ntree_param,
                            mtry = optimal_mtry,
                            nodesize = nodesize_param,
+                           
                            importance = TRUE)
 
  
@@ -1396,6 +1413,7 @@ modelfunction <- function(learningmodel,
       model <- svm(group ~ ., data = learningmodel,
                    kernel= 'radial' , #kernel_param , 
                    cost=cost_param, gamma=gamma_param,
+                   type = "C-classification",
                    probability=TRUE)
       model$cost <- cost_param
       model$gamma <- gamma_param
@@ -1409,13 +1427,14 @@ modelfunction <- function(learningmodel,
         learningmodel<-featureselect$dataset
       }
       
+      # calculate the decision values for the learning set
       scorelearning <-model$decision.values
-      #scorelearning = attr(e1071:::predict.svm(model, learningmodel[,-1], probability  = TRUE), "probabilities") 
+      #scorelearning = attr(e1071:::predict.svm(model, learningmodel[,-1], probability  = TRUE), "probabilities")
       if(sum(lev==(strsplit(colnames(scorelearning),split = "/")[[1]]))==0){
         scorelearning<-scorelearning*(-1)
         colnames(scorelearning)<-paste(lev[1],"/",lev[2],sep="")
       }
-      
+       
       # Obtenir les probabilités au lieu des decision values
       # pred_probs <- attr(predict(model, learningmodel[,-1], probability=TRUE), "probabilities")
       # scorelearning <- data.frame(pred_probs[, lev["positif"]])
@@ -2120,15 +2139,18 @@ modelfunction <- function(learningmodel,
       if(modelparameters$modeltype=="svm"){
         if(!is.null(model)){
           # SVM validation predictions
-          print("On est dans le SVM pour la validation")
-          print(str(model))
-          print(str(validationmodel))
+          # print("On est dans le SVM pour la validation")
+          # print(str(model))
+          # print(str(validationmodel))
+          
+          #calculate decision values for the validation set
           scoreval =attr(e1071:::predict.svm(model,newdata =  validationmodel,decision.values=T),"decision.values")
           if(sum(lev==(strsplit(colnames(scoreval),split = "/")[[1]]))==0){scoreval<-scoreval*(-1)}
+          
           # Utiliser les probabilités pour la validation
           # pred_probs_val <- attr(e1071:::predict.svm(model, newdata = validationmodel, probability=TRUE), "probabilities")
           # scoreval <- pred_probs_val[, lev["positif"]]
-          
+
           predictclassval<-vector(length = length(scoreval) )
           predictclassval[which(scoreval>=modelparameters$thresholdmodel)]<-lev["positif"]
           predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
@@ -2544,6 +2566,8 @@ specificity<-function(predict,class){
   round(data[2,2]/(data[1,2]+data[2,2]),digit=3)
 }
 
+# cette fonction construit un tableau de parametres a tester a partir d'une liste de parametres
+# chaque element de la liste est un vecteur de valeurs a tester pour le parametre correspondant
 constructparameters<-function(listparameters){
   resparameters<-data.frame(listparameters[[1]])
   namescol<-names(listparameters)
@@ -2563,6 +2587,7 @@ constructparameters<-function(listparameters){
 }
 
 testparametersfunction<-function(learning,validation,tabparameters){
+  set.seed(20011203)
   # results<-matrix(data = NA,nrow =nrow(tabparameters), ncol=9 )
   # colnames(results)<-c("auc validation","sensibility validation","specificityvalidation",
   #                      "auc learning","sensibility learning","specificity learning",

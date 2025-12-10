@@ -1,9 +1,46 @@
 library(shiny)
+
+THEMES = c( "cerulean", "cosmo", "cyborg", "darkly", "flatly", "journal",
+            "litera", "lumen", "lux", "materia", "minty", "pulse", "sandstone", "simplex", "sketchy",
+            "slate", "solar", "spacelab", "superhero", "united", "yeti",
+            "quartz", "morph", "minty", #"vapor" ,
+            "superhero")
 shinyUI(fluidPage(
+  theme = bslib::bs_theme(
+     bootswatch = "cerulean",
+     #primary = "#EA80FC", 
+     secondary = "#48DAC6"
+    ),
+  # div(input_dark_mode(id = "mode",
+  #                     mode = "light"),
+  #      style = "font-size:15px; color:grey; text-align:right;"
+  #      ),
+  # 
+  # titlePanel(
+  #   tags$div(
+  #     #"Omics analysis",
+  #     tags$div(
+  #       class = "float-end",
+  #       style = "margin-top: -42px; min-width: 150px;", 
+  #       selectInput( "theme_app", 
+  #                     # label = tags$strong("Themes"),
+  #                     label =  "Menu theme",
+  #                     choices = setNames(THEMES, tools::toTitleCase(THEMES)), 
+  #                     selected = "cerulean"
+  #       )
+  #     )
+  #   )
+  # ),
   
   # Application title
-  titlePanel("Omics analysis"),
-  hr(),
+  
+  titlePanel(
+    div(
+      #img(src = 'https://www.thermofisher.com/kr/ko/home/brands/thermo-scientific/molecular-biology/molecular-biology-learning-center/molecular-biology-resource-library/spotlight-articles/supporting-multi-omics-approaches/_jcr_content/MainParsys/textimage_fe32/image.img.jpg/1669988160698.jpg', height = "40px", width = "40px"),
+      "Omics analysis"
+     ) 
+    ),
+  hr(nrow = 2),
   sidebarLayout(
     sidebarPanel(
       wellPanel( 
@@ -108,7 +145,7 @@ shinyUI(fluidPage(
       ),           
       conditionalPanel(condition ="output.fileUploaded || output.modelUploaded",
                        tabsetPanel(id = "data",              
-                                   tabPanel("Learning Data",
+                                   tabPanel("Learning Data", icon = icon("clipboard-list"),
                                             br(),
                                             conditionalPanel(condition ="input.help",
                                                              fluidRow(
@@ -122,7 +159,7 @@ shinyUI(fluidPage(
                                             dataTableOutput("JDDlearn")%>% withSpinner(color="#0dc5c1",type = 1),
                                             p(downloadButton("downloaddataJDDlearn","Download dataset"),align="center")
                                    ),
-                                   tabPanel("Validation Data",
+                                   tabPanel("Validation Data", icon = icon("check"),
                                             conditionalPanel(condition ="output.fileUploadedval",
                                                              br(),
                                                              dataTableOutput("JDDval")%>% withSpinner(color="#0dc5c1",type = 1),
@@ -130,7 +167,7 @@ shinyUI(fluidPage(
                                             )
                                    ),
                                    
-                                   tabPanel("Select Data", 
+                                   tabPanel("Select Data", icon = icon("filter"),
                                             conditionalPanel(condition ="input.help",
                                                              helpText(" Select variables to extract variables from the learning dataset according to the number or the structure of Non-Attribute values (missing values)")
                                             ),  
@@ -185,7 +222,7 @@ shinyUI(fluidPage(
                                               )
                                             )
                                    ),
-                                   tabPanel("Transform Data",
+                                   tabPanel("Transform Data", icon =  icon("magic"),
                                             conditionalPanel(condition ="input.help",
                                                              helpText("")),
                                             fluidRow(
@@ -224,7 +261,7 @@ shinyUI(fluidPage(
                                             p(downloadButton("downloadplothist","Download plot"),
                                               downloadButton('downloaddatahist', 'Download raw data'),align="center")
                                    ),
-                                   tabPanel("Statistics",
+                                   tabPanel("Statistics", icon =  icon("calculator"),
                                             conditionalPanel(condition ="input.help",
                                                              helpText("")),
                                             fluidRow(
@@ -310,7 +347,7 @@ shinyUI(fluidPage(
                                             )
                                    )
                                    ,
-                                   tabPanel("Model",
+                                   tabPanel("Model", icon = icon("cogs"),
                                             fluidRow(
                                               column(4,
                                                      radioButtons("model", "Type of model to adjust",
@@ -383,7 +420,7 @@ shinyUI(fluidPage(
                                                      ),
                                                      conditionalPanel(condition ="input.model=='svm'",
                                                                       h5("SVM Hyperparameters"),
-                                                                      checkboxInput("autotunesvm", "Automatic hyperparameter tuning (tune.svm)" , value = TRUE),
+                                                                      checkboxInput("autotunesvm", "Automatic hyperparameter tuning (tune.svm)" , value = FALSE),
                                                                       conditionalPanel(condition ="input.help",
                                                                                        helpText("Automatically find optimal cost and gamma")
                                                                                        ),
@@ -463,7 +500,7 @@ shinyUI(fluidPage(
                                                                                      # ,
                                                                                      # "GridSearchCV (superml)" = "gridsearch"
                                                                                      ),
-                                                                                   selected = "traditional"),
+                                                                                   selected = "manual"),
                                                                       conditionalPanel(condition ="input.help",
                                                                                        helpText("Manual: set k manually"),
                                                                                        helpText("Traditional CV: basic cross-validation for k"),
@@ -670,8 +707,10 @@ shinyUI(fluidPage(
                                                                       hr(),
                                                                       conditionalPanel(condition ="input.adjustval==true  ",
                                                                                        fluidRow(div(
-                                                                                         column(6,h3("model validation")), 
-                                                                                         column(6,br(),downloadButton('downloaddatavalidation', 'Download validation data')))
+                                                                                         column(6,h3("model validation"))
+                                                                                         # , 
+                                                                                         # column(6,br(),downloadButton('downloaddatavalidation', 'Download validation data'))
+                                                                                         )
                                                                                        ), 
                                                                                        fluidRow(
                                                                                          column(6,plotOutput("plotmodelvalroc")%>% withSpinner(color="#0dc5c1",type = 1),
@@ -696,14 +735,14 @@ shinyUI(fluidPage(
                                                                       )
                                                      )
                                                      ),
-                                              tabPanel("Details of the model", 
+                                              tabPanel("Details of the model", icon =  icon("file-alt"),
                                                        h3("Summary of the model"),
                                                        verbatimTextOutput("summarymodel"),
                                                        plotOutput("plotimportance"),
                                                        p(downloadButton("downloadplotimportance","Download plot"),
                                                          downloadButton('downloaddataplotimportance', 'Download raw data'),align="center")
                                               ),
-                                              tabPanel("Test parameters",
+                                              tabPanel("Test parameters", icon  =  icon("cog"),
                                                        fluidRow(
                                                          column(6,
                                                                 h4("Selection Parameters"),
@@ -839,13 +878,13 @@ shinyUI(fluidPage(
                                                            p(downloadButton("downloadplottestparametersboth","Download plot"), align = 'center')
                                                          )
                                                        ),
-                                                       fluidRow(
-                                                         column(
-                                                           12,
-                                                           plotOutput("plottestparametersboth")%>% withSpinner(color="#0dc5c1",type = 1),
-                                                           p(downloadButton("downloadplottestparametersboth","Download plot"), align = 'center')
-                                                         )
-                                                       ),
+                                                       # fluidRow(
+                                                       #   column(
+                                                       #     12,
+                                                       #     plotOutput("plottestparametersboth")%>% withSpinner(color="#0dc5c1",type = 1),
+                                                       #     p(downloadButton("downloadplottestparametersboth","Download plot"), align = 'center')
+                                                       #   )
+                                                       # ),
                                                        # h4("Additional Analysis", style = "margin-top: 30px; margin-bottom: 20px;"),
                                                        # fluidRow(
                                                        #   column(

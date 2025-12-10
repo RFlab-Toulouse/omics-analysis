@@ -7,6 +7,30 @@ shinyServer(function(input, output,session) {
   #if(requireNamespace("superml", quietly = TRUE)) {
     #attachNamespace("superml")
   #}
+  # output$theme_value = reactive({
+  #   if (is.null(input$theme) || input$theme == "default") {
+  #     return ("quartz")
+  #   } else {
+  #     return(input$theme)
+  #   }
+  # }
+  
+  # observe le switch / bouton
+  # observeEvent(input$mode, {
+  #   # si mode = "dark", on applique un thème sombre
+  #   # sinon thème clair de base
+  #   new_th <- if (input$mode == "dark") {
+  #     bs_theme(bootswatch = "darkly")
+  #   } else {
+  #     bs_theme()  # thème par défaut (clair)
+  #   }
+  #   session$setCurrentTheme(new_th)
+  # })
+  
+  #changer le theme 
+  # observeEvent(input$theme_app, {
+  #           session$setCurrentTheme(bs_theme(bootswatch = input$theme_app))
+  # }, ignoreInit = TRUE)
   
   output$modelUploaded <- reactive({
     return(!is.null(input$modelfile))
@@ -1414,29 +1438,29 @@ plotbarstest =  function(dataset_test_params, type, filter_invalid = FALSE, show
     data_long$model <- factor(data_long$model, levels = model_order)
   }
   
-  if(type == 'both'){
-    scale_fill_manual(fill = c("AUC Learning" = "#E41A1C",
-                               "Sensitivity Learning" = "#377EB8",
-                               "Specificity Learning" = "#4DAF4A",
-                               "AUC Validation" = "#E41A1C",
-                               "Sensitivity Validation" = "#377EB8",
-                               "Specificity Validation" = "#4DAF4A"))  
-  }else if(type == 'learning'){
-    scale_fill_manual(fill = c("AUC Learning" = "#E41A1C",
-                               "Sensitivity Learning" = "#377EB8",
-                               "Specificity Learning" = "#4DAF4A")) 
-  }else if(type == 'validation'){
-    scale_fill_manual(fill = c("AUC Validation" = "#E41A1C",
-                               "Sensitivity Validation" = "#377EB8",
-                               "Specificity Validation" = "#4DAF4A")) 
-  }
+  # if(type == 'both'){
+  #   scale_fill_manual(fill = c("AUC Learning" = "#E41A1C",
+  #                              "Sensitivity Learning" = "#377EB8",
+  #                              "Specificity Learning" = "#4DAF4A",
+  #                              "AUC Validation" = "#E41A1C",
+  #                              "Sensitivity Validation" = "#377EB8",
+  #                              "Specificity Validation" = "#4DAF4A"))  
+  # }else if(type == 'learning'){
+  #   scale_fill_manual(fill = c("AUC Learning" = "#E41A1C",
+  #                              "Sensitivity Learning" = "#377EB8",
+  #                              "Specificity Learning" = "#4DAF4A")) 
+  # }else if(type == 'validation'){
+  #   scale_fill_manual(fill = c("AUC Validation" = "#E41A1C",
+  #                              "Sensitivity Validation" = "#377EB8",
+  #                              "Specificity Validation" = "#4DAF4A")) 
+  # }
   
   # Créer le graphique à barres avec intervalles de confiance
   p <- ggplot(data_long, aes(x = model, y = value, fill = metric)) +
     geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
     geom_text(aes(label = round(value*100, 1)), 
               position = position_dodge(width = 0.8), 
-              vjust = -0.5, size = 3) 
+              vjust = -0.5, size = 4) 
   
   # Ajouter les intervalles de confiance si demandé
   if(show_ci && !all(is.na(data_long$se))){
@@ -1451,7 +1475,7 @@ plotbarstest =  function(dataset_test_params, type, filter_invalid = FALSE, show
          y = "Scores", 
          title = "Comparison of metrics by model and by test") +
     theme_minimal() +
-    theme(axis.text.x = element_text(size =  12,face = 'bold'),
+    theme(axis.text.x = element_text(size =  12,face = 'bold', angle = 45, hjust = 1),
           axis.text.y =  element_text(size =  12,face = 'bold'),
           plot.title = element_text(size = 14, face = "bold"),
           axis.title.x = element_text(size = 13, face = "bold"),
@@ -1460,8 +1484,7 @@ plotbarstest =  function(dataset_test_params, type, filter_invalid = FALSE, show
           legend.text = element_text(size =10, face = 'bold'),
           legend.title = element_text(size =12, face = 'bold')
     ) + 
-    # scale_fill_brewer(palette = "Set1") +
-    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+    scale_fill_brewer(palette = "Set1")
   
   return(p)
 }
