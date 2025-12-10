@@ -36,7 +36,7 @@ shinyUI(fluidPage(
   
   titlePanel(
     div(
-      #img(src = 'https://www.thermofisher.com/kr/ko/home/brands/thermo-scientific/molecular-biology/molecular-biology-learning-center/molecular-biology-resource-library/spotlight-articles/supporting-multi-omics-approaches/_jcr_content/MainParsys/textimage_fe32/image.img.jpg/1669988160698.jpg', height = "40px", width = "40px"),
+      img(src = 'dna-structure.png', height = "40px", width = "40px"),
       "Omics analysis"
      ) 
     ),
