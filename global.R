@@ -2,8 +2,7 @@ options(xtable.include.colnames=T)
 options(xtable.include.rownames=T)
 #Packages
 #rm(list=ls())
-usePackage <- function(p) 
-{
+usePackage <- function(p) {
   if (!is.element(p, installed.packages()[,1]))
     install.packages(p, dep = TRUE)
   require(p, character.only = TRUE)
@@ -629,6 +628,43 @@ testfunction<-function(tabtransform,testparameters){
                           "mean1"=datatest$mean_group1,
                           "mean2"=datatest$mean_group2)
     }
+  }else if (testparameters$test=="clustEnet"){
+    # Clustering + Elastic Net selection method
+    cat("Running Clustering + ElasticNet variable selection...\n")
+    
+    # Get parameters with defaults
+    n_clusters <- if(!is.null(testparameters$n_clusters)) testparameters$n_clusters else 100
+    n_bootstrap <- if(!is.null(testparameters$n_bootstrap)) testparameters$n_bootstrap else 500
+    alpha_enet <- if(!is.null(testparameters$alpha)) testparameters$alpha else 0.5
+    min_selection_freq <- if(!is.null(testparameters$min_selection_freq)) testparameters$min_selection_freq else 0.5
+    preprocess <- if(!is.null(testparameters$preprocess)) testparameters$preprocess else TRUE
+    min_patients <- if(!is.null(testparameters$min_patients)) testparameters$min_patients else 20
+    
+    multivariateresults <- clustEnetSelection(toto = tabtransform,
+                                              n_clusters = n_clusters,
+                                              n_bootstrap = n_bootstrap,
+                                              alpha_enet = alpha_enet,
+                                              min_selection_freq = min_selection_freq,
+                                              preprocess = preprocess,
+                                              min_patients = min_patients)
+    datatest <- multivariateresults$results
+    
+    if(nrow(datatest)==0){
+      print("no variables selected by clustering + elasticnet method")
+      tabdiff<<-data.frame()
+      useddata<-NULL
+    }
+    else{
+      selected_vars <- multivariateresults$selected_vars
+      indvar <- (colnames(tabtransform) %in% selected_vars)
+      indvar[1] <- T #keep the categorial variable
+      tabdiff<<-tabtransform[,indvar]
+      useddata <- data.frame("names"=datatest$name,
+                             "SelectionFrequency"=datatest$SelectionFrequency,
+                             "logFC"=datatest$logFoldChange,
+                             "mean1"=datatest$mean_group1,
+                             "mean2"=datatest$mean_group2)
+    }
   }
   else{
     # Univariate tests (Wtest, Ttest)
@@ -816,6 +852,267 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
   ))
 }
 
+##########################
+# Clustering + Elastic Net selection function
+##########################
+
+# Preprocess peptides: filter low variance and low frequency variables
+preprocess_peptides <- function(peptide_data, min_patients = 20) {
+  # Filter variables with too few non-zero patients
+  n_nonzero <- colSums(peptide_data != 0, na.rm = TRUE)
+  keep_peptides <- n_nonzero >= min_patients
+  
+  # Filter variables with near-zero variance
+  variances <- apply(peptide_data, 2, var, na.rm = TRUE)
+  keep_var <- variances > 1e-10
+  
+  return(peptide_data[, keep_peptides & keep_var, drop=FALSE])
+}
+
+# Variable selection using clustering and elastic net with bootstrap
+varselClust <- function(toto, n_clusters = 100, n_bootstrap = 500, alpha_enet = 0.5,
+                        min_selection_freq = 0.5, preprocess = TRUE, min_patients = 20){
+  
+  withProgress(message = 'Selecting variables in progress...', value = 0, {
+    
+    # Extract group and data
+    lev <- levels(toto[,1])
+    group <- ifelse(toto[,1] == lev[1], 1, 0)
+    y <- group
+    data <- as.matrix(toto[,-1])
+    
+    # Optional preprocessing
+    if(preprocess && ncol(data) > min_patients){
+      incProgress(0.05, detail = "Data pre-processing...")
+      cat("Preprocessing data: filtering low variance and low frequency variables...\n")
+      data_preprocessed <- preprocess_peptides(data, min_patients = min_patients)
+      if(ncol(data_preprocessed) < ncol(data)){
+        cat(sprintf("  Preprocessing: %d → %d variables (removed %d)\n",
+                    ncol(data), ncol(data_preprocessed), ncol(data) - ncol(data_preprocessed)))
+        data <- data_preprocessed
+      }
+    }
+    
+    if(ncol(data) == 0){
+      warning("No variables remaining after preprocessing")
+      return(list(
+        selected_peptides_per_cluster = character(0),
+        final_selected_peptides = character(0),
+        selection_frequencies = data.frame()
+      ))
+    }
+    
+    # Step 1: Clustering based on Spearman correlation
+    incProgress(0.1, detail = sprintf("Clustering (%d variables)...", ncol(data)))
+    cat(sprintf("Step 1: Clustering %d variables into %d clusters...\n", ncol(data), n_clusters))
+    correlation_matrix <- cor(data, use = "pairwise.complete.obs", method = "spearman")
+    distance_matrix <- 1 - abs(correlation_matrix)
+    distance_matrix[is.na(distance_matrix)] <- 1
+    hc <- hclust(as.dist(distance_matrix), method = "ward.D2")
+    k <- min(n_clusters, ncol(data))
+    clusters <- cutree(hc, k = k)
+    
+    # Step 2: Select one variable per cluster using Wilcoxon test
+    incProgress(0.05, detail = "Cluster selection...")
+    cat(sprintf("Step 2: Selecting one variable per cluster (Wilcoxon test)...\n"))
+    selected_peptides <- c()
+    
+    for (i in 1:k){
+      cluster_peptides <- names(clusters[clusters == i])
+      
+      if (length(cluster_peptides) > 1){
+        p_values <- c()
+        for (peptide in cluster_peptides){
+          test_result <- tryCatch({
+            wilcox.test(data[, peptide] ~ y, exact = FALSE)
+          }, error = function(e){
+            list(p.value = 1)
+          })
+          p_values <- c(p_values, test_result$p.value)
+        }
+        min_p_value_index <- which.min(p_values)
+        selected_peptide <- cluster_peptides[min_p_value_index]
+      } else {
+        selected_peptide <- cluster_peptides[1]
+      }
+      selected_peptides <- c(selected_peptides, selected_peptide)
+    }
+    
+    data_clust <- data[, selected_peptides, drop=FALSE]
+    cat(sprintf("  Selected %d variables (one per cluster)\n", ncol(data_clust)))
+    
+    # Step 3: Bootstrap + Elastic Net selection (70% de la progression)
+    incProgress(0, detail = sprintf("Bootstrap + Elastic Net (0/%d)...", n_bootstrap))
+    cat(sprintf("Step 3: Bootstrap + Elastic Net selection (%d iterations)...\n", n_bootstrap))
+    set.seed(123)
+    selected_peptides_list <- list()
+    
+    progress_step <- 0.7 / n_bootstrap  # 70% du total pour le bootstrap
+    
+    for (b in 1:n_bootstrap) {
+      if(b %% 50 == 0) {
+        incProgress(progress_step * 50, 
+                    detail = sprintf("Bootstrap: %d/%d (%.1f%%)", b, n_bootstrap, (b/n_bootstrap)*100))
+        cat(sprintf("  Bootstrap iteration: %d/%d\n", b, n_bootstrap))
+      }
+      
+      bootstrap_indices <- sample(1:nrow(data_clust), replace = TRUE)
+      X_bootstrap <- data_clust[bootstrap_indices, , drop=FALSE]
+      y_bootstrap <- y[bootstrap_indices]
+      
+      lasso_model <- tryCatch({
+        cv.glmnet(as.matrix(X_bootstrap),
+                  y_bootstrap,
+                  family = "binomial",
+                  alpha = alpha_enet)
+      }, error = function(e){
+        NULL
+      })
+      
+      if(!is.null(lasso_model)){
+        coef_lasso <- coef(lasso_model, s = "lambda.min")
+        selected_peptides_iter <- rownames(coef_lasso)[which(coef_lasso != 0)][-1]
+        selected_peptides_list[[b]] <- selected_peptides_iter
+      }
+    }
+    
+    # Step 4: Count selection frequencies
+    incProgress(0.05, detail = "Frequency calculation...")
+    peptide_selection_counts <- table(unlist(selected_peptides_list))
+    data_of_frequencies <- sort(peptide_selection_counts, decreasing = TRUE)
+    data_of_frequencies_df <- as.data.frame(data_of_frequencies)
+    colnames(data_of_frequencies_df) <- c("Variable", "SelectionCount")
+    data_of_frequencies_df$SelectionFrequency <- data_of_frequencies_df$SelectionCount / n_bootstrap
+    
+    # Step 5: Select final variables
+    incProgress(0.05, detail = "Final selection...")
+    threshold_count <- ceiling(n_bootstrap * min_selection_freq)
+    final_selected_peptides <- names(peptide_selection_counts[peptide_selection_counts >= threshold_count])
+    
+    cat(sprintf("  Final selection: %d variables selected in >= %.0f%% of bootstraps (threshold: %d/%d)\n",
+                length(final_selected_peptides), min_selection_freq * 100, threshold_count, n_bootstrap))
+    
+    incProgress(0, detail = "Done!")
+    
+    return(list(
+      selected_peptides_per_cluster = selected_peptides,
+      final_selected_peptides = final_selected_peptides,
+      selection_frequencies = data_of_frequencies_df,
+      n_clusters = k,
+      n_bootstrap = n_bootstrap,
+      alpha = alpha_enet,
+      min_selection_freq = min_selection_freq
+    ))
+    
+  }) # Fin withProgress
+}
+
+##########################
+# Wrapper function for clustering + elasticnet to match other test methods
+##########################
+
+clustEnetSelection <- function(toto, n_clusters = 100, n_bootstrap = 500,
+                               alpha_enet = 0.5, min_selection_freq = 0.5,
+                               preprocess = TRUE, min_patients = 20){
+  # Run varselClust
+  clust_result <- varselClust(toto,
+                              n_clusters = n_clusters,
+                              n_bootstrap = n_bootstrap,
+                              alpha_enet = alpha_enet,
+                              min_selection_freq = min_selection_freq,
+                              preprocess = preprocess,
+                              min_patients = min_patients)
+  
+  selected_vars <- clust_result$final_selected_peptides
+  
+  # If no variables selected, return empty results
+  if(length(selected_vars) == 0){
+    return(list(
+      results = data.frame(),
+      selected_vars = character(0),
+      all_coefficients = numeric(0),
+      clust_result = clust_result,
+      method = "clustEnet"
+    ))
+  }
+  
+  # Calculate statistics for selected variables (similar to multivariateselection)
+  lev <- levels(toto[,1])
+  group <- ifelse(toto[,1] == lev[1], 1, 0)
+  x <- as.matrix(toto[,-1])
+  
+  # Get selection frequencies for selected variables
+  freq_df <- clust_result$selection_frequencies
+  freq_values <- freq_df$SelectionFrequency[match(selected_vars, freq_df$Variable)]
+  
+  # AUC for each selected variable
+  auc_values <- sapply(selected_vars, function(var){
+    auc(roc(group, x[, var], quiet=TRUE))
+  })
+  
+  # Mean values by group
+  mlev1 <- colMeans(x[which(group==0), selected_vars, drop=FALSE], na.rm=TRUE)
+  mlev2 <- colMeans(x[which(group==1), selected_vars, drop=FALSE], na.rm=TRUE)
+  
+  # Fold change
+  FC1o2 <- mlev1 / (mlev2 + 0.0001)
+  logFC1o2 <- log2(abs(FC1o2))
+  
+  # Create results dataframe
+  results <- data.frame(
+    name = selected_vars,
+    SelectionFrequency = freq_values,
+    AUC = auc_values,
+    FoldChange = FC1o2,
+    logFoldChange = logFC1o2,
+    mean_group1 = mlev1,
+    mean_group2 = mlev2,
+    stringsAsFactors = FALSE
+  )
+  
+  # Sort by selection frequency
+  results <- results[order(results$SelectionFrequency, decreasing=TRUE), ]
+  
+  # Return results
+  return(list(
+    results = results,
+    selected_vars = selected_vars,
+    all_frequencies = clust_result$selection_frequencies,
+    clust_result = clust_result,
+    method = "clustEnet"
+  ))
+}
+
+PlotPca = function(data, y, title = "PCA of selected peptides") {
+  pca_result = prcomp(data, center = TRUE, scale. = TRUE)
+  
+  # Calculer la variance expliquée
+  var_explained <- round(100 * pca_result$sdev^2 / sum(pca_result$sdev^2), 1)
+  
+  pca_data = data.frame(
+    PC1 = pca_result$x[, 1],
+    PC2 = pca_result$x[, 2],
+    Group = as.factor(y)
+  )
+  
+  ggplot(pca_data, aes(x = PC1, y = PC2, color = Group)) +
+    geom_point(size = 3, alpha = 0.7) +
+    #stat_ellipse(aes(fill = Group), geom = "polygon", alpha = 0.1, show.legend = FALSE) +
+    labs(
+      title = title, 
+      x = paste0("PC1 (", var_explained[1], "% variance)"),
+      y = paste0("PC2 (", var_explained[2], "% variance)")
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(size = 10, face = 'bold'),
+      axis.text.y = element_text(size = 10, face = 'bold'),
+      plot.title = element_text(size = 15, face = "bold"),
+      axis.title = element_text(size = 12, face = "bold"),
+      legend.title = element_text(size = 11, face = "bold"),
+      legend.text = element_text(size = 10)
+    )
+}
 
 volcanoplot<-function(logFC,pval,thresholdFC=0,thresholdpv=0.05,graph=T,maintitle="Volcano plot",completedata){
   ##Highlight genes that have an absolute fold change > 2 and a p-value < Bonferroni cut-off

@@ -269,13 +269,16 @@ shinyUI(fluidPage(
                                                      radioButtons("test", "Variable Selection Methods",
                                                                   c("No test"="notest",
                                                                     "Wilcoxon Test (univariate)" = "Wtest",
+                                                                    "Clustering + ElasticNet (multivariate)" = "clustEnet",
                                                                     "Student Test (univariate)" = "Ttest",
                                                                     "Lasso (multivariate)" = "lasso",
                                                                     "ElasticNet (multivariate)" = "elasticnet",
                                                                     "Ridge/Cox (multivariate)" = "ridge")),
                                                      conditionalPanel(condition ="input.help",
                                                                       helpText("Univariate tests: Wilcoxon (non-parametric) and Student (parametric) test each variable independently."),
-                                                                      helpText("Multivariate methods: Lasso, ElasticNet, and Ridge use regularization to select variables while considering their joint effects.")),
+                                                                      helpText("Multivariate methods: Lasso, ElasticNet, and Ridge use regularization to select variables while considering their joint effects."),
+                                                                      helpText("Clustering + ElasticNet: Clusters correlated variables, selects best from each cluster, then applies bootstrap ElasticNet for robust selection.")
+                                                                      ),
                                                      checkboxInput("SFtest","Shapiro and Fisher Tests",F),
                                                      conditionalPanel(condition ="input.help",helpText("The shapiro test is a test of normallity. The F test is a test of equality of variance."))
                                               ),
@@ -286,6 +289,19 @@ shinyUI(fluidPage(
                                                                       numericInput("thresholdpv","p-value threshold" , 0.05, min =0, max = 1, step = 0.01),
                                                                       checkboxInput("adjustpv", "adjust p-value " , value = FALSE),
                                                                       conditionalPanel(condition ="input.help", helpText("Benjamini & Hochberg correction"))
+                                                     ),
+                                                     conditionalPanel(condition ="input.test=='clustEnet'",
+                                                                      h5("Clustering + ElasticNet Parameters"),
+                                                                      numericInput("nclusters","Number of clusters" , 100, min =10, max = 500, step = 10),
+                                                                      conditionalPanel(condition ="input.help",helpText("Number of clusters for hierarchical clustering of correlated variables.")),
+                                                                      numericInput("nbootstrap","Bootstrap iterations" , 500, min =100, max = 2000, step = 100),
+                                                                      conditionalPanel(condition ="input.help",helpText("Number of bootstrap samples for ElasticNet selection.")),
+                                                                      numericInput("alphaclustenet","Alpha (ElasticNet mixing)" , 0.5, min =0, max = 1, step = 0.1),
+                                                                      conditionalPanel(condition ="input.help",helpText("Alpha=1: Lasso, Alpha=0: Ridge, 0<Alpha<1: ElasticNet")),
+                                                                      numericInput("minselectionfreq","Minimum selection frequency" , 0.5, min =0, max = 1, step = 0.05),
+                                                                      conditionalPanel(condition ="input.help",helpText("Minimum proportion of bootstrap iterations a variable must be selected to be included in final results.")),
+                                                                      checkboxInput("preprocessclustenet","Preprocess variables",TRUE),
+                                                                      conditionalPanel(condition ="input.help",helpText("Filter low variance and low frequency variables before clustering."))
                                                      ),
                                                      conditionalPanel(condition ="input.test=='lasso' || input.test=='elasticnet' || input.test=='ridge'",
                                                                       h5("Regularization Parameters"),
@@ -315,6 +331,26 @@ shinyUI(fluidPage(
                                                                       plotOutput("barplottest" ,width = 400,height = 500)%>% withSpinner(color="#0dc5c1",type = 1),   
                                                                       p(downloadButton("downloadbarplottest","Download plot"),downloadButton('downloaddatabarplottest', 'Download raw data'),align="center")
                                                                )
+                                                             )
+                                            )
+                                            ,
+                                            conditionalPanel(condition= "input.test=='clustEnet'",
+                                                             fluidRow(
+                                                               column(12,
+                                                                      h4("Clustering + ElasticNet Selection Results"),
+                                                                      textOutput("nbclustenetselected",inline=T), " variables selected",br(),br(),
+                                                                      h5("Method Parameters"),
+                                                                      fluidRow(
+                                                                        column(3, strong("Clusters:"), textOutput("clustenetnclusters",inline=T)),
+                                                                        column(3, strong("Bootstrap iterations:"), textOutput("clustenetnbootstrap",inline=T)),
+                                                                        column(3, strong("Alpha:"), textOutput("clustenetalphaused",inline=T)),
+                                                                        column(3, strong("Min. selection freq.:"), textOutput("clustenetminfreq",inline=T))
+                                                                      ),br(),
+                                                                      dataTableOutput("clustenetresultstable")%>% withSpinner(color="#0dc5c1",type = 1),
+                                                                      p(downloadButton('downloadclustenetresults', 'Download clustering results'),align="center")
+                                                               ),
+                                                               plotOutput("PcaVarsSel") %>% withSpinner(color = "#0dc5c1",type = 1),
+                                                               p(downloadButton("donwloadPCAPlot", "download the plot"), align  =  'center')
                                                              )
                                             )
                                             ,
@@ -801,6 +837,7 @@ shinyUI(fluidPage(
                                                                                    c( "No test"="notest",
                                                                                       "Wilcoxon Test" = "Wtest",
                                                                                       "Student Test" = "Ttest",
+                                                                                      "Clustering + ElasticNet" = "clustEnet",
                                                                                       "Lasso" = "lasso", 
                                                                                       "ElasticNet" = "elasticnet",
                                                                                       "Ridge" = "ridge"),

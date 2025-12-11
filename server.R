@@ -512,10 +512,29 @@ TEST<-reactive({
       alpha_param <- input$alphaselection
     }
   }
+  
+  # Get clustering + elasticnet parameters
+  n_clusters_param <- NULL
+  n_bootstrap_param <- NULL
+  min_selection_freq_param <- NULL
+  preprocess_param <- NULL
+  min_patients_param <- NULL
+  
+  if(input$test == "clustEnet"){
+    n_clusters_param <- input$nclusters
+    n_bootstrap_param <- input$nbootstrap
+    alpha_param <- input$alphaclustenet
+    min_selection_freq_param <- input$minselectionfreq
+    preprocess_param <- input$preprocessclustenet
+    min_patients_param <- 20
+  }
 
   testparameters<<-list("SFtest"=input$SFtest,"test"=input$test,"adjustpval"=input$adjustpv,"thresholdpv"=input$thresholdpv,
                         "thresholdFC"=input$thresholdFC,"invers"=input$invers,
-                        "lambda"=lambda_param,"alpha"=alpha_param)
+                        "lambda"=lambda_param,"alpha"=alpha_param,
+                        "n_clusters"=n_clusters_param,"n_bootstrap"=n_bootstrap_param,
+                        "min_selection_freq"=min_selection_freq_param,
+                        "preprocess"=preprocess_param,"min_patients"=min_patients_param  )
   learningtransform<<-TRANSFORMDATA()$LEARNINGTRANSFORM
   restest<<-testfunction(tabtransform = learningtransform,testparameters = testparameters )
   validate(need(testparameters$thresholdFC>=0,"threshold Foldchange has to be positive"))
@@ -672,6 +691,157 @@ output$downloadmultivariateresults <- downloadHandler(
   }
 )
 
+#Clustering + ElasticNet results outputs
+output$nbclustenetselected<-renderText({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && !is.null(multivariateresults$method) && multivariateresults$method == "clustEnet"){
+    length(multivariateresults$selected_vars)
+  } else {
+    0
+  }
+})
+
+output$clustenetnclusters<-renderText({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && !is.null(multivariateresults$clust_result)){
+    multivariateresults$clust_result$n_clusters
+  } else {
+    "N/A"
+  }
+})
+
+output$clustenetnbootstrap<-renderText({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && !is.null(multivariateresults$clust_result)){
+    multivariateresults$clust_result$n_bootstrap
+  } else {
+    "N/A"
+  }
+})
+
+output$clustenetalphaused<-renderText({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && !is.null(multivariateresults$clust_result)){
+    format(multivariateresults$clust_result$alpha, digits = 3)
+  } else {
+    "N/A"
+  }
+})
+
+output$clustenetminfreq<-renderText({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && !is.null(multivariateresults$clust_result)){
+    format(multivariateresults$clust_result$min_selection_freq, digits = 2)
+  } else {
+    "N/A"
+  }
+})
+
+output$clustenetresultstable<-renderDataTable({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && !is.null(multivariateresults$method) &&
+     multivariateresults$method == "clustEnet" && nrow(multivariateresults$results) > 0){
+    results <- multivariateresults$results
+    results$SelectionFrequency <- round(results$SelectionFrequency, 3)
+    results$AUC <- round(results$AUC, 3)
+    results$FoldChange <- round(results$FoldChange, 3)
+    results$logFoldChange <- round(results$logFoldChange, 3)
+    results$mean_group1 <- round(results$mean_group1, 3)
+    results$mean_group2 <- round(results$mean_group2, 3)
+    results
+  } else {
+    data.frame()
+  }
+},options = list("orderClasses" = F, "responsive" = F, "pageLength" = 10))
+
+output$downloadclustenetresults <- downloadHandler(
+  filename = function() { paste('clustenet_results', '.',input$paramdowntable, sep='') },
+  content = function(file) {
+    multivariateresults <- TEST()$MULTIVARIATERESULTS
+    if(!is.null(multivariateresults) && multivariateresults$method == "clustEnet"){
+      downloaddataset(multivariateresults$results, file)
+    }
+  }
+)
+
+# Visualisation PCA des variables sélectionnées par clustering + ElasticNet
+output$PcaVarsSel = renderPlot({
+  req(TEST()$MULTIVARIATERESULTS)
+  
+  req(TEST()$MULTIVARIATERESULTS)
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  
+  # Vérifier que c'est bien la méthode clustEnet et qu'il y a des variables sélectionnées
+  if(!is.null(multivariateresults$method) && 
+     multivariateresults$method == "clustEnet" &&
+     length(multivariateresults$selected_vars) > 0){
+    
+    learningtransform <- TRANSFORMDATA()$LEARNINGTRANSFORM
+    
+    selected_vars <- multivariateresults$selected_vars
+    data_selected <- learningtransform[, selected_vars, drop=FALSE]
+    
+    y <- learningtransform[, 1]
+    
+    PlotPca(data = data_selected, 
+            y = y, 
+            title = paste("PCA of", length(selected_vars), "selected variables (Clustering + ElasticNet)"))
+    
+  } else {
+    # Si pas de variables sélectionnées, afficher un message
+    plot(1, type="n", axes=FALSE, xlab="", ylab="")
+    text(1, 1, "No variables selected by Clustering + ElasticNet", cex=1.5)
+  }
+  
+})
+
+# PCa_react =  reactive({
+#   req(TEST()$MULTIVARIATERESULTS)
+#   multivariateresults <- TEST()$MULTIVARIATERESULTS
+#   
+#   # Vérifier que c'est bien la méthode clustEnet et qu'il y a des variables sélectionnées
+#   if(!is.null(multivariateresults$method) && 
+#      multivariateresults$method == "clustEnet" &&
+#      length(multivariateresults$selected_vars) > 0){
+#     
+#     learningtransform <- TRANSFORMDATA()$LEARNINGTRANSFORM
+#     
+#     selected_vars <- multivariateresults$selected_vars
+#     data_selected <- learningtransform[, selected_vars, drop=FALSE]
+#     
+#     y <- learningtransform[, 1]
+#     
+#     PlotPca(data = data_selected, 
+#             y = y, 
+#             title = paste("PCA of", length(selected_vars), "selected variables (Clustering + ElasticNet)"))
+#     
+#   } else {
+#     # Si pas de variables sélectionnées, afficher un message
+#     plot(1, type="n", axes=FALSE, xlab="", ylab="")
+#     text(1, 1, "No variables selected by Clustering + ElasticNet", cex=1.5)
+#   }
+# })
+
+output$donwloadPCAPlot =  downloadHandler(
+  file =  function(){
+    paste("image_PCA.png", '.', input$paramdownplot, sep = '')
+  }, content = function(file){
+    multivariateresults <- TEST()$MULTIVARIATERESULTS
+    if(!is.null(multivariateresults$method) && 
+       multivariateresults$method == "clustEnet" &&
+       length(multivariateresults$selected_vars) > 0){
+      learningtransform <- TRANSFORMDATA()$LEARNINGTRANSFORM
+      selected_vars <- multivariateresults$selected_vars
+      data_selected <- learningtransform[, selected_vars, drop=FALSE]
+      y <- learningtransform[, 1]
+      
+      ggsave(file, 
+             plot = PlotPca(data = data_selected, y = y, 
+                            title = paste("PCA of", length(selected_vars), "selected variables")),
+             device = input$paramdownplot)
+    }
+  }, contentType = NA
+)
 
 
 ######
@@ -938,15 +1108,13 @@ output$xgbminchild<-renderText({
   }
 })
 
- output$lgbnrounds<-renderText({
+output$lgbnrounds<-renderText({
   if(input$model=="lightgbm" && !is.null(MODEL()$MODEL)){
     MODEL()$MODEL$optimal_nrounds
   } else {
     "N/A"
   }
 })
-
- 
 
 output$lgbnumleaves<-renderText({
   if(input$model=="lightgbm" && !is.null(MODEL()$MODEL)){
@@ -1016,7 +1184,7 @@ output$plotmodeldecouvbp <- renderPlot({
 output$downloadplotmodeldecouvbp = downloadHandler(
   filename = function() {paste('graph','.',input$paramdownplot, sep='')},
   content = function(file) {
-    ggsave(file, plot =scoremodelplot(class =datalearningmodel$reslearningmodel$classlearning ,score =datalearningmodel$reslearningmodel$scorelearning,names=rownames(datalearningmodel$reslearningmodel),
+    ggsave(file, plot = scoremodelplot(class = datalearningmodel$reslearningmodel$classlearning ,score =datalearningmodel$reslearningmodel$scorelearning,names=rownames(datalearningmodel$reslearningmodel),
                                       threshold =input$thresholdmodel ,type =input$plotscoremodel,graph = T),  device = input$paramdownplot)},
   contentType=NA)
 
