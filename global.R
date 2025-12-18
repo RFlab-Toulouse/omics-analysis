@@ -906,7 +906,8 @@ varselClust <- function(toto, n_clusters = 100, n_bootstrap = 500, alpha_enet = 
     incProgress(0.1, detail = sprintf("Clustering (%d variables)...", ncol(data)))
     cat(sprintf("Step 1: Clustering %d variables into %d clusters...\n", ncol(data), n_clusters))
     correlation_matrix <- cor(data, use = "pairwise.complete.obs", method = "spearman")
-    distance_matrix <- 1 - abs(correlation_matrix)
+    #distance_matrix <- 1 - abs(correlation_matrix)
+    distance_matrix <- sqrt(2 - 2*correlation_matrix)
     distance_matrix[is.na(distance_matrix)] <- 1
     hc <- hclust(as.dist(distance_matrix), method = "ward.D2")
     k <- min(n_clusters, ncol(data))
