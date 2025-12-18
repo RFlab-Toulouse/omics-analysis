@@ -782,7 +782,7 @@ shinyUI(fluidPage(
                                                        fluidRow(
                                                          column(6,
                                                                 h4("Selection Parameters"),
-                                                                sliderInput("prctvaluestest", "Percent of values accepted",min = 0, max = 100, value = c(50,90),width="60%"),
+                                                                sliderInput("prctvaluestest", "Percent of values accepted",min = 0, max = 100, value = c(50,50),width="60%"),
                                                                 checkboxGroupInput("selectmethodtest","Methods of selection ",c("selection on all samples"="nogroup","each group has more than x% of values "="bothgroups",
                                                                                                                                 "at least one group has more than x% of more"="onegroup"),selected ="bothgroups" )
                                                          ),
