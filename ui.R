@@ -273,7 +273,7 @@ shinyUI(fluidPage(
                                                                     "Student Test (univariate)" = "Ttest",
                                                                     "Lasso (multivariate)" = "lasso",
                                                                     "ElasticNet (multivariate)" = "elasticnet",
-                                                                    "Ridge/Cox (multivariate)" = "ridge")),
+                                                                    "Ridge (multivariate)" = "ridge")),
                                                      conditionalPanel(condition ="input.help",
                                                                       helpText("Univariate tests: Wilcoxon (non-parametric) and Student (parametric) test each variable independently."),
                                                                       helpText("Multivariate methods: Lasso, ElasticNet, and Ridge use regularization to select variables while considering their joint effects."),
