@@ -272,8 +272,11 @@ shinyUI(fluidPage(
                                                                     # "Clustering + ElasticNet (multivariate)" = "clustEnet",
                                                                     "Student Test (univariate)" = "Ttest",
                                                                     "Lasso (multivariate)" = "lasso",
-                                                                    "ElasticNet (multivariate)" = "elasticnet",
-                                                                    "Ridge (multivariate)" = "ridge")),
+                                                                    "ElasticNet (multivariate)" = "elasticnet"
+                                                                    # ,
+                                                                    # "Ridge (multivariate)" = "ridge"
+                                                                    )
+                                                                  ),
                                                      conditionalPanel(condition ="input.help",
                                                                       helpText("Univariate tests: Wilcoxon (non-parametric) and Student (parametric) test each variable independently."),
                                                                       helpText("Multivariate methods: Lasso, ElasticNet, and Ridge use regularization to select variables while considering their joint effects."),
@@ -839,8 +842,10 @@ shinyUI(fluidPage(
                                                                                       "Student Test" = "Ttest",
                                                                                       # "Clustering + ElasticNet" = "clustEnet",
                                                                                       "Lasso" = "lasso", 
-                                                                                      "ElasticNet" = "elasticnet",
-                                                                                      "Ridge" = "ridge"),
+                                                                                      "ElasticNet" = "elasticnet"
+                                                                                      # ,
+                                                                                      # "Ridge" = "ridge"
+                                                                                      ),
                                                                                    selected = "Wtest"),
                                                                 checkboxGroupInput("adjustpvtest", "adjust p-value " , 
                                                                                    choices = list("TRUE"=TRUE,"FALSE"=FALSE),
