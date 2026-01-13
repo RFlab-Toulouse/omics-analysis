@@ -669,6 +669,8 @@ output$multivariateresultstable<-renderDataTable({
   multivariateresults <- TEST()$MULTIVARIATERESULTS
   if(!is.null(multivariateresults) && nrow(multivariateresults$results) > 0){
     results <- multivariateresults$results
+    # cat(" voir la gueule de results \n")
+    # print(results)
     results$coefficient <- round(results$coefficient, 4)
     results$AUC <- round(results$AUC, 3)
     results$FoldChange <- round(results$FoldChange, 3)
@@ -768,7 +770,6 @@ output$downloadclustenetresults <- downloadHandler(
 output$PcaVarsSel = renderPlot({
   req(TEST()$MULTIVARIATERESULTS)
   
-  req(TEST()$MULTIVARIATERESULTS)
   multivariateresults <- TEST()$MULTIVARIATERESULTS
   
   # Vérifier que c'est bien la méthode clustEnet et qu'il y a des variables sélectionnées
@@ -1817,119 +1818,274 @@ output$downloadplottestparametersboth = downloadHandler(
            device = input$paramdownplot)},
   contentType=NA)
 
-# 
-# plotbarstest =  function(dataset_test_params, type){
-#   # library(dplyr)
-#   if(type ==  'learning'){
-#     new_dataset  =  dataset_test_params %>% 
-#       group_by(model, test) %>%
-#       summarise(mean_auc_learning = mean(`auc learning`, na.rm = TRUE),
-#                 mean_sensibility_learning = mean(`sensibility learning`, na.rm = TRUE),
-#                 mean_specificity_learning = mean(`specificity learning`, na.rm = TRUE),
-#                 .groups = 'drop',
-#                 count = n())
-#     
-#     # Convertir le jeu de données en format long
-#     data_long <- pivot_longer(new_dataset, 
-#                               cols = starts_with("mean_"), 
-#                               names_to = "metric", 
-#                               values_to = "value")
-#     
-#     data_long = data_long  %>% mutate(metric = recode(metric,
-#                                                       "mean_auc_learning" = "AUC Learning",
-#                                                       "mean_sensibility_learning" = "Sensitivity Learning",
-#                                                       "mean_specificity_learning" = "Specificity Learning")
-#     )
-#     
-#   } else if(type == 'validation'){
-#     new_dataset  =  dataset_test_params %>% 
-#       group_by(model, test) %>%
-#       summarise(mean_auc_validation = mean(`auc validation`, na.rm = TRUE),
-#                 mean_sensibility_validation = mean(`sensibility validation`, na.rm = TRUE),
-#                 mean_specificity_validation = mean(`specificityvalidation`, na.rm = TRUE),
-#                 .groups = 'drop',
-#                 count = n())
-#     
-#     # Convertir le jeu de données en format long
-#     data_long <- pivot_longer(new_dataset, 
-#                               cols = starts_with("mean_"), 
-#                               names_to = "metric", 
-#                               values_to = "value")
-#     
-#     data_long = data_long  %>% mutate(metric = recode(metric,
-#                                                       "mean_auc_validation" = "AUC Validation",
-#                                                       "mean_sensibility_validation" = "Sensitivity Validation",
-#                                                       "mean_specificity_validation" = "Specificity Validation"
-#                                                       )
-#     )
-#     
-#   }else if (type == 'both'){
-#     new_dataset  =  dataset_test_params %>% 
-#       group_by(model, test) %>%
-#       summarise(mean_auc_validation = mean(`auc validation`, na.rm = TRUE),
-#                 mean_sensibility_validation = mean(`sensibility validation`, na.rm = TRUE),
-#                 mean_specificity_validation = mean(`specificityvalidation`, na.rm = TRUE),
-#                 mean_auc_learning = mean(`auc learning`, na.rm = TRUE),
-#                 mean_sensibility_learning = mean(`sensibility learning`, na.rm = TRUE),
-#                 mean_specificity_learning = mean(`specificity learning`, na.rm = TRUE),
-#                 .groups = 'drop',
-#                 count = n())
-#     
-#     # Convertir le jeu de données en format long
-#     data_long <- pivot_longer(new_dataset, 
-#                               cols = starts_with("mean_"), 
-#                               names_to = "metric", 
-#                               values_to = "value")
-#     
-#     data_long = data_long  %>% mutate(metric = recode(metric,
-#                                                       "mean_auc_validation" = "AUC Validation",
-#                                                       "mean_sensibility_validation" = "Sensitivity Validation",
-#                                                       "mean_specificity_validation" = "Specificity Validation",
-#                                                       "mean_auc_learning" = "AUC Learning",
-#                                                       "mean_sensibility_learning" = "Sensitivity Learning",
-#                                                       "mean_specificity_learning" = "Specificity Learning")
-#     )
-#     
-#   }
-#   
-#   # Créer le graphique à barres
-#   # ggplot(data_long, aes(x = interaction(model, test), y = value, fill = metric)) +
-#   #   geom_bar(stat = "identity", position = "dodge") +
-#   #   labs(x = "Modèle et Test", y = "Valeur", title = "Comparaison des métriques par modèle et test") +
-#   #   theme_minimal() +
-#   #   theme(axis.text.x = element_text(size =  12,face = 'bold'),
-#   #         axis.text.y =  element_text(size =  12,face = 'bold'),
-#   #         plot.title = element_text(size = 14, face = "bold"),
-#   #         axis.title.x = element_text(size = 13, face = "bold"),
-#   #         axis.title.y = element_text(size = 13, face = "bold")
-#   #   ) +
-#   #   scale_fill_brewer(palette = "Set1") +
-#   #   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-#   
-#   
-#   # Créer le graphique à barres avec des facettes pour chaque test
-#   ggplot(data_long, aes(x = model, y = value, fill = metric)) +
-#     geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
-#     geom_text(aes(label = round(value*100, 1)), 
-#               position = position_dodge(width = 0.8), 
-#               vjust = -0.5) + 
-#     facet_wrap(~ test, ncol = 2) +
-#     labs(x = "Models", y = "Scores", title = "Comparaison des métriques par modèle et test") +
-#     theme_minimal() +
-#     theme(axis.text.x = element_text(size =  12,face = 'bold'),
-#           axis.text.y =  element_text(size =  12,face = 'bold'),
-#           plot.title = element_text(size = 14, face = "bold"),
-#           axis.title.x = element_text(size = 13, face = "bold"),
-#           axis.title.y = element_text(size = 13, face = "bold"),
-#           strip.text = element_text(size = 12, face = "bold"),
-#           legend.text = element_text(size =10, face = 'bold'),
-#           legend.title = element_text(size =12, face = 'bold')
-#     ) + 
-#     scale_fill_brewer(palette = "Set1") +
-#     # scale_fill_manual(values = custom_colors) +
-#     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
-#   
-# }
+
+# Reactive pour obtenir les données PCA selon la source sélectionnée
+pca_data_reactive <- reactive({
+  req(input$pca_data_source)
+  
+  if(input$pca_data_source == "transformed") {
+    # Utiliser toutes les données transformées
+    data <- TRANSFORMDATA()$LEARNINGTRANSFORM
+    if(is.null(data)) return(NULL)
+    
+    # Extraire les labels (première colonne) et les variables
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+    
+  } else if(input$pca_data_source == "selected") {
+    # Utiliser les variables sélectionnées par le test statistique
+    if(input$test == "notest") {
+      return(NULL)
+    }
+    
+    data <- TEST()$LEARNINGDIFF
+    if(is.null(data)) return(NULL)
+    
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+    
+  } else if(input$pca_data_source == "model") {
+    # Utiliser les variables du modèle
+    if(input$model == "nomodel") {
+      return(NULL)
+    }
+    
+    model_result <- MODEL()
+    if(is.null(model_result) || is.null(model_result$datalearningmodel)) {
+      return(NULL)
+    }
+    
+    data <- model_result$datalearningmodel$learningmodel
+    if(is.null(data)) return(NULL)
+    
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+  }
+  
+  # Vérifier qu'il y a au moins 2 variables
+  if(ncol(X) < 2) {
+    return(NULL)
+  }
+  
+  list(X = X, y = y)
+})
+
+
+# Afficher le nombre de variables utilisées
+output$pca_n_variables <- renderText({
+  data <- pca_data_reactive()
+  if(is.null(data)) return("0")
+  return(as.character(ncol(data$X)))
+})
+
+
+# Générer le graphique PCA 2D
+output$pca_plot_2d <- renderPlotly({
+  data <- pca_data_reactive()
+  req(data)
+  
+  PlotPca2D_interactive(
+    data = data$X, 
+    y = data$y, 
+    title = "PCA 2D - Variables sélectionnées (coloré par labels d'entraînement)"
+  )
+})
+
+
+# Générer le graphique PCA 3D
+output$pca_plot_3d <- renderPlotly({
+  data <- pca_data_reactive()
+  req(data)
+  
+  # Vérifier qu'il y a au moins 3 variables
+  if(ncol(data$X) < 3) {
+    # Créer un message d'erreur
+    plot_ly() %>%
+      layout(
+        title = "Pas assez de variables pour une visualisation 3D (minimum 3 variables requises)",
+        xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+        yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)
+      )
+  } else {
+    PlotPca3D_interactive(
+      data = data$X, 
+      y = data$y, 
+      title = "PCA 3D - Variables sélectionnées (coloré par labels d'entraînement)"
+    )
+  }
+})
+
+
+# Tableau de variance expliquée
+output$pca_variance_table <- renderDataTable({
+  data <- pca_data_reactive()
+  req(data)
+  
+  # Effectuer la PCA
+  pca_result <- prcomp(data$X, center = TRUE, scale. = TRUE)
+  
+  # Calculer la variance expliquée
+  var_explained <- 100 * pca_result$sdev^2 / sum(pca_result$sdev^2)
+  var_cumulative <- cumsum(var_explained)
+  
+  # Créer le tableau
+  n_components <- min(10, length(var_explained))  # Afficher max 10 composantes
+  
+  variance_df <- data.frame(
+    Composante = paste0("PC", 1:n_components),
+    "Variance expliquée (%)" = round(var_explained[1:n_components], 2),
+    "Variance cumulée (%)" = round(var_cumulative[1:n_components], 2),
+    check.names = FALSE
+  )
+  
+  datatable(variance_df, 
+            options = list(pageLength = 10, searching = FALSE),
+            rownames = FALSE)
+})
+
+
+# Téléchargement PCA 2D
+output$download_pca_2d <- downloadHandler(
+  filename = function() {
+    paste('pca_2d_', Sys.Date(), '.html', sep='')
+  },
+  content = function(file) {
+    data <- pca_data_reactive()
+    req(data)
+    
+    p <- PlotPca2D_interactive(data = data$X, y = data$y)
+    htmlwidgets::saveWidget(as_widget(p), file)
+  }
+)
+
+
+# Téléchargement PCA 3D
+output$download_pca_3d <- downloadHandler(
+  filename = function() {
+    paste('pca_3d_', Sys.Date(), '.html', sep='')
+  },
+  content = function(file) {
+    data <- pca_data_reactive()
+    req(data)
+    
+    if(ncol(data$X) >= 3) {
+      p <- PlotPca3D_interactive(data = data$X, y = data$y)
+      htmlwidgets::saveWidget(as_widget(p), file)
+    }
+  }
+)
+
+
+# Téléchargement tableau variance
+output$download_pca_variance <- downloadHandler(
+  filename = function() {
+    paste('pca_variance_', Sys.Date(), '.', input$paramdowntable, sep='')
+  },
+  content = function(file) {
+    data <- pca_data_reactive()
+    req(data)
+    
+    pca_result <- prcomp(data$X, center = TRUE, scale. = TRUE)
+    var_explained <- 100 * pca_result$sdev^2 / sum(pca_result$sdev^2)
+    var_cumulative <- cumsum(var_explained)
+    
+    variance_df <- data.frame(
+      Composante = paste0("PC", 1:length(var_explained)),
+      "Variance_expliquee_pct" = round(var_explained, 2),
+      "Variance_cumulee_pct" = round(var_cumulative, 2)
+    )
+    
+    downloaddataset(variance_df, file)
+  }
+)
+
+
+# ============================================================================
+# Section PCA Visualization (Option 2 - Dans l'onglet Statistics)
+# ============================================================================
+
+# Si vous choisissez d'ajouter les visualisations dans l'onglet Statistics
+# Utilisez ces outputs à la place :
+
+output$pca_plot_2d_stats <- renderPlotly({
+  # Utiliser les données différentiellement exprimées si disponibles
+  if(input$test != "notest") {
+    data <- TEST()$LEARNINGDIFF
+    req(data)
+    
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+    
+    if(ncol(X) >= 2) {
+      PlotPca2D_interactive(
+        data = X, 
+        y = y, 
+        title = "PCA 2D - Variables sélectionnées"
+      )
+    }
+  }
+})
+
+
+output$pca_plot_3d_stats <- renderPlotly({
+  # Utiliser les données différentiellement exprimées si disponibles
+  if(input$test != "notest") {
+    data <- TEST()$LEARNINGDIFF
+    req(data)
+    
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+    
+    if(ncol(X) >= 3) {
+      PlotPca3D_interactive(
+        data = X, 
+        y = y, 
+        title = "PCA 3D - Variables sélectionnées"
+      )
+    } else {
+      plot_ly() %>%
+        layout(
+          title = "Pas assez de variables pour la vue 3D",
+          xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+          yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)
+        )
+    }
+  }
+})
+
+
+output$download_pca_combined <- downloadHandler(
+  filename = function() {
+    paste('pca_visualizations_', Sys.Date(), '.zip', sep='')
+  },
+  content = function(file) {
+    # Créer un répertoire temporaire
+    tmpdir <- tempdir()
+    
+    data <- TEST()$LEARNINGDIFF
+    req(data)
+    
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+    
+    # Sauvegarder les deux graphiques
+    if(ncol(X) >= 2) {
+      p2d <- PlotPca2D_interactive(data = X, y = y)
+      htmlwidgets::saveWidget(as_widget(p2d), 
+                              file.path(tmpdir, "pca_2d.html"))
+    }
+    
+    if(ncol(X) >= 3) {
+      p3d <- PlotPca3D_interactive(data = X, y = y)
+      htmlwidgets::saveWidget(as_widget(p3d), 
+                              file.path(tmpdir, "pca_3d.html"))
+    }
+    
+    # Créer un fichier zip
+    zip(file, files = list.files(tmpdir, pattern = "pca_.*\\.html$", 
+                                 full.names = TRUE))
+  }
+)
 
 }) 
 

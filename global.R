@@ -8,6 +8,7 @@ usePackage <- function(p) {
   require(p, character.only = TRUE)
 }
 usePackage("zoo")
+usePackage("plotly")
 usePackage("missMDA")#imputepca
 usePackage("ggplot2")#Graphs
 usePackage("stats")
@@ -2569,9 +2570,6 @@ replaceNAoneline<-function(lineNA,toto,rempNA){
   return(linessNA)
 }
 
-
-
-
 ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplot=T){
   validation<-factor(validation,levels = rev(levels(validation)),ordered = TRUE)
   
@@ -3261,331 +3259,170 @@ positive<-function(x){
   return(x)
 }
 
-#' #' GridSearchCV wrapper for Random Forest using superml
-#' 
-#' #' @param X Feature matrix (data.frame or matrix)
-#' 
-#' #' @param y Target vector
-#' 
-#' #' @param param_grid List of parameters to tune (ntree, mtry, nodesize, maxnodes)
-#' 
-#' #' @param n_folds Number of cross-validation folds
-#' 
-#' #' @param scoring Scoring metric(s)
-#' 
-#' #' @return List with best parameters and best score
-#' 
-#' tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-#'   
-#'   library(superml)
-#'   
-#'   library(randomForest)
-#'   
-#'   
-#'   
-#'   # Default parameter grid if not provided
-#'   
-#'   if(is.null(param_grid)) {
-#'     
-#'     param_grid <- list(
-#'       
-#'       n_estimators = c(100, 500, 1000),  # ntree in randomForest
-#'       
-#'       max_depth = c(5, 10, 15, 20, NULL),  # maxnodes (NULL = unlimited)
-#'       
-#'       min_samples_split = c(2, 5, 10),  # nodesize
-#'       
-#'       max_features = c("sqrt", "log2", floor(ncol(X)/3), floor(ncol(X)/2))  # mtry
-#'       
-#'     )
-#'     
-#'   }
-#'   
-#'   
-#'   
-#'   # Create trainer object
-#'   
-#'   rf_trainer <- RFTrainer$new()
-#'   
-#'   
-#'   
-#'   # Create GridSearchCV object
-#'   
-#'   gst <- GridSearchCV$new(
-#'     
-#'     trainer = rf_trainer,
-#'     
-#'     parameters = param_grid,
-#'     
-#'     n_folds = n_folds,
-#'     
-#'     scoring = scoring
-#'     
-#'   )
-#'   
-#'   
-#'   
-#'   # Fit the grid search
-#'   
-#'   gst$fit(cbind(y = y, X), "y")
-#'   
-#'   
-#'   
-#'   # Get best iteration
-#'   
-#'   best_result <- gst$best_iteration(metric = scoring[1])
-#'   
-#'   
-#'   
-#'   return(list(
-#'     
-#'     best_params = best_result,
-#'     
-#'     grid_search = gst,
-#'     
-#'     best_score = best_result$score
-#'     
-#'   ))
-#'   
-#' }
-#' 
-#' 
-#' 
-#' #' GridSearchCV wrapper for XGBoost using superml
-#' 
-#' #' @param X Feature matrix (data.frame or matrix)
-#' 
-#' #' @param y Target vector
-#' 
-#' #' @param param_grid List of parameters to tune
-#' 
-#' #' @param n_folds Number of cross-validation folds
-#' 
-#' #' @param scoring Scoring metric(s)
-#' 
-#' #' @return List with best parameters and best score
-#' 
-#' tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-#'   
-#'   library(superml)
-#'   
-#'   
-#'   
-#'   # Default parameter grid if not provided
-#'   
-#'   if(is.null(param_grid)) {
-#'     
-#'     param_grid <- list(
-#'       
-#'       n_estimators = c(50, 100, 200),  # nrounds
-#'       
-#'       max_depth = c(3, 6, 9, 12),
-#'       
-#'       learning_rate = c(0.01, 0.05, 0.1, 0.3),  # eta
-#'       
-#'       gamma = c(0, 0.1, 0.5),
-#'       
-#'       subsample = c(0.6, 0.8, 1.0),
-#'       
-#'       colsample_bytree = c(0.6, 0.8, 1.0),
-#'       
-#'       min_child_weight = c(1, 3, 5)
-#'       
-#'     )
-#'     
-#'   }
-#'   
-#'   
-#'   
-#'   # Create trainer object
-#'   
-#'   xgb_trainer <- XGBTrainer$new()
-#'   
-#'   
-#'   
-#'   # Create GridSearchCV object
-#'   
-#'   gst <- GridSearchCV$new(
-#'     
-#'     trainer = xgb_trainer,
-#'     
-#'     parameters = param_grid,
-#'     
-#'     n_folds = n_folds,
-#'     
-#'     scoring = scoring
-#'     
-#'   )
-#'   
-#'   
-#'   
-#'   # Fit the grid search
-#'   
-#'   gst$fit(cbind(y = y, X), "y")
-#'   
-#'   
-#'   
-#'   # Get best iteration
-#'   
-#'   best_result <- gst$best_iteration(metric = scoring[1])
-#'   
-#'   
-#'   
-#'   return(list(
-#'     
-#'     best_params = best_result,
-#'     
-#'     grid_search = gst,
-#'     
-#'     best_score = best_result$score
-#'     
-#'   ))
-#'   
-#' }
-#' 
-#' 
-#' 
-#' #' GridSearchCV wrapper for Naive Bayes using superml
-#' #' @param X Feature matrix (data.frame or matrix)
-#' #' @param y Target vector
-#' #' @param param_grid List of parameters to tune
-#' #' @param n_folds Number of cross-validation folds
-#' #' @param scoring Scoring metric(s)
-#' #' @return List with best parameters and best score
-#' 
-#' tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-#'   
-#'   library(superml)
-#'   # Default parameter grid if not provided
-#'   
-#'   if(is.null(param_grid)) {
-#'     
-#'     param_grid <- list(
-#'       
-#'       laplace = c(0, 0.5, 1, 2, 5)  # Smoothing parameter
-#'       
-#'     )
-#'   }
-#'   # Create trainer object
-#'   nb_trainer <- NBTrainer$new()
-#' 
-#'   # Create GridSearchCV object
-#'   gst <- GridSearchCV$new(
-#'     trainer = nb_trainer,
-#'     parameters = param_grid,
-#'     n_folds = n_folds,
-#'     scoring = scoring
-#'   )
-#'   # Fit the grid search
-#'   
-#'   gst$fit(cbind(y = y, X), "y")
-#'   
-#'   # Get best iteration
-#'   
-#'   best_result <- gst$best_iteration(metric = scoring[1])
-#'   
-#'   return(list(
-#'     best_params = best_result,
-#'     grid_search = gst,
-#'     best_score = best_result$score
-#'   ))
-#'   
-#' }
-#' 
-#' 
-#' 
-#' #' GridSearchCV wrapper for KNN using superml
-#' #' @param X Feature matrix (data.frame or matrix)
-#' #' @param y Target vector
-#' #' @param param_grid List of parameters to tune
-#' #' @param n_folds Number of cross-validation folds
-#' #' @param scoring Scoring metric(s)
-#' #' @return List with best parameters and best score
-#' tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-#'   library(superml)
-#'   
-#'   # Default parameter grid if not provided
-#'   if(is.null(param_grid)) {
-#'     max_k <- min(floor(sqrt(length(y))), 30)
-#'     param_grid <- list(
-#'       n_neighbors = seq(3, max_k, by = 2),  # k parameter, odd numbers only
-#'       weights = c("uniform", "distance"),
-#'       algorithm = c("brute", "kd_tree")
-#'     )
-#'   }
-#'   
-#'   # Create trainer object
-#'   knn_trainer <- KNNTrainer$new()
-#'   
-#'   # Create GridSearchCV object
-#'   gst <- GridSearchCV$new(
-#'     trainer = knn_trainer,
-#'     parameters = param_grid,
-#'     n_folds = n_folds,
-#'     scoring = scoring
-#'     
-#'   )
-#'   
-#'   
-#'   # Fit the grid search
-#'   gst$fit(cbind(y = y, X), "y")
-#'   
-#'   # Get best iteration
-#'   best_result <- gst$best_iteration(metric = scoring[1])
-#'   
-#'   return(list(
-#'     best_params = best_result,
-#'     grid_search = gst,
-#'     best_score = best_result$score
-#'     
-#'   ))
-#'   
-#' }
-#' 
-#' 
-#' 
-#' #' GridSearchCV wrapper for Logistic Regression (ElasticNet) using superml
-#' #' @param X Feature matrix (data.frame or matrix)
-#' #' @param y Target vector
-#' #' @param param_grid List of parameters to tune
-#' #' @param n_folds Number of cross-validation folds
-#' #' @param scoring Scoring metric(s)
-#' #' @return List with best parameters and best score
-#' 
-#' tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-#'   
-#'   library(superml)
-#'   # Default parameter grid if not provided
-#'   
-#'   if(is.null(param_grid)) {
-#'     param_grid <- list(
-#'       alpha = c(0, 0.25, 0.5, 0.75, 1.0),  # 0=Ridge, 1=Lasso, 0.5=ElasticNet
-#'       lambda = c(0.001, 0.01, 0.1, 1.0, 10),
-#'       penalty = c("elasticnet")
-#'     )
-#'   }
-#'   
-#'   # Create trainer object
-#'   lm_trainer <- LMTrainer$new()
-#'   
-#'   # Create GridSearchCV object
-#'   gst <- GridSearchCV$new(
-#'     trainer = lm_trainer,
-#'     parameters = param_grid,
-#'     n_folds = n_folds,
-#'     scoring = scoring
-#'   )
-#'   
-#'   # Fit the grid search
-#'   gst$fit(cbind(y = y, X), "y")
-#' 
-#'   # Get best iteration
-#'   best_result <- gst$best_iteration(metric = scoring[1])
-#' 
-#'   return(list(
-#'     best_params = best_result,
-#'     grid_search = gst,
-#'     best_score = best_result$score
-#'   ))
-#'   
-#' }
+
+# Fonction pour créer une visualisation PCA 2D interactive avec plotly
+PlotPca2D_interactive <- function(data, y, title = "PCA of selected variables") {
+  # Effectuer la PCA
+  pca_result <- prcomp(data, center = TRUE, scale. = TRUE)
+  
+  # Calculer la variance expliquée
+  var_explained <- round(100 * pca_result$sdev^2 / sum(pca_result$sdev^2), 1)
+  
+  # Créer le dataframe pour plotly
+  pca_data <- data.frame(
+    PC1 = pca_result$x[, 1],
+    PC2 = pca_result$x[, 2],
+    Group = as.factor(y),
+    Sample = rownames(data)
+  )
+  
+  # Créer le graphique interactif avec plotly
+  plot_ly(pca_data, 
+          x = ~PC1, 
+          y = ~PC2, 
+          color = ~Group,
+          colors = c("#E69F00", "#56B4E9"),
+          type = 'scatter',
+          mode = 'markers',
+          marker = list(size = 10, opacity = 0.7),
+          text = ~paste("Sample:", Sample, "<br>Group:", Group),
+          hoverinfo = 'text') %>%
+    layout(
+      title = list(text = title, font = list(size = 16, face = "bold")),
+      xaxis = list(title = paste0("PC1 (", var_explained[1], "% variance)"),
+                   titlefont = list(size = 14, face = "bold")),
+      yaxis = list(title = paste0("PC2 (", var_explained[2], "% variance)"),
+                   titlefont = list(size = 14, face = "bold")),
+      legend = list(title = list(text = "Groups"))
+    )
+}
+
+
+# Fonction pour créer une visualisation PCA 3D interactive avec plotly
+PlotPca3D_interactive <- function(data, y, title = "PCA of selected variables") {
+  # Effectuer la PCA
+  pca_result <- prcomp(data, center = TRUE, scale. = TRUE)
+  
+  # Calculer la variance expliquée
+  var_explained <- round(100 * pca_result$sdev^2 / sum(pca_result$sdev^2), 1)
+  
+  # Vérifier qu'il y a au moins 3 composantes principales
+  if(ncol(pca_result$x) < 3) {
+    stop("Not enough main components for 3D visualisation")
+  }
+  
+  # Créer le dataframe pour plotly
+  pca_data <- data.frame(
+    PC1 = pca_result$x[, 1],
+    PC2 = pca_result$x[, 2],
+    PC3 = pca_result$x[, 3],
+    Group = as.factor(y),
+    Sample = rownames(data)
+  )
+  
+  # Créer le graphique 3D interactif avec plotly
+  plot_ly(pca_data, 
+          x = ~PC1, 
+          y = ~PC2, 
+          z = ~PC3,
+          color = ~Group,
+          colors = c("#E69F00", "#56B4E9"),
+          type = 'scatter3d',
+          mode = 'markers',
+          marker = list(size = 6, opacity = 0.7),
+          text = ~paste("Sample:", Sample, "<br>Group:", Group),
+          hoverinfo = 'text') %>%
+    layout(
+      title = list(text = title, font = list(size = 16)),
+      scene = list(
+        xaxis = list(title = paste0("PC1 (", var_explained[1], "%)")),
+        yaxis = list(title = paste0("PC2 (", var_explained[2], "%)")),
+        zaxis = list(title = paste0("PC3 (", var_explained[3], "%)"))
+      ),
+      legend = list(title = list(text = "Groups"))
+    )
+}
+
+
+# Fonction combinée qui crée les deux visualisations (2D et 3D)
+PlotPca_Combined <- function(data, y, title_prefix = "PCA") {
+  list(
+    pca_2d = PlotPca2D_interactive(data, y, paste(title_prefix, "- Vue 2D")),
+    pca_3d = PlotPca3D_interactive(data, y, paste(title_prefix, "- Vue 3D"))
+  )
+}
+
+####
+# Function to apply a new threshold without retraining the model
+# This separates threshold adjustment from hyperparameter tuning
+apply_threshold <- function(model_result, new_threshold, groups = NULL) {
+  # Extract necessary data from model_result
+  if (is.null(groups)) {
+    groups <- model_result$groups
+  }
+  
+  lev <- groups
+  
+  # Apply threshold to learning data
+  scorelearning <- model_result$datalearningmodel$reslearningmodel$scorelearning
+  classlearning <- model_result$datalearningmodel$reslearningmodel$classlearning
+  
+  # Convert scorelearning to vector if it's a data.frame
+  if(is.data.frame(scorelearning)) {
+    scorelearning <- scorelearning[,1]
+  }
+  
+  predictclasslearning <- factor(levels = lev)
+  predictclasslearning[which(scorelearning >= new_threshold)] <- lev["positif"]
+  predictclasslearning[which(scorelearning < new_threshold)] <- lev["negatif"]
+  predictclasslearning <- as.factor(predictclasslearning)
+  
+  # Update reslearningmodel with new predictions
+  # Create data.frame exactly as in original modelfunction (line 2450-2451)
+  reslearningmodel <- data.frame(classlearning, scorelearning, predictclasslearning)
+  colnames(reslearningmodel) <- c("classlearning", "scorelearning", "predictclasslearning")
+  
+  datalearningmodel <- list(
+    "learningmodel" = model_result$datalearningmodel$learningmodel,
+    "reslearningmodel" = reslearningmodel
+  )
+  
+  # Apply threshold to validation data if present
+  datavalidationmodel <- NULL
+  if (!is.null(model_result$datavalidationmodel)) {
+    scoreval <- model_result$datavalidationmodel$resvalidationmodel$scoreval
+    classval <- model_result$datavalidationmodel$resvalidationmodel$classval
+    
+    # Convert scoreval to vector if it's a data.frame
+    if(is.data.frame(scoreval)) {
+      scoreval <- scoreval[,1]
+    }
+    
+    predictclassval <- vector(length = length(scoreval))
+    predictclassval[which(scoreval >= new_threshold)] <- lev["positif"]
+    predictclassval[which(scoreval < new_threshold)] <- lev["negatif"]
+    predictclassval <- as.factor(predictclassval)
+    
+    # Create data.frame exactly as in original modelfunction
+    resvalidationmodel <- data.frame(classval, scoreval, predictclassval)
+    colnames(resvalidationmodel) <- c("classval", "scoreval", "predictclassval")
+    
+    datavalidationmodel <- list(
+      "validationmodel" = model_result$datavalidationmodel$validationmodel,
+      "resvalidationmodel" = resvalidationmodel
+    )
+  }
+  
+  # Update model parameters with new threshold
+  modelparameters <- model_result$modelparameters
+  modelparameters$thresholdmodel <- new_threshold
+  
+  # Return updated result with new threshold
+  return(list(
+    "datalearningmodel" = datalearningmodel,
+    "model" = model_result$model,
+    "datavalidationmodel" = datavalidationmodel,
+    "groups" = groups,
+    "modelparameters" = modelparameters
+  ))
+}
