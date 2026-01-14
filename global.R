@@ -2309,6 +2309,10 @@ modelfunction <- function(learningmodel,
           optimal_nrounds <- cv_results$best_iteration
 
           # Train final model with optimal parameters
+          cat("best parmeters \n")
+          print(best_params)
+          
+          cat("optimal rounds  : ", optimal_nrounds, "\n")
           model <- xgb.train(
             params = best_params,
             data = dtrain,
