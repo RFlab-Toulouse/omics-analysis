@@ -597,7 +597,7 @@ shinyUI(fluidPage(
                                                                                    c("Manual parameters" = "manual",
                                                                                      "Cross-validation (xgb.cv)" = "traditional",
                                                                                      "GridSearchCV (superml)" = "gridsearch"),
-                                                                                   selected = "traditional"),
+                                                                                   selected = "manual"),
                                                                       conditionalPanel(condition ="input.help",
                                                                                        helpText("Manual: set all parameters manually"),
                                                                                        helpText("xgb.cv: basic cross-validation"),
