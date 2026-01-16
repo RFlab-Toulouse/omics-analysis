@@ -1999,13 +1999,45 @@ output$download_pca_variance <- downloadHandler(
   }
 )
 
+output$downloadplotPCA2D = downloadHandler(
+  filename = function(){
+    # paste("PCA 2D", ".", input$paramdownplot,  sep ="")
+    paste("PCA 2D.html")
+  },
+  content = function(file){
+    req(TEST()$LEARNINGDIFF)
+    data <- TEST()$LEARNINGDIFF
+    req(data)
+    
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+    
+    if(ncol(X) >= 2) {
+      #p2d <- PlotPca2D_interactive(data = X, y = y)
+      # ggsave(filename = file , 
+      #        plot =  PlotPca2D_interactive(data = X, y = y),
+      #        device = input$paramdownplot
+      # )
+      htmlwidgets::saveWidget(as_widget(PlotPca2D_interactive(data = X, y = y)), file = file )
+    }
+  }
+)
 
-# ============================================================================
-# Section PCA Visualization (Option 2 - Dans l'onglet Statistics)
-# ============================================================================
-
-# Si vous choisissez d'ajouter les visualisations dans l'onglet Statistics
-# Utilisez ces outputs à la place :
+output$downloadplotPCA3D = downloadHandler(
+  filename = function(file){
+    paste("PCA 3D.html")
+  }, 
+  content = function(file){
+    req(TEST()$LEARNINGDIFF)
+    data <- TEST()$LEARNINGDIFF
+    req(data)
+    
+    y <- data[, 1]
+    X <- data[, -1, drop = FALSE]
+    p3d <- PlotPca3D_interactive(data = X, y = y)
+    htmlwidgets::saveWidget(as_widget(p3d), file = file )
+  }
+)
 
 output$pca_plot_2d_stats <- renderPlotly({
   # Utiliser les données différentiellement exprimées si disponibles

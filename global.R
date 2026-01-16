@@ -2861,6 +2861,7 @@ data<-table(predict,class)
 sensi<-round(data[1,1]/(data[1,1]+data[2,1]),digits = 3)
 return(sensi)
 }
+
 specificity<-function(predict,class){
   data<-table(predict,class )
   round(data[2,2]/(data[1,2]+data[2,2]),digit=3)

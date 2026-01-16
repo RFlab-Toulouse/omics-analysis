@@ -399,16 +399,26 @@ shinyUI(fluidPage(
                                               column(6,
                                                      h5(" 2D view (PC1 vs PC2)"),
                                                      plotlyOutput("pca_plot_2d_stats", height = "450px") %>% 
-                                                       withSpinner(color = "#0dc5c1", type = 1)
+                                                       withSpinner(color = "#0dc5c1", type = 1),
+                                                     br(),
+                                                     p(downloadButton("downloadplotPCA2D") %>% 
+                                                         withSpinner(color = "#0dc5c1", type = 1), align  = 'center')
                                               ),
                                               column(6,
                                                      h5("3D view (PC1 vs PC2 vs PC3)"),
                                                      plotlyOutput("pca_plot_3d_stats", height = "450px") %>% 
-                                                       withSpinner(color = "#0dc5c1", type = 1)
+                                                       withSpinner(color = "#0dc5c1", type = 1),
+                                                     br(),
+                                                     p(downloadButton("downloadplotPCA3D") %>% 
+                                                         withSpinner(color = "#0dc5c1", type = 1), align = 'center')
                                               )
-                                            ),
-                                            
-                                            p(downloadButton("download_pca_combined", "Download plot"), align = "center")
+                                            )
+                                            # ,
+                                            # 
+                                            # br(nrow = 2),
+                                            # p(
+                                            #   downloadButton("download_pca_combined", "Download plot")
+                                            #   , align = "center")
                                    ),
                                    
                                    # tabPanel("PCA Visualization", icon = icon("chart-area"),
