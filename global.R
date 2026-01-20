@@ -2256,17 +2256,29 @@ modelfunction <- function(learningmodel,
               min_child_weight = 1
             )
 
-            # Cross-validation to find optimal nrounds
-            cv_results <- xgb.cv(
-              params = best_params,
-              data = dtrain,
-              nrounds = 200,
-              nfold = min(5, nrow(learningmodel)-1),
-              early_stopping_rounds = 10,
-              verbose = 0
-            )
-
-            optimal_nrounds <- cv_results$best_iteration
+            # Cross-validation to find optimal nround
+            tryCatch({
+              cv_results <- xgb.cv(
+                params = best_params,
+                data = dtrain,
+                nrounds = 200,
+                nfold = min(5, nrow(learningmodel)-1),
+                early_stopping_rounds = 10,
+                verbose = 0
+              )
+              
+              optimal_nrounds <- cv_results$best_iteration
+            }, error =  function(e){
+              e$message
+              showNotification(
+                "Something wrong where running!, Try GridSearchCV (superml) option ",
+                type = 'error',
+                
+              )
+              
+              optimal_nrounds <- 20
+            })
+            
 
             # Train final model with optimal parameters
             model <- xgb.train(
