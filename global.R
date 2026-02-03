@@ -1149,8 +1149,16 @@ barplottest<-function(feature,logFC,levels,pval,mean1,mean2,thresholdpv=0.05,thr
     data<-data[order(data[,1]),]
     return(data[which((data$pval2==TRUE)& (data$logFC2==TRUE)),c(1,2,5)])}
   else{
-    ggplot(data[which( ( data$pval2) & (data$logFC2) ),], aes(feature, mean,fill=group))+geom_bar(stat="identity", position="dodge")+ 
-      ggtitle(maintitle)+theme(plot.title=element_text( size=15))
+    ggplot(data[which( ( data$pval2) & (data$logFC2) ),], aes(feature, mean,fill=group))+
+      geom_bar(stat="identity", position="dodge")+ 
+      ggtitle(maintitle)+
+      theme(plot.title=element_text( size=15), 
+            axis.text.y = element_text(size=10, face =  'bold'),
+            legend.title = element_text(size=11, face = "bold"),
+            legend.text = element_text(size=10, face = 'bold'),
+            axis.title.y = element_text(size=12, face = "bold"),
+            axis.text.x = element_text(size = 12, angle = 0, vjust = 0.5, hjust=0.51, face = 'bold')
+            )
   }
 }
 errorplot<-function(text=paste("error /n","text error")){
@@ -1171,7 +1179,13 @@ barplottestSF<-function(toto,graph=T){
   data<-as.factor(rescond)
   p<-qplot(factor(data), geom="bar", fill=factor(data))
   p+ggtitle("Repartition of the variables according to the test results")+
-    theme(plot.title=element_text(size=15))
+    theme(plot.title=element_text( size=15), 
+          axis.text.y = element_text(size=10, face =  'bold'),
+          legend.title = element_text(size=11, face = "bold"),
+          legend.text = element_text(size=10, face = 'bold'),
+          axis.title.y = element_text(size=12, face = "bold"),
+          axis.text.x = element_text(size = 12, angle = 0, vjust = 0.5, hjust=0.51, face = 'bold')
+    )
 }
 
 SFtest<-function(toto,shaptest=T,Ftest=T,threshold=0.05){
@@ -1692,13 +1706,14 @@ modelfunction <- function(learningmodel,
         print(tune_result)
         cost_param <- tune_result$best.parameters$cost
         gamma_param <- tune_result$best.parameters$gamma
+        kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
         
       } else {
         # Use manual hyperparameters
         cat("define svm parameters manually \n")
         cost_param <- ifelse(is.null(modelparameters$cost), 1, modelparameters$cost)
         gamma_param <- ifelse(is.null(modelparameters$gamma), 0.1, modelparameters$gamma)
-        # kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
+        kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
 
         # model <- svm(group ~ ., data = learningmodel,
         #             kernel= kernel_param , 
@@ -1710,13 +1725,13 @@ modelfunction <- function(learningmodel,
       }
       
       model <- svm(group ~ ., data = learningmodel,
-                   kernel= 'radial' , #kernel_param , 
+                   kernel= kernel_param , 
                    cost=cost_param, gamma=gamma_param,
                    type = "C-classification",
                    probability=TRUE)
       model$cost <- cost_param
       model$gamma <- gamma_param
-      #model$kernel <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
+      # model$kernel <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
 
       if(modelparameters$fs){
 
@@ -2429,7 +2444,7 @@ modelfunction <- function(learningmodel,
         sdselect<-apply(learningselect2[,which(colnames(learningselect2)%in%colnames(validationdiff))], 2, sd,na.rm=T)
         print('sdselect')
         print(sdselect)
-        validationdiff[,-1]<-scale(validationdiff[,-1],center=F,scale=sdselect[-1])
+        validationdiff[,-1]<-scale(as.matrix(validationdiff[,-1]),center=F,scale=sdselect[-1])
       }
 
       #NAstructure if NA ->0
@@ -2612,11 +2627,11 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
     sp = 19
     f <- p + geom_point(data = diag, aes(x = x, y = y), color = "lightgrey", shape = sp) + 
       theme(axis.text = element_text(size = 16), 
-            title = element_text(size = 15) , 
-            axis.text.x = element_text(size = 12 ,  face = 'bold' ) ,
-            axis.text.y =  element_text(size = 12 , face =  'bold'),
-            axis.title.x = element_text(size = 15 , face = 'bold'), 
-            axis.title.y =  element_text(size = 15 , face = 'bold')
+            title = element_text(size = 18, face = 'bold') , 
+            axis.text.x = element_text(size = 15 ,  face = 'bold' ) ,
+            axis.text.y =  element_text(size = 15 , face =  'bold'),
+            axis.title.x = element_text(size = 18 , face = 'bold'), 
+            axis.title.y =  element_text(size = 18 , face = 'bold')
             ) + 
       labs(y = "Sensitivity", x = "1 - Specificity", title = maintitle) +
       annotate("text",x=0.2,y=0.1,label=paste("AUC = ",as.character(round(auc,digits = 3))),size=7,colour= roccol)+
@@ -2626,15 +2641,25 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
   }
 }
 
-scoremodelplot<-function(class,score,names,threshold,type,graph,printnames){
+scoremodelplot<-function(class,score,names,threshold,type,graph,printnames, maintitle = "Score representation train"){
   class<-factor(class,levels =rev(levels(class)))
 
   if(type=="boxplot"){
-    boxplotggplot(class =class,score =score,names=names,threshold=threshold,
+    boxplotggplot(class = class,
+                  score = score, 
+                  names = names,
+                  threshold=threshold,
+                  maintitle = maintitle,
                   graph = graph)
   }
   else if(type=="points"){
-    plot_pred_type_distribution(class = class, score = score,names=names,threshold=threshold,graph=graph,printnames=printnames  )
+    plot_pred_type_distribution(class = class, 
+                                score = score
+                                ,names=names,
+                                threshold=threshold,
+                                graph=graph,
+                                maintitle = maintitle,
+                                printnames=printnames  )
   } 
 }
 
@@ -3394,8 +3419,6 @@ apply_threshold <- function(model_result, new_threshold, groups = NULL) {
   predictclasslearning[which(scorelearning < new_threshold)] <- lev["negatif"]
   predictclasslearning <- as.factor(predictclasslearning)
   
-  # Update reslearningmodel with new predictions
-  # Create data.frame exactly as in original modelfunction (line 2450-2451)
   reslearningmodel <- data.frame(classlearning, scorelearning, predictclasslearning)
   colnames(reslearningmodel) <- c("classlearning", "scorelearning", "predictclasslearning")
   

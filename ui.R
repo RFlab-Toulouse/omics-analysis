@@ -331,7 +331,7 @@ shinyUI(fluidPage(
                                                                ),
                                                                column(6,
                                                                       textOutput("nbdiff",inline=T), "differently expressed",
-                                                                      plotOutput("barplottest" ,width = 400,height = 500)%>% withSpinner(color="#0dc5c1",type = 1),   
+                                                                      plotOutput("barplottest" ,width = "100%",height = 500)%>% withSpinner(color="#0dc5c1",type = 1),   
                                                                       p(downloadButton("downloadbarplottest","Download plot"),downloadButton('downloaddatabarplottest', 'Download raw data'),align="center")
                                                                )
                                                              )

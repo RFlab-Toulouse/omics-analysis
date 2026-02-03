@@ -1153,7 +1153,9 @@ output$downloaddatalearning <- downloadHandler(
 
 output$plotmodeldecouvroc <- renderPlot({
   datalearningmodel<<-MODEL()$DATALEARNINGMODEL
-  ROCcurve(validation = datalearningmodel$reslearningmodel$classlearning,decisionvalues =  datalearningmodel$reslearningmodel$scorelearning)
+  ROCcurve(validation = datalearningmodel$reslearningmodel$classlearning,
+           decisionvalues =  datalearningmodel$reslearningmodel$scorelearning, maintitle = "ROC Curve - Learning Model")
+           
 })
 output$youndendecouv<-renderTable({
   datalearningmodel<<-MODEL()$DATALEARNINGMODEL
@@ -1169,24 +1171,38 @@ output$downloadplotdecouvroc = downloadHandler(
   filename = function() {paste('graph','.',input$paramdownplot, sep='')},
   content = function(file) {
     ggsave(file, plot =  ROCcurve(validation = datalearningmodel$reslearningmodel$classlearning,
-                                  decisionvalues =  datalearningmodel$reslearningmodel$scorelearning),  device = input$paramdownplot)},
+                                  decisionvalues =  datalearningmodel$reslearningmodel$scorelearning, 
+                                  maintitle = "ROC Curve - Learning Model"
+                                  ),  device = input$paramdownplot)},
   contentType=NA)
 
 output$downloaddatadecouvroc <- downloadHandler(
   filename = function() { paste('dataset', '.',input$paramdowntable, sep='') },
   content = function(file) {
-    downloaddataset(ROCcurve(validation = datalearningmodel$reslearningmodel$classlearning,decisionvalues =  datalearningmodel$reslearningmodel$scorelearning,graph=F), file) })
+    downloaddataset(ROCcurve(validation = datalearningmodel$reslearningmodel$classlearning,
+                             decisionvalues =  datalearningmodel$reslearningmodel$scorelearning,graph=F),
+                    file) })
 
 output$plotmodeldecouvbp <- renderPlot({
   datalearningmodel<<-MODEL()$DATALEARNINGMODEL
-  scoremodelplot(class =datalearningmodel$reslearningmodel$classlearning ,score =datalearningmodel$reslearningmodel$scorelearning,names=rownames(datalearningmodel$reslearningmodel),
-                 threshold =input$thresholdmodel ,type =input$plotscoremodel,graph = T,printnames=input$shownames1)
+  scoremodelplot(class =datalearningmodel$reslearningmodel$classlearning ,
+                 score =datalearningmodel$reslearningmodel$scorelearning,
+                 names=rownames(datalearningmodel$reslearningmodel),
+                 threshold =input$thresholdmodel ,
+                 type =input$plotscoremodel,graph = T,
+                 maintitle="Score plot - Learning Model",
+                 printnames=input$shownames1)
 })
 output$downloadplotmodeldecouvbp = downloadHandler(
   filename = function() {paste('graph','.',input$paramdownplot, sep='')},
   content = function(file) {
-    ggsave(file, plot = scoremodelplot(class = datalearningmodel$reslearningmodel$classlearning ,score =datalearningmodel$reslearningmodel$scorelearning,names=rownames(datalearningmodel$reslearningmodel),
-                                      threshold =input$thresholdmodel ,type =input$plotscoremodel,graph = T),  device = input$paramdownplot)},
+    ggsave(file, plot = scoremodelplot(class = datalearningmodel$reslearningmodel$classlearning ,
+                                       score =datalearningmodel$reslearningmodel$scorelearning,
+                                       names=rownames(datalearningmodel$reslearningmodel),
+                                      threshold =input$thresholdmodel ,
+                                      maintitle="Score plot - validation Model",
+                                      type =input$plotscoremodel,graph = T),  
+           device = input$paramdownplot)},
   contentType=NA)
 
 output$downloaddatamodeldecouvbp <- downloadHandler(
@@ -1223,13 +1239,18 @@ output$downloaddatavalidation <- downloadHandler(
 
 output$plotmodelvalroc <- renderPlot({
   datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
-  ROCcurve(validation =  datavalidationmodel$resvalidationmodel$classval,decisionvalues =  datavalidationmodel$resvalidationmodel$scoreval)
+  ROCcurve(validation =  datavalidationmodel$resvalidationmodel$classval,
+           decisionvalues =  datavalidationmodel$resvalidationmodel$scoreval,
+           maintitle = "ROC curve validation Model"
+           )
 })
 
 output$downloadplotvalroc = downloadHandler(
   filename = function() {paste('graph','.',input$paramdownplot, sep='')},
   content = function(file) {
-    ggsave(file, plot =ROCcurve(validation =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval,decisionvalues =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval),  device = input$paramdownplot)},
+    ggsave(file, plot =ROCcurve(validation =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval,
+                                decisionvalues =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,
+                                maintitle = "ROc curve validation Model"),  device = input$paramdownplot)},
   contentType=NA)
 
 output$downloaddatavalroc <- downloadHandler(
@@ -1240,15 +1261,24 @@ output$downloaddatavalroc <- downloadHandler(
 
 output$plotmodelvalbp <- renderPlot({
   datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
-  scoremodelplot(class = datavalidationmodel$resvalidationmodel$classval ,score =datavalidationmodel$resvalidationmodel$scoreval,names=rownames(datavalidationmodel$resvalidationmodel),
-                 threshold =input$thresholdmodel ,type =input$plotscoremodel,graph = T,printnames=input$shownames1)
+  scoremodelplot(class = datavalidationmodel$resvalidationmodel$classval ,
+                 score =datavalidationmodel$resvalidationmodel$scoreval,
+                 names=rownames(datavalidationmodel$resvalidationmodel),
+                 threshold =input$thresholdmodel ,
+                 maintitle =  "score plot - validation Model",
+                 type =input$plotscoremodel,
+                 graph = T,printnames=input$shownames1)
 })
 
 output$downloadplotmodelvalbp = downloadHandler(
   filename = function() {paste('graph','.',input$paramdownplot, sep='')},
   content = function(file) {
-    ggsave(file, plot =scoremodelplot(class = MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval ,score =MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,names=rownames(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel),
-                                      threshold =input$thresholdmodel ,type =input$plotscoremodel,graph = T),  device = input$paramdownplot)},
+    ggsave(file, plot =scoremodelplot(class = MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval ,
+                                      score =MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,
+                                      names=rownames(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel),
+                                      maintitle =  "score plot - validation Model",
+                                      threshold =input$thresholdmodel ,
+                                      type =input$plotscoremodel,graph = T),  device = input$paramdownplot)},
   contentType=NA)
 
 output$downloaddatamodelvalbp <- downloadHandler(
