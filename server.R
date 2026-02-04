@@ -668,16 +668,21 @@ output$alphaused<-renderText({
 output$multivariateresultstable<-renderDataTable({
   multivariateresults <- TEST()$MULTIVARIATERESULTS
   if(!is.null(multivariateresults) && nrow(multivariateresults$results) > 0){
-    results <- multivariateresults$results
-    # cat(" voir la gueule de results \n")
-    # print(results)
-    results$coefficient <- round(results$coefficient, 4)
-    results$AUC <- round(results$AUC, 3)
-    results$FoldChange <- round(results$FoldChange, 3)
-    results$logFoldChange <- round(results$logFoldChange, 3)
-    results$mean_group1 <- round(results$mean_group1, 3)
-    results$mean_group2 <- round(results$mean_group2, 3)
-    results
+    tryCatch({
+      results <- multivariateresults$results
+      # cat(" voir la gueule de results \n")
+      # print(results)
+      results$coefficient <- round(results$coefficient, 4)
+      results$AUC <- round(results$AUC, 3)
+      results$FoldChange <- round(results$FoldChange, 3)
+      results$logFoldChange <- round(results$logFoldChange, 3)
+      results$mean_group1 <- round(results$mean_group1, 3)
+      results$mean_group2 <- round(results$mean_group2, 3)
+      results
+    },error =  function(e){
+      print("error in multivariate results table")
+      print(e$message)
+    })
   } else {
     data.frame()
   }

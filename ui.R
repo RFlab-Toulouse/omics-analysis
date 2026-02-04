@@ -237,7 +237,7 @@ shinyUI(fluidPage(
                                                      checkboxInput("log","transform data in log",FALSE),
                                                      checkboxInput("standardization","standardization dataset",FALSE),
                                                      conditionalPanel(condition ="input.help",helpText("dividing the columns quadratic mean")),
-                                                     checkboxInput("arcsin","arcsine transformation",FALSE),
+                                                     checkboxInput("arcsin","Min-Max transformation",FALSE),
                                                      conditionalPanel(condition ="input.help",helpText("each column is rescaled between 1 and 0, and arcsin transformation is applying"))
                                               ),
                                               column(4,
@@ -949,7 +949,7 @@ shinyUI(fluidPage(
                                                                 checkboxGroupInput("standardizationtest","standardization dataset",
                                                                                    choices = list("TRUE"=TRUE,"FALSE"=FALSE),inline = TRUE,
                                                                                    selected = "FALSE"),
-                                                                checkboxGroupInput("arcsintest","arcsine transformation",choices = list("TRUE"=TRUE,"FALSE"=FALSE),inline = TRUE,selected ="FALSE")
+                                                                checkboxGroupInput("arcsintest","MinMax transformation",choices = list("TRUE"=TRUE,"FALSE"=FALSE),inline = TRUE,selected ="FALSE")
                                                          ),
                                                          #),
                                                          #hr(),
