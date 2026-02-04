@@ -450,7 +450,8 @@ transformdatafunction<-function(learningselect,structuredfeatures,datastructures
     }
   }
   if(transformdataparameters$log){ 
-    learningtransform[,-1]<-transformationlog(x = learningtransform[,-1]+1,logtype=transformdataparameters$logtype)}
+    learningtransform[,-1]<-transformationlog(x = learningtransform[,-1]+1,
+                                              logtype=transformdataparameters$logtype)}
   if(transformdataparameters$arcsin){
     learningtransform[,-1]<-apply(X = learningtransform[,-1],MARGIN = 2,FUN = function(x){(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))})
     learningtransform[,-1]<-asin(sqrt(learningtransform[,-1]))
