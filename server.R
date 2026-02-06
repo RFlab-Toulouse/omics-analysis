@@ -674,6 +674,7 @@ output$multivariateresultstable<-renderDataTable({
       # print(results)
       results$coefficient <- round(results$coefficient, 4)
       results$AUC <- round(results$AUC, 3)
+      
       results$FoldChange <- round(results$FoldChange, 3)
       results$logFoldChange <- round(results$logFoldChange, 3)
       results$mean_group1 <- round(results$mean_group1, 3)
@@ -688,6 +689,10 @@ output$multivariateresultstable<-renderDataTable({
   }
 },options = list("orderClasses" = F, "responsive" = F, "pageLength" = 10))
 
+
+
+
+
 output$downloadmultivariateresults <- downloadHandler(
   filename = function() { paste('multivariate_results', '.',input$paramdowntable, sep='') },
   content = function(file) {
@@ -697,6 +702,38 @@ output$downloadmultivariateresults <- downloadHandler(
     }
   }
 )
+
+output$borutaresultstable<-renderDataTable({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && nrow(multivariateresults$results) > 0){
+    tryCatch({
+      results <- multivariateresults$results
+      results$AUC <- round(results$AUC, 3)
+      results$FoldChange <- round(results$FoldChange, 3)
+      results$logFoldChange <- round(results$logFoldChange, 3)
+      results$mean_group1 <- round(results$mean_group1, 3)
+      results$mean_group2 <- round(results$mean_group2, 3)
+      results
+    },error =  function(e){
+      print("error in multivariate results table")
+      print(e$message)
+    })
+  } else {
+    data.frame()
+  }
+},options = list("orderClasses" = F, "responsive" = F, "pageLength" = 10))
+
+
+output$downloadborutaresults =  downloadHandler(
+  filename = function() { paste('boruta_results', '.',input$paramdowntable, sep='') },
+  content = function(file) {
+    multivariateresults <- TEST()$MULTIVARIATERESULTS
+    if(!is.null(multivariateresults) && multivariateresults$method == "boruta"){
+      downloaddataset(multivariateresults$results, file)
+    }
+  }
+)
+
 
 #Clustering + ElasticNet results outputs
 output$nbclustenetselected<-renderText({
@@ -708,6 +745,14 @@ output$nbclustenetselected<-renderText({
   }
 })
 
+output$nbborutaselected =  renderText({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if(!is.null(multivariateresults) && input$test == "boruta"){
+    length(multivariateresults$selected_vars)
+  } else {
+    0
+  }
+})
 output$clustenetnclusters<-renderText({
   multivariateresults <- TEST()$MULTIVARIATERESULTS
   if(!is.null(multivariateresults) && !is.null(multivariateresults$clust_result)){

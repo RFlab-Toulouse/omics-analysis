@@ -272,7 +272,8 @@ shinyUI(fluidPage(
                                                                     # "Clustering + ElasticNet (multivariate)" = "clustEnet",
                                                                     "Student Test (univariate)" = "Ttest",
                                                                     "Lasso (multivariate)" = "lasso",
-                                                                    "ElasticNet (multivariate)" = "elasticnet"
+                                                                    "ElasticNet (multivariate)" = "elasticnet",
+                                                                    "Boruta selection" = "boruta"
                                                                     # ,
                                                                     # "Ridge (multivariate)" = "ridge"
                                                                     )
@@ -375,6 +376,17 @@ shinyUI(fluidPage(
                                                                       p(downloadButton('downloadmultivariateresults', 'Download multivariate results'),align="center")
                                                                )
                                                              )
+                                            ),
+                                            conditionalPanel(
+                                              condition  =  "input.test=='boruta'",
+                                              fluidRow(
+                                                column(12,
+                                                       h4("Boruta Selection Results"),
+                                                       textOutput("nbborutaselected",inline=T), " variables selected",br(),br(),
+                                                       dataTableOutput("borutaresultstable")%>% withSpinner(color="#0dc5c1",type = 1),
+                                                       p(downloadButton('downloadborutaresults', 'Download Boruta results'),align="center")
+                                                )
+                                              )
                                             )
                                             ,
                                             conditionalPanel(condition ="input.SFtest==true  ",

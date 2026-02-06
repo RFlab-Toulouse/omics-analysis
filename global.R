@@ -38,7 +38,8 @@ usePackage("glmnet")#for lasso, elasticnet, ridge regression
 usePackage("survival")#for cox regression
 usePackage("xgboost")#for xgboost gradient boosting
 usePackage("lightgbm")#for lightgbm gradient boosting
-usePackage("class")#for k-nearest neighbors
+usePackage("class") #for k-nearest neighbors
+usePackage("Boruta") #for Boruta variables selection
 
 
 ##########################
@@ -605,7 +606,7 @@ testfunction<-function(tabtransform,testparameters){
     useddata<-NULL
     multivariateresults<-NULL
   }
-  else if(testparameters$test%in%c("lasso","elasticnet","ridge","cox")){
+  else if(testparameters$test%in%c("lasso","elasticnet","ridge")){
     # Multivariate selection methods
     multivariateresults<-multivariateselection(toto = tabtransform,
                                                method = testparameters$test,
@@ -664,6 +665,29 @@ testfunction<-function(tabtransform,testparameters){
       useddata <- data.frame("names"=datatest$name,
                              "SelectionFrequency"=datatest$SelectionFrequency,
                              "logFC"=datatest$logFoldChange,
+                             "mean1"=datatest$mean_group1,
+                             "mean2"=datatest$mean_group2)
+    }
+  }else if (testparameters$test=="boruta"){
+    # Boruta variable selection method
+    cat("Running Boruta variable selection...\n")
+    
+    multivariateresults <- borutaSelection(toto = tabtransform)
+    datatest <- multivariateresults$results
+    
+    if(nrow(datatest)==0){
+      print("no variables selected by Boruta method")
+      tabdiff<<-data.frame()
+      useddata<-NULL
+    }
+    else{
+      selected_vars <- multivariateresults$selected_vars
+      indvar <- (colnames(tabtransform) %in% selected_vars)
+      indvar[1] <- T #keep the categorial variable
+      tabdiff<<-tabtransform[,indvar]
+      useddata <- data.frame("names"=datatest$name,
+                             # "Importance"=datatest$Importance,
+                             # "logFC"=datatest$logFoldChange,
                              "mean1"=datatest$mean_group1,
                              "mean2"=datatest$mean_group2)
     }
@@ -858,20 +882,16 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
 # Clustering + Elastic Net selection function
 ##########################
 
-# Preprocess peptides: filter low variance and low frequency variables
 preprocess_peptides <- function(peptide_data, min_patients = 20) {
-  # Filter variables with too few non-zero patients
   n_nonzero <- colSums(peptide_data != 0, na.rm = TRUE)
   keep_peptides <- n_nonzero >= min_patients
   
-  # Filter variables with near-zero variance
   variances <- apply(peptide_data, 2, var, na.rm = TRUE)
   keep_var <- variances > 1e-10
   
   return(peptide_data[, keep_peptides & keep_var, drop=FALSE])
 }
 
-# Variable selection using clustering and elastic net with bootstrap
 varselClust <- function(toto, n_clusters = 100, n_bootstrap = 500, alpha_enet = 0.5,
                         min_selection_freq = 0.5, preprocess = TRUE, min_patients = 20){
   
@@ -1115,6 +1135,124 @@ PlotPca = function(data, y, title = "PCA of selected peptides") {
       legend.title = element_text(size = 11, face = "bold"),
       legend.text = element_text(size = 10)
     )
+}
+
+
+# selection de variable par l'ago de Boruta 
+borutaSelection =  function(toto, maxRuns = 100, seed = 123) {
+  set.seed(seed)
+  lev <- levels(toto[,1])
+  group <- ifelse(toto[,1] == lev[1], 1, 0)
+  data <- toto[,-1]
+  
+  boruta_result <- Boruta(x = data, y = group, maxRuns = maxRuns, doTrace = 0)
+  
+  # selected_vars <- names(boruta_result$finalDecision)[boruta_result$finalDecision == "Confirmed"]
+  selected_vars <- getSelectedAttributes(boruta_result)
+  cat('nombre de variables selectionné : ', length(selected_vars) , "\n")
+  
+  if(length(selected_vars) > 0){
+    # AUC for each selected variable
+    auc_values <- sapply(selected_vars, function(var){
+      auc(roc(group, data[, var], quiet=TRUE))
+    })
+    
+    # Mean values by group
+    mlev1 <- colMeans(data[which(group==0), selected_vars, drop=FALSE], na.rm=TRUE)
+    mlev2 <- colMeans(data[which(group==1), selected_vars, drop=FALSE], na.rm=TRUE)
+    
+    # Fold change : class 1 sur class 2:  case versus control
+    # class 1 : first level (positif)
+    # class 2 : second level (negatif)
+    FC1o2 <- mlev1 / (mlev2 + 0.0001)
+    logFC1o2 <- log2(abs(FC1o2))
+    
+    # Create results dataframe
+    results <- data.frame(
+      name = selected_vars,
+      AUC = auc_values,
+      FoldChange = FC1o2,
+      logFoldChange = logFC1o2,
+      mean_group1 = mlev1,
+      mean_group2 = mlev2,
+      stringsAsFactors = FALSE
+    )
+    
+    # Sort by absolute coefficient value
+   # results <- results[order(abs(results$coefficient), decreasing=TRUE), ]
+  } else {
+    results <- data.frame()
+  }
+  
+  return(list(
+    results =  results,
+    name =  selected_vars,
+    selected_vars = selected_vars,
+    boruta_result = boruta_result,
+    mean_group1 = mlev1,
+    mean_group2 = mlev2
+  ))
+}
+
+
+# variable selection using Sparse generalized canonical correlation analysis 
+# library(RGCCA)
+# RGCCA_selection <- function(toto, n_components = 2, sparsity = 0.1, seed = 123) {
+#   set.seed(seed)
+#   lev <- levels(toto[,1])
+#   group <- ifelse(toto[,1] == lev[1], 1, 0)
+#   data <- as.matrix(toto[,-1])
+#   
+#   rgcca_result <- rgcca(data, Y = group, ncomp = n_components, sparsity = sparsity)
+#   
+#   # Extract selected variables based on non-zero loadings
+#   selected_vars <- colnames(data)[which(rgcca_result$loadings != 0)]
+#   
+#   return(list(
+#     results = data.frame(name = selected_vars),
+#     selected_vars = selected_vars,
+#     rgcca_result = rgcca_result
+#   ))
+# }
+# 
+# 
+# # variables selection using intNMF 
+# library(intNMF)
+# intNMF_selection <- function(toto, n_clusters = 2, seed = 123) {
+#   set.seed(seed)
+#   lev <- levels(toto[,1])
+#   group <- ifelse(toto[,1] == lev[1], 1, 0)
+#   data <- as.matrix(toto[,-1])
+#   intnmf_result <- intNMF(data, Y = group, nclusters = n_clusters)
+#   # Extract selected variables based on non-zero loadings
+#   selected_vars <- colnames(data)[which(intnmf_result$loadings != 0)]
+#   return(list(
+#     results = data.frame(name = selected_vars),
+#     selected_vars = selected_vars,
+#     intnmf_result = intnmf_result
+#   ))
+# }
+# 
+# if (!require("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+# 
+# BiocManager::install("iClusterPlus")
+
+# variables selection using iClusterPlus
+library(iClusterPlus)
+iClusterPlus_selection <- function(toto, n_clusters = 2, seed = 123) {
+  set.seed(seed)
+  lev <- levels(toto[,1])
+  group <- ifelse(toto[,1] == lev[1], 1, 0)
+  data <- as.matrix(toto[,-1])
+  iCluster_result <- iClusterPlus(data, Y = group, nclusters = n_clusters)
+  # Extract selected variables based on non-zero loadings
+  selected_vars <- colnames(data)[which(iCluster_result$loadings != 0)]
+  return(list(
+    results = data.frame(name = selected_vars),
+    selected_vars = selected_vars,
+    iCluster_result = iCluster_result
+  ))
 }
 
 volcanoplot<-function(logFC,pval,thresholdFC=0,thresholdpv=0.05,graph=T,maintitle="Volcano plot",completedata){
