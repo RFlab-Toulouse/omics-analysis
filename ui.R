@@ -632,6 +632,9 @@ shinyUI(fluidPage(
                                                                                        ),
                                                                                        numericInput("maxdepthxgb","Max depth" , 6, min =1, max = 20, step = 1),
                                                                                        numericInput("etaxgb","Learning rate (eta)" , 0.3, min =0.01, max = 1, step = 0.01),
+                                                                                       numericInput("colsamplexgb","Colsample by tree" , 1, min =0.1, max = 1, step = 0.1),
+                                                                                       numericInput("subsamplexgb","Subsample" , 1, min =0.1, max = 1, step = 0.1),
+                                                                                       numericInput('gamme_xgb', "gamma", value = 0.1, min = 0, max = 1, step = 0.1),
                                                                                        conditionalPanel(condition ="input.help",helpText("Manually set XGBoost hyperparameters"))
                                                                       )
                                                                       # ,
@@ -757,7 +760,11 @@ shinyUI(fluidPage(
                                                                                             h4("XGBoost Hyperparameters Explanation"),
                                                                                             p(strong("nrounds:"), "Also known as num_boost_round; defines the number of boosting iterations."),
                                                                                             p(strong("max_depth:"), "Maximum depth of a tree; controls model complexity and overfitting."),
-                                                                                            p(strong("eta (learning rate):"), "Step size shrinkage used to prevent overfitting; smaller values require more rounds.")
+                                                                                            p(strong("eta (learning rate):"), "Step size shrinkage used to prevent overfitting; smaller values require more rounds."),
+                                                                                            p(strong("min_child_weight:"), "Minimum sum of instance weight needed in a child; controls overfitting by requiring a minimum amount of data in leaf nodes."),
+                                                                                            p(strong("colsample_bytree:"), "Subsample ratio of columns when constructing each tree; helps prevent overfitting."),
+                                                                                            p(strong("subsample:"), "Subsample ratio of the training instances; helps prevent overfitting."),
+                                                                                            p(strong("gamma:"), "Minimum loss reduction required to make a further partition on a leaf node; controls model complexity and overfitting.")
                                                                                           )
                                                                                           ),
                                                                          conditionalPanel(condition = "input.model=='elasticnet'", 
@@ -834,10 +841,13 @@ shinyUI(fluidPage(
                                                                                                                    class =  "well",
                                                                                                                    style = 'color :  blue;',
                                                                                                                    fluidRow(
-                                                                                                                     column(3, strong("Optimal nrounds:"), textOutput("xgbnrounds",inline=T)),
-                                                                                                                     column(3, strong("Max depth:"), textOutput("xgbmaxdepth",inline=T)),
-                                                                                                                     column(3, strong("Learning rate (eta):"), textOutput("xgbeta",inline=T)),
-                                                                                                                     column(3, strong("Min child weight:"), textOutput("xgbminchild",inline=T))
+                                                                                                                     column(2, strong("Optimal nrounds:"), textOutput("xgbnrounds",inline=T)),
+                                                                                                                     column(2, strong("Max depth:"), textOutput("xgbmaxdepth",inline=T)),
+                                                                                                                     column(2, strong("Learning rate (eta):"), textOutput("xgbeta",inline=T)),
+                                                                                                                     column(2, strong("Min child weight:"), textOutput("xgbminchild",inline=T)),
+                                                                                                                     # column(2, strong("Colsample by tree:"), textOutput("xgbcolsample",inline=T)),
+                                                                                                                     column(2, strong("Subsample:"), textOutput("xgbsubsample",inline=T)),
+                                                                                                                     column(2, strong("Gamma:"), textOutput("xgbgamma",inline=T))
                                                                                                                    )
                                                                                                                  )
                                                                                                 ),

@@ -895,7 +895,6 @@ output$donwloadPCAPlot =  downloadHandler(
 )
 
 
-######
 MODEL<-reactive({
   if(input$test=="notest"){learningmodel<<-TRANSFORMDATA()$LEARNINGTRANSFORM}
   else{learningmodel<<-TEST()$LEARNINGDIFF}
@@ -1022,11 +1021,11 @@ MODEL<-reactive({
                            transformdataparameters = transformdataparameters,
                            datastructuresfeatures =  datastructuresfeatures,
                            learningselect = learningselect)
-  
+
  list("DATALEARNINGMODEL"=resmodel$datalearningmodel,"MODEL"=resmodel$model,
       "DATAVALIDATIONMODEL"=resmodel$datavalidationmodel,
       "GROUPS"=resmodel$groups,"modelparameters"=resmodel$modelparameters)
-  
+
   })
 
 
@@ -1154,6 +1153,23 @@ output$xgbeta<-renderText({
 output$xgbminchild<-renderText({
   if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
     MODEL()$MODEL$optimal_min_child_weight
+  } else {
+    "N/A"
+  }
+})
+
+
+output$xgbgamma<-renderText({
+  if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
+    format(MODEL()$MODEL$optimal_gamma, digits = 3)
+  } else {
+    "N/A"
+  }
+})
+
+output$xgbsubsample<-renderText({
+  if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
+    format(MODEL()$MODEL$optimal_subsample, digits = 3)
   } else {
     "N/A"
   }
@@ -1425,7 +1441,7 @@ TESTPARAMETERS <- eventReactive(input$tunetest, {
       cat("✓ Threshold optimization enabled: Youden method (maximize sensitivity + specificity)\n")
       cat("  Initial threshold: 0.5 (placeholder, will be optimized)\n")
       cat("\n")
-      cat("⚠️  IMPORTANT NOTE about threshold optimization in Test Parameters:\n")
+      cat("  IMPORTANT NOTE about threshold optimization in Test Parameters:\n")
       cat("   - The threshold is optimized on TRAINING data for each parameter combination\n")
       cat("   - This is CORRECT methodology: fit threshold on train, apply to validation\n")
       cat("   - However, when comparing many combinations, the best validation result may be\n")
@@ -1435,10 +1451,10 @@ TESTPARAMETERS <- eventReactive(input$tunetest, {
       cat("\n")
     } else if(input$threshold_method_test == "equiprob"){
       # Equiprobability optimization enabled: 0.5 is a placeholder, will be recalculated
-      cat("✓ Threshold optimization enabled: Equiprobability method (minimize |FP-FN|)\n")
+      cat(" Threshold optimization enabled: Equiprobability method (minimize |FP-FN|)\n")
       cat("  Initial threshold: 0.5 (placeholder, will be optimized)\n")
       cat("\n")
-      cat("⚠️  IMPORTANT NOTE about threshold optimization in Test Parameters:\n")
+      cat("  IMPORTANT NOTE about threshold optimization in Test Parameters:\n")
       cat("   - The threshold is optimized on TRAINING data for each parameter combination\n")
       cat("   - This is CORRECT methodology: fit threshold on train, apply to validation\n")
       cat("   - However, when comparing many combinations, the best validation result may be\n")

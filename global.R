@@ -158,6 +158,7 @@ gg_color_hue <- function(n) {
   hues = seq(15, 375, length=n+1)
   hcl(h=hues, l=65, c=100)[1:n]
 }
+
 transformdata<-function(toto,transpose,zeroegalNA){
 #   if(length(which(apply(X = toto,MARGIN=1,function(x){sum(is.na(x))})==ncol(toto)))!=0){
 #     toto<-toto[-which(apply(X = toto,MARGIN=1,function(x){sum(is.na(x))})==ncol(toto)),]}
@@ -177,6 +178,7 @@ transformdata<-function(toto,transpose,zeroegalNA){
   
 toto<-as.data.frame(toto[,c(colnames(toto)[1],sort(colnames(toto)[-1]))])
 }
+
 confirmdata<-function(toto){
   toto<-as.data.frame(toto)
   toto[,1]<-as.factor(as.character(toto[,1]))
@@ -185,7 +187,6 @@ confirmdata<-function(toto){
   }
   return(toto)
 }
-
 
 importfunction<-function(importparameters){
   previousparameters<-NULL
@@ -1435,9 +1436,9 @@ tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
     param_grid <- list(
-      n_estimators = c(50, 100, 200),  # nrounds
+      n_estimators = c(50, 100, 200),  
       max_depth = c(3, 6, 9, 12),
-      learning_rate = c(0.01, 0.05, 0.1, 0.3),  # eta
+      learning_rate = c(0.01, 0.05, 0.1, 0.3), 
       gamma = c(0, 0.1, 0.5),
       subsample = c(0.6, 0.8, 1.0),
       colsample_bytree = c(0.6, 0.8, 1.0),
@@ -2395,6 +2396,7 @@ modelfunction <- function(learningmodel,
             model$optimal_eta <- optimal_eta
             model$optimal_gamma <- optimal_gamma
             model$optimal_subsample <- optimal_subsample
+            cat("optimal_subsample :  ", optimal_subsample, "\n")
             model$optimal_min_child_weight <- optimal_min_child_weight
           } else {
             # Fallback to traditional xgb.cv if GridSearchCV fails
@@ -3462,7 +3464,7 @@ PlotPca2D_interactive <- function(data, y, title = "PCA of selected variables") 
           x = ~PC1, 
           y = ~PC2, 
           color = ~Group,
-          colors = c("#E69F00", "#56B4E9"),
+          colors = c("#00BFC4","#F8766D"),
           type = 'scatter',
           mode = 'markers',
           marker = list(size = 10, opacity = 0.7),
@@ -3507,7 +3509,7 @@ PlotPca3D_interactive <- function(data, y, title = "PCA of selected variables") 
           y = ~PC2, 
           z = ~PC3,
           color = ~Group,
-          colors = c("#E69F00", "#56B4E9"),
+          colors = c("#00BFC4","#F8766D"),
           type = 'scatter3d',
           mode = 'markers',
           marker = list(size = 6, opacity = 0.7),
