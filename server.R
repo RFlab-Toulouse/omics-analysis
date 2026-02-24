@@ -895,139 +895,314 @@ output$donwloadPCAPlot =  downloadHandler(
 )
 
 
-MODEL<-reactive({
-  if(input$test=="notest"){learningmodel<<-TRANSFORMDATA()$LEARNINGTRANSFORM}
-  else{learningmodel<<-TEST()$LEARNINGDIFF}
-  validation<<-DATA()$VALIDATION
-  datastructuresfeatures<<-SELECTDATA()$DATASTRUCTUREDFEATURES
-  transformdataparameters<<-TRANSFORMDATA()$transformdataparameters
-  learningselect<-SELECTDATA()$LEARNINGSELECT
-  # Get hyperparameters for all models
-  alpha_model <- NULL
-  lambda_model <- NULL
-  ntree_model <- 1000
-  autotunerf_param <- TRUE
-  mtry_model <- NULL
-  autotunesvm_param <- TRUE
-  cost_model <- NULL
-  gamma_model <- NULL
-  kernel_model <- NULL
-  autotunexgb_param <- TRUE
-  nrounds_model <- NULL
-  maxdepth_model <- NULL
-  eta_model <- NULL
-
-  # ElasticNet parameters - based on tuning method
-  if(input$model == "elasticnet"){
-    tuning_method_en <- if(!is.null(input$tuning_method_en)) input$tuning_method_en else "traditional"
-    if(tuning_method_en == "manual" || tuning_method_en == "traditional"){
-      alpha_model <- input$alphamodel
-    }
-    if(tuning_method_en == "manual"){
-      lambda_model <- input$lambdamodel
-    }
+# ── MODEL_TRAIN ───────────────────────────────────────────────────────────────
+# CHANGEMENTS vs version précédente :
+#   - thresholdmodel retiré de modelparameters (n'est plus un paramètre de modelfunction)
+#   - Retourne des clés en minuscules (datalearningmodel, model, datavalidationmodel,
+#     groups, modelparameters) pour être directement compatible avec apply_threshold()
+#   - Ne dépend PLUS de input$thresholdmodel → le tuning ne se relance PAS
+#     quand l'utilisateur change le seuil
+# ══════════════════════════════════════════════════════════════════════════════
+MODEL_TRAIN <- reactive({
+  
+  if (input$test == "notest") { learningmodel <<- TRANSFORMDATA()$LEARNINGTRANSFORM }
+  else                        { learningmodel <<- TEST()$LEARNINGDIFF }
+  
+  validation              <<- DATA()$VALIDATION
+  datastructuresfeatures  <<- SELECTDATA()$DATASTRUCTUREDFEATURES
+  transformdataparameters <<- TRANSFORMDATA()$transformdataparameters
+  learningselect           <- SELECTDATA()$LEARNINGSELECT
+  
+  # ── Récupération des hyperparamètres ─────────────────────────────────────────
+  alpha_model        <- NULL
+  lambda_model       <- NULL
+  ntree_model        <- 1000
+  autotunerf_param   <- TRUE
+  mtry_model         <- NULL
+  autotunesvm_param  <- TRUE
+  cost_model         <- NULL
+  gamma_model        <- NULL
+  kernel_model       <- NULL
+  autotunexgb_param  <- TRUE
+  nrounds_model      <- NULL
+  maxdepth_model     <- NULL
+  eta_model          <- NULL
+  
+  if (input$model == "elasticnet") {
+    tuning_method_en <- if (!is.null(input$tuning_method_en)) input$tuning_method_en else "traditional"
+    if (tuning_method_en == "manual" || tuning_method_en == "traditional") alpha_model <- input$alphamodel
+    if (tuning_method_en == "manual")                                       lambda_model <- input$lambdamodel
   }
-
-  # Random Forest parameters - based on tuning method
-  if(input$model == "randomforest"){
-    tuning_method_rf <- if(!is.null(input$tuning_method_rf)) input$tuning_method_rf else "traditional"
-    ntree_model <- input$ntreerf
+  
+  if (input$model == "randomforest") {
+    tuning_method_rf <- if (!is.null(input$tuning_method_rf)) input$tuning_method_rf else "traditional"
+    ntree_model      <- input$ntreerf
     autotunerf_param <- (tuning_method_rf != "manual")
-    if(tuning_method_rf == "manual"){
-      mtry_model <- input$mtryrf
-    }
+    if (tuning_method_rf == "manual") mtry_model <- input$mtryrf
   }
-
-  # SVM parameters - no change, still using checkbox
-  if(input$model == "svm"){
+  
+  if (input$model == "svm") {
     autotunesvm_param <- input$autotunesvm
-    if(!input$autotunesvm){
-      cost_model <- input$costsvm
-      gamma_model <- input$gammasvm
+    if (!input$autotunesvm) {
+      cost_model   <- input$costsvm
+      gamma_model  <- input$gammasvm
       kernel_model <- input$kernelsvm
     }
   }
-
-  # XGBoost parameters - based on tuning method
-  if(input$model == "xgboost"){
-    tuning_method_xgb <- if(!is.null(input$tuning_method_xgb)) input$tuning_method_xgb else "traditional"
+  
+  if (input$model == "xgboost") {
+    tuning_method_xgb <- if (!is.null(input$tuning_method_xgb)) input$tuning_method_xgb else "traditional"
     autotunexgb_param <- (tuning_method_xgb != "manual")
-    if(tuning_method_xgb == "manual"){
-      nrounds_model <- input$nroundsxgb
-      maxdepth_model <- input$maxdepthxgb
-      eta_model <- input$etaxgb
+    if (tuning_method_xgb == "manual") {
+      nrounds_model   <- input$nroundsxgb
+      maxdepth_model  <- input$maxdepthxgb
+      eta_model       <- input$etaxgb
     }
   }
-
-  # LightGBM parameters - no change
-  autotunelgb_param <- TRUE
-  nrounds_lgb_model <- NULL
-  num_leaves_model <- NULL
+  
+  autotunelgb_param      <- TRUE
+  nrounds_lgb_model      <- NULL
+  num_leaves_model       <- NULL
   learning_rate_lgb_model <- NULL
-
-  if(input$model == "lightgbm"){
-    autotunelgb_param <- input$autotunelgb
-    if(!input$autotunelgb){
-      nrounds_lgb_model <- input$nroundslgb
-      num_leaves_model <- input$numleaves
+  
+  if (input$model == "lightgbm") {
+    autotunelgb_param      <- input$autotunelgb
+    if (!input$autotunelgb) {
+      nrounds_lgb_model       <- input$nroundslgb
+      num_leaves_model        <- input$numleaves
       learning_rate_lgb_model <- input$learningratelgb
     }
   }
-
-  # KNN parameters - based on tuning method
-  autotuneknn_param <- TRUE
-  k_neighbors_model <- NULL
-
-  if(input$model == "knn"){
-    tuning_method_knn <- if(!is.null(input$tuning_method_knn)) input$tuning_method_knn else "traditional"
+  
+  autotuneknn_param  <- TRUE
+  k_neighbors_model  <- NULL
+  
+  if (input$model == "knn") {
+    tuning_method_knn <- if (!is.null(input$tuning_method_knn)) input$tuning_method_knn else "traditional"
     autotuneknn_param <- (tuning_method_knn != "manual")
-    if(tuning_method_knn == "manual"){
-      k_neighbors_model <- input$kneighbors
-    }
+    if (tuning_method_knn == "manual") k_neighbors_model <- input$kneighbors
   }
-
-  # Determine if GridSearchCV should be used based on tuning method
+  
+  # ── GridSearch flag ───────────────────────────────────────────────────────────
   use_gridsearch_param <- FALSE
-  if(input$model == "randomforest" && !is.null(input$tuning_method_rf) && input$tuning_method_rf == "gridsearch"){
-    use_gridsearch_param <- TRUE
-  } else if(input$model == "xgboost" && !is.null(input$tuning_method_xgb) && input$tuning_method_xgb == "gridsearch"){
-    use_gridsearch_param <- TRUE
-  } else if(input$model == "elasticnet" && !is.null(input$tuning_method_en) && input$tuning_method_en == "gridsearch"){
-    use_gridsearch_param <- TRUE
-  } else if(input$model == "naivebayes" && !is.null(input$tuning_method_nb) && input$tuning_method_nb == "gridsearch"){
-    use_gridsearch_param <- TRUE
-  } else if(input$model == "knn" && !is.null(input$tuning_method_knn) && input$tuning_method_knn == "gridsearch"){
-    use_gridsearch_param <- TRUE
-  }
+  if      (input$model == "randomforest" && !is.null(input$tuning_method_rf)  && input$tuning_method_rf  == "gridsearch") use_gridsearch_param <- TRUE
+  else if (input$model == "xgboost"      && !is.null(input$tuning_method_xgb) && input$tuning_method_xgb == "gridsearch") use_gridsearch_param <- TRUE
+  else if (input$model == "elasticnet"   && !is.null(input$tuning_method_en)  && input$tuning_method_en  == "gridsearch") use_gridsearch_param <- TRUE
+  else if (input$model == "naivebayes"   && !is.null(input$tuning_method_nb)  && input$tuning_method_nb  == "gridsearch") use_gridsearch_param <- TRUE
+  else if (input$model == "knn"          && !is.null(input$tuning_method_knn) && input$tuning_method_knn == "gridsearch") use_gridsearch_param <- TRUE
+  
+  # ── Construction de modelparameters ──────────────────────────────────────────
+  # IMPORTANT : thresholdmodel est intentionnellement ABSENT ici.
+  # Il ne doit PAS être un paramètre de modelfunction pour éviter que
+  # son changement relance le tuning. Il est géré exclusivement dans MODEL
+  # via apply_threshold().
+  modelparameters <<- list(
+    "modeltype"      = input$model,
+    "invers"         = FALSE,
+    "fs"             = input$fs,
+    "adjustval"      = input$adjustval,
+    "use_gridsearch" = use_gridsearch_param,
+    "alpha"          = alpha_model,
+    "lambda"         = lambda_model,
+    "ntree"          = ntree_model,
+    "autotunerf"     = autotunerf_param,  "mtry"          = mtry_model,
+    "autotunesvm"    = autotunesvm_param, "cost"          = cost_model,
+    "gamma"          = gamma_model,       "kernel"        = kernel_model,
+    "autotunexgb"    = autotunexgb_param, "nrounds"       = nrounds_model,
+    "max_depth"      = maxdepth_model,    "eta"           = eta_model,
+    "autotunelgb"    = autotunelgb_param, "nrounds_lgb"   = nrounds_lgb_model,
+    "num_leaves"     = num_leaves_model,  "learning_rate_lgb" = learning_rate_lgb_model,
+    "autotuneknn"    = autotuneknn_param, "k_neighbors"   = k_neighbors_model
+  )
+  
+  validate(need(ncol(learningmodel) > 1, "Not enough features"))
+  
+  # ── Appel à modelfunction (tuning + entraînement + scores bruts) ─────────────
+  resmodel <<- modelfunction_V2(
+    learningmodel           = learningmodel,
+    validation              = validation,
+    modelparameters         = modelparameters,
+    transformdataparameters = transformdataparameters,
+    datastructuresfeatures  = datastructuresfeatures,
+    learningselect          = learningselect
+  )
+  
+  req(!is.null(resmodel))
+  
+  # Retour en clés MINUSCULES → compatible directement avec apply_threshold()
+  list(
+    "datalearningmodel"   = resmodel$datalearningmodel,
+    "model"               = resmodel$model,
+    "datavalidationmodel" = resmodel$datavalidationmodel,
+    "groups"              = resmodel$groups,
+    "modelparameters"     = resmodel$modelparameters
+  )
+})
 
-  modelparameters<<-list("modeltype"=input$model,"invers"=F,"thresholdmodel"=input$thresholdmodel,
-                         "fs"=input$fs,"adjustval"=input$adjustval,
-                         "use_gridsearch"=use_gridsearch_param,
-                         "alpha"=alpha_model,"lambda"=lambda_model,
-                         "ntree"=ntree_model,"autotunerf"=autotunerf_param,"mtry"=mtry_model,
-                         "autotunesvm"=autotunesvm_param,"cost"=cost_model,"gamma"=gamma_model,
-                         "kernel"= kernel_model , #ifelse(is.null(kernel_model),"radial",kernel_model),
-                         "autotunexgb"=autotunexgb_param,"nrounds"=nrounds_model,
-                         "max_depth"=maxdepth_model,"eta"=eta_model,
-                         "autotunelgb"=autotunelgb_param,"nrounds_lgb"=nrounds_lgb_model,
-                         "num_leaves"=num_leaves_model,"learning_rate_lgb"=learning_rate_lgb_model,
-                         "autotuneknn"=autotuneknn_param,"k_neighbors"=k_neighbors_model)
-  print(ncol(learningmodel))
-  validate(need(ncol(learningmodel)>1,"Not enough features"))
+
+# ── MODEL ─────────────────────────────────────────────────────────────────────
+# CHANGEMENTS vs version précédente :
+#   - Délègue entièrement l'application du seuil à apply_threshold()
+#   - apply_threshold() reçoit MODEL_TRAIN() dont les clés sont en minuscules
+#     → pas de problème de mapping de noms
+#   - Retourne les clés en MAJUSCULES (DATALEARNINGMODEL, DATAVALIDATIONMODEL,
+#     MODEL, GROUPS) pour ne PAS casser le code en aval existant dans server.R
+# ══════════════════════════════════════════════════════════════════════════════
+MODEL <- reactive({
+  req(MODEL_TRAIN())   # garantit que le modèle est entraîné
+  
+  # apply_threshold attend des clés minuscules → MODEL_TRAIN() les retourne
+  # déjà en minuscules → appel direct, sans mapping
+  result <- apply_threshold(
+    model_result  = MODEL_TRAIN(),
+    new_threshold = input$thresholdmodel
+  )
+  
+  # Retour en MAJUSCULES pour compatibilité avec tout le code aval (server.R)
+  list(
+    "DATALEARNINGMODEL"   = result$datalearningmodel,
+    "MODEL"               = result$model,
+    "DATAVALIDATIONMODEL" = result$datavalidationmodel,
+    "GROUPS"              = result$groups,
+    "modelparameters"     = result$modelparameters
+  )
+})
 
 
-  resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,
-                           modelparameters = modelparameters,
-                           transformdataparameters = transformdataparameters,
-                           datastructuresfeatures =  datastructuresfeatures,
-                           learningselect = learningselect)
-
- list("DATALEARNINGMODEL"=resmodel$datalearningmodel,"MODEL"=resmodel$model,
-      "DATAVALIDATIONMODEL"=resmodel$datavalidationmodel,
-      "GROUPS"=resmodel$groups,"modelparameters"=resmodel$modelparameters)
-
-  })
-
+# 
+# MODEL<-reactive({
+#   if(input$test=="notest"){learningmodel<<-TRANSFORMDATA()$LEARNINGTRANSFORM}
+#   else{learningmodel<<-TEST()$LEARNINGDIFF}
+#   validation<<-DATA()$VALIDATION
+#   datastructuresfeatures<<-SELECTDATA()$DATASTRUCTUREDFEATURES
+#   transformdataparameters<<-TRANSFORMDATA()$transformdataparameters
+#   learningselect<-SELECTDATA()$LEARNINGSELECT
+#   # Get hyperparameters for all models
+#   alpha_model <- NULL
+#   lambda_model <- NULL
+#   ntree_model <- 1000
+#   autotunerf_param <- TRUE
+#   mtry_model <- NULL
+#   autotunesvm_param <- TRUE
+#   cost_model <- NULL
+#   gamma_model <- NULL
+#   kernel_model <- NULL
+#   autotunexgb_param <- TRUE
+#   nrounds_model <- NULL
+#   maxdepth_model <- NULL
+#   eta_model <- NULL
+# 
+#   # ElasticNet parameters - based on tuning method
+#   if(input$model == "elasticnet"){
+#     tuning_method_en <- if(!is.null(input$tuning_method_en)) input$tuning_method_en else "traditional"
+#     if(tuning_method_en == "manual" || tuning_method_en == "traditional"){
+#       alpha_model <- input$alphamodel
+#     }
+#     if(tuning_method_en == "manual"){
+#       lambda_model <- input$lambdamodel
+#     }
+#   }
+# 
+#   # Random Forest parameters - based on tuning method
+#   if(input$model == "randomforest"){
+#     tuning_method_rf <- if(!is.null(input$tuning_method_rf)) input$tuning_method_rf else "traditional"
+#     ntree_model <- input$ntreerf
+#     autotunerf_param <- (tuning_method_rf != "manual")
+#     if(tuning_method_rf == "manual"){
+#       mtry_model <- input$mtryrf
+#     }
+#   }
+# 
+#   # SVM parameters - no change, still using checkbox
+#   if(input$model == "svm"){
+#     autotunesvm_param <- input$autotunesvm
+#     if(!input$autotunesvm){
+#       cost_model <- input$costsvm
+#       gamma_model <- input$gammasvm
+#       kernel_model <- input$kernelsvm
+#     }
+#   }
+# 
+#   # XGBoost parameters - based on tuning method
+#   if(input$model == "xgboost"){
+#     tuning_method_xgb <- if(!is.null(input$tuning_method_xgb)) input$tuning_method_xgb else "traditional"
+#     autotunexgb_param <- (tuning_method_xgb != "manual")
+#     if(tuning_method_xgb == "manual"){
+#       nrounds_model <- input$nroundsxgb
+#       maxdepth_model <- input$maxdepthxgb
+#       eta_model <- input$etaxgb
+#     }
+#   }
+# 
+#   # LightGBM parameters - no change
+#   autotunelgb_param <- TRUE
+#   nrounds_lgb_model <- NULL
+#   num_leaves_model <- NULL
+#   learning_rate_lgb_model <- NULL
+# 
+#   if(input$model == "lightgbm"){
+#     autotunelgb_param <- input$autotunelgb
+#     if(!input$autotunelgb){
+#       nrounds_lgb_model <- input$nroundslgb
+#       num_leaves_model <- input$numleaves
+#       learning_rate_lgb_model <- input$learningratelgb
+#     }
+#   }
+# 
+#   # KNN parameters - based on tuning method
+#   autotuneknn_param <- TRUE
+#   k_neighbors_model <- NULL
+# 
+#   if(input$model == "knn"){
+#     tuning_method_knn <- if(!is.null(input$tuning_method_knn)) input$tuning_method_knn else "traditional"
+#     autotuneknn_param <- (tuning_method_knn != "manual")
+#     if(tuning_method_knn == "manual"){
+#       k_neighbors_model <- input$kneighbors
+#     }
+#   }
+# 
+#   # Determine if GridSearchCV should be used based on tuning method
+#   use_gridsearch_param <- FALSE
+#   if(input$model == "randomforest" && !is.null(input$tuning_method_rf) && input$tuning_method_rf == "gridsearch"){
+#     use_gridsearch_param <- TRUE
+#   } else if(input$model == "xgboost" && !is.null(input$tuning_method_xgb) && input$tuning_method_xgb == "gridsearch"){
+#     use_gridsearch_param <- TRUE
+#   } else if(input$model == "elasticnet" && !is.null(input$tuning_method_en) && input$tuning_method_en == "gridsearch"){
+#     use_gridsearch_param <- TRUE
+#   } else if(input$model == "naivebayes" && !is.null(input$tuning_method_nb) && input$tuning_method_nb == "gridsearch"){
+#     use_gridsearch_param <- TRUE
+#   } else if(input$model == "knn" && !is.null(input$tuning_method_knn) && input$tuning_method_knn == "gridsearch"){
+#     use_gridsearch_param <- TRUE
+#   }
+# 
+#   modelparameters<<-list("modeltype"=input$model,"invers"=F,"thresholdmodel"=input$thresholdmodel,
+#                          "fs"=input$fs,"adjustval"=input$adjustval,
+#                          "use_gridsearch"=use_gridsearch_param,
+#                          "alpha"=alpha_model,"lambda"=lambda_model,
+#                          "ntree"=ntree_model,"autotunerf"=autotunerf_param,"mtry"=mtry_model,
+#                          "autotunesvm"=autotunesvm_param,"cost"=cost_model,"gamma"=gamma_model,
+#                          "kernel"= kernel_model , #ifelse(is.null(kernel_model),"radial",kernel_model),
+#                          "autotunexgb"=autotunexgb_param,"nrounds"=nrounds_model,
+#                          "max_depth"=maxdepth_model,"eta"=eta_model,
+#                          "autotunelgb"=autotunelgb_param,"nrounds_lgb"=nrounds_lgb_model,
+#                          "num_leaves"=num_leaves_model,"learning_rate_lgb"=learning_rate_lgb_model,
+#                          "autotuneknn"=autotuneknn_param,"k_neighbors"=k_neighbors_model)
+#   print(ncol(learningmodel))
+#   validate(need(ncol(learningmodel)>1,"Not enough features"))
+# 
+# 
+#   resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,
+#                            modelparameters = modelparameters,
+#                            transformdataparameters = transformdataparameters,
+#                            datastructuresfeatures =  datastructuresfeatures,
+#                            learningselect = learningselect)
+# 
+#  list("DATALEARNINGMODEL"=resmodel$datalearningmodel,"MODEL"=resmodel$model,
+#       "DATAVALIDATIONMODEL"=resmodel$datavalidationmodel,
+#       "GROUPS"=resmodel$groups,"modelparameters"=resmodel$modelparameters)
+# 
+#   })
+# 
 
 observe({
   if (input$model=="svm") { updateNumericInput(session, "thresholdmodel", value = 0)}
