@@ -839,7 +839,6 @@ output$PcaVarsSel = renderPlot({
             title = paste("PCA of", length(selected_vars), "selected variables (Clustering + ElasticNet)"))
     
   } else {
-    # Si pas de variables sélectionnées, afficher un message
     plot(1, type="n", axes=FALSE, xlab="", ylab="")
     text(1, 1, "No variables selected by Clustering + ElasticNet", cex=1.5)
   }
@@ -923,6 +922,7 @@ MODEL_TRAIN <- reactive({
   cost_model         <- NULL
   gamma_model        <- NULL
   kernel_model       <- NULL
+  epsilon_model      <- NULL
   autotunexgb_param  <- TRUE
   nrounds_model      <- NULL
   maxdepth_model     <- NULL
@@ -947,6 +947,8 @@ MODEL_TRAIN <- reactive({
       cost_model   <- input$costsvm
       gamma_model  <- input$gammasvm
       kernel_model <- input$kernelsvm
+      # if (kernel_model == "eps-svr") 
+      epsilon_model <- input$epsilonsvm
     }
   }
   
@@ -1008,6 +1010,7 @@ MODEL_TRAIN <- reactive({
     "autotunerf"     = autotunerf_param,  "mtry"          = mtry_model,
     "autotunesvm"    = autotunesvm_param, "cost"          = cost_model,
     "gamma"          = gamma_model,       "kernel"        = kernel_model,
+    "epsilon"        = epsilon_model,
     "autotunexgb"    = autotunexgb_param, "nrounds"       = nrounds_model,
     "max_depth"      = maxdepth_model,    "eta"           = eta_model,
     "autotunelgb"    = autotunelgb_param, "nrounds_lgb"   = nrounds_lgb_model,
@@ -1251,6 +1254,14 @@ output$modelnonzerocoef<-renderText({
 output$svmcost<-renderText({
   if(input$model=="svm" && !is.null(MODEL()$MODEL)){
     format(MODEL()$MODEL$cost, digits = 4)
+  } else {
+    "N/A"
+  }
+})
+
+output$svmepsilon<-renderText({
+  if(input$model=="svm" && !is.null(MODEL()$MODEL)){
+    format(MODEL()$MODEL$epsilon, digits = 4)
   } else {
     "N/A"
   }
@@ -1542,6 +1553,7 @@ output$tabmodelval<-renderTable({
   as.data.frame.matrix(table(datavalidationmodel$resvalidationmodel$predictclassval, datavalidationmodel$resvalidationmodel$classval))
 },include.rownames=TRUE)
 output$sensibilityval<-renderText({
+  req(MODEL()$DATAVALIDATIONMODEL)
   datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
   sensibility(predict = datavalidationmodel$resvalidationmodel$predictclassval,class = datavalidationmodel$resvalidationmodel$classval)
 })
@@ -1551,6 +1563,7 @@ output$specificityval<-renderText({
 })
 ####Detail of the model
 output$summarymodel<-renderPrint({
+  req(MODEL()$MODEL)
   model<-print(MODEL()$MODEL)
 })
 output$plotimportance<-renderPlot({
@@ -2158,7 +2171,7 @@ output$pca_plot_2d <- renderPlotly({
   PlotPca2D_interactive(
     data = data$X, 
     y = data$y, 
-    title = "PCA 2D - Variables sélectionnées (coloré par labels d'entraînement)"
+    title = "2D PCA - Selected variables (coloured by training labels)"
   )
 })
 
@@ -2173,7 +2186,7 @@ output$pca_plot_3d <- renderPlotly({
     # Créer un message d'erreur
     plot_ly() %>%
       layout(
-        title = "Pas assez de variables pour une visualisation 3D (minimum 3 variables requises)",
+        title = "Not enough variables for 3D visualisation (minimum 3 variables required)",
         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)
       )
@@ -2181,7 +2194,7 @@ output$pca_plot_3d <- renderPlotly({
     PlotPca3D_interactive(
       data = data$X, 
       y = data$y, 
-      title = "PCA 3D - Variables sélectionnées (coloré par labels d'entraînement)"
+      title = "3D PCA - Selected variables (coloured by training labels)"
     )
   }
 })
@@ -2323,7 +2336,7 @@ output$pca_plot_2d_stats <- renderPlotly({
       PlotPca2D_interactive(
         data = X, 
         y = y, 
-        title = "PCA 2D - Variables sélectionnées"
+        title = "2D PCA - Selected variables"
       )
     }
   }
@@ -2343,7 +2356,7 @@ output$pca_plot_3d_stats <- renderPlotly({
       PlotPca3D_interactive(
         data = X, 
         y = y, 
-        title = "PCA 3D - Variables sélectionnées"
+        title = "PCA 3D - Selected variables"
       )
     } else {
       plot_ly() %>%

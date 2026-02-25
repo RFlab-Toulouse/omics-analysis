@@ -1695,16 +1695,7 @@ tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, sco
 
 ####
 
-# ── 1. modelfunction ──────────────────────────────────────────────────────────
-# CHANGEMENTS vs version précédente :
-#   - Suppression de TOUS les blocs predictclasslearning / predictclassval
-#   - Suppression de levels(predictclasslearning) <- paste("test", lev, sep="")
-#   - Suppression de levels(predictclassval) <- paste("test", lev, sep="")
-#   - reslearningmodel  : classlearning + scorelearning seulement (pas de predictclass)
-#   - resvalidationmodel: classval + scoreval seulement (pas de predictclass)
-#   - Clé retour "parameters" renommée "modelparameters" (cohérence avec apply_threshold)
-#   - thresholdmodel retiré de modelparameters (géré exclusivement dans MODEL via apply_threshold)
-# ══════════════════════════════════════════════════════════════════════════════
+
 modelfunction_V2 <- function(learningmodel,
                              validation = NULL,
                              modelparameters,
@@ -1737,6 +1728,7 @@ modelfunction_V2 <- function(learningmodel,
         if (!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch) {
           cat("Using GridSearchCV for Random Forest hyperparameter tuning...\n")
           param_grid <- list(
+            max_depth =  if (!is.null(modelparameters$rf_grid_maxnodes)) modelparameters$rf_grid_maxnodes else c(5, 10, 15, 20, NULL),
             n_estimators    = if (!is.null(modelparameters$rf_grid_ntree))    modelparameters$rf_grid_ntree    else c(100, 500, 1000),
             max_features    = if (!is.null(modelparameters$rf_grid_mtry))     modelparameters$rf_grid_mtry     else c("sqrt", "log2"),
             min_samples_split = if (!is.null(modelparameters$rf_grid_nodesize)) modelparameters$rf_grid_nodesize else c(2, 5, 10)
@@ -1757,6 +1749,7 @@ modelfunction_V2 <- function(learningmodel,
             } else floor(sqrt(ncol(x)))
             ntree_param    <- if (!is.null(best_params$n_estimators))    best_params$n_estimators    else ntree_param
             nodesize_param <- if (!is.null(best_params$min_samples_split)) best_params$min_samples_split else 1
+            max_depth_param <- if (!is.null(best_params$max_depth)) best_params$max_depth else NULL
             cat(sprintf("GridSearchCV best params: ntree=%d, mtry=%d, nodesize=%d, score=%.4f\n",
                         ntree_param, optimal_mtry, nodesize_param, grid_result$best_score))
           } else {
@@ -1779,7 +1772,7 @@ modelfunction_V2 <- function(learningmodel,
       }
       
       model <- randomForest(x = x, y = learningmodel[, 1],
-                            ntree = ntree_param, mtry = optimal_mtry,
+                            ntree = ntree_param, mtry = optimal_mtry,max_dpth = max_depth_param,
                             nodesize = nodesize_param, importance = TRUE)
       model$optimal_mtry   <- optimal_mtry
       model$ntree_used     <- ntree_param
@@ -1803,21 +1796,27 @@ modelfunction_V2 <- function(learningmodel,
       if (is.null(modelparameters$autotunesvm) || modelparameters$autotunesvm) {
         tune_result <- tune.svm(group ~ ., data = learningmodel,
                                 gamma = 10^(-5:2), cost = 10^(-3:2),
+                                epsilon = c(0.01, 0.1, 0.5), 
+                                degree = c(2,4,3),
+                                  #ifelse(is.null(modelparameters$kernel) || modelparameters$kernel != "polynomial", NULL, 2:4),
                                 cross = min(dim(learningmodel)[1] - 2, 10),
                                 tunecontrol = tune.control(sampling = "cross"))
         cat("tunning results :  \n"); print(tune_result)
         cost_param   <- tune_result$best.parameters$cost
         gamma_param  <- tune_result$best.parameters$gamma
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
+        epsilon_param <- tune_result$best.parameters$epsilon
       } else {
         cat("define svm parameters manually \n")
         cost_param   <- ifelse(is.null(modelparameters$cost),   1,       modelparameters$cost)
         gamma_param  <- ifelse(is.null(modelparameters$gamma),  0.1,     modelparameters$gamma)
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
+        epsilon_param <- ifelse(is.null(modelparameters$epsilon), 0.1, modelparameters$epsilon)
       }
       
       model <- svm(group ~ ., data = learningmodel,
                    kernel = kernel_param, cost = cost_param, gamma = gamma_param,
+                   epsilon = epsilon_param, 
                    type = "C-classification", probability = TRUE)
       model$cost  <- cost_param
       model$gamma <- gamma_param
@@ -2446,6 +2445,8 @@ modelfunction <- function(learningmodel,
         # Perform hyperparameter tuning using tune.svm
         tune_result <- tune.svm(group ~ ., data = learningmodel,
                                gamma = 10^(-5:2), cost = 10^(-3:2),
+                               epsilon = c(0.01, 0.1, 0.5), 
+                               #class.weights = list(lev[1] = 1, lev[2] = 1),
                                cross=min(dim(learningmodel)[1]-2,10),
                                #kernel=c("linear", "polynomial", "radial", "sigmoid"),
                                # ranges=list(kernel=c("linear", "polynomial",
@@ -2457,7 +2458,8 @@ modelfunction <- function(learningmodel,
         # model$cost <- tune_result$best.parameters$cost
         # model$gamma <- tune_result$best.parameters$gamma
         cat('tunning results :  \n')
-        print(tune_result)
+        print(tune_result$best.parameters)
+        epsilon_param <- tune_result$best.parameters$epsilon
         cost_param <- tune_result$best.parameters$cost
         gamma_param <- tune_result$best.parameters$gamma
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
@@ -2465,6 +2467,7 @@ modelfunction <- function(learningmodel,
       } else {
         # Use manual hyperparameters
         cat("define svm parameters manually \n")
+        epsilon_param <- ifelse(is.null(modelparameters$epsilon), 0.1, modelparameters$epsilon)
         cost_param <- ifelse(is.null(modelparameters$cost), 1, modelparameters$cost)
         gamma_param <- ifelse(is.null(modelparameters$gamma), 0.1, modelparameters$gamma)
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
@@ -2480,11 +2483,13 @@ modelfunction <- function(learningmodel,
 
       model <- svm(group ~ ., data = learningmodel,
                    kernel= kernel_param ,
+                   epsilon  = epsilon_param,
                    cost=cost_param, gamma=gamma_param,
                    type = "C-classification",
                    probability=TRUE)
       model$cost <- cost_param
       model$gamma <- gamma_param
+      model$epsilon <- epsilon_param
       # model$kernel <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
 
       if(modelparameters$fs){

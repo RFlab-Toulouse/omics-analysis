@@ -834,11 +834,14 @@ shinyUI(fluidPage(
                                                                                                                    class =  "well",
                                                                                                                    style = 'color :  blue;',
                                                                                                                    fluidRow(
-                                                                                                                     column(4, strong("Cost (C):"), textOutput("svmcost",inline=T)),
-                                                                                                                     column(4, strong("Gamma:"), textOutput("svmgamma",inline=T)),
-                                                                                                                     column(4, strong("Kernel:"), textOutput("svmkernel",inline=T)
+                                                                                                                     column(3, strong("Cost (C):"), textOutput("svmcost",inline=T)),
+                                                                                                                     column(3, strong("Gamma:"), textOutput("svmgamma",inline=T)),
+                                                                                                                     column(3, strong("Kernel:"), textOutput("svmkernel",inline=T)
                                                                                                                             #"Radial"
-                                                                                                                            )
+                                                                                                                            ),
+                                                                                                                     column(3,
+                                                                                                                       strong("Epsilon :"), textOutput("svmepsilon",inline=T)
+                                                                                                                     )
                                                                                                                    )
                                                                                                                  )
                                                                                                 ),
