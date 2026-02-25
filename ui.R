@@ -631,10 +631,27 @@ shinyUI(fluidPage(
                                                                                        htmltools::span("Also known as num_boost_round; defines the number of boosting iterations.")
                                                                                        ),
                                                                                        numericInput("maxdepthxgb","Max depth" , 6, min =1, max = 20, step = 1),
-                                                                                       numericInput("etaxgb","Learning rate (eta)" , 0.3, min =0.01, max = 1, step = 0.01),
-                                                                                       numericInput("colsamplexgb","Colsample by tree" , 1, min =0.1, max = 1, step = 0.1),
-                                                                                       numericInput("subsamplexgb","Subsample" , 1, min =0.1, max = 1, step = 0.1),
-                                                                                       numericInput('gamme_xgb', "gamma", value = 0.1, min = 0, max = 1, step = 0.1),
+                                                                                       fluidRow(
+                                                                                         # column(12 , 
+                                                                                                column(6 , 
+                                                                                                       numericInput("etaxgb","Learning rate (eta)" , 0.3, min =0.01, max = 1, step = 0.01)
+                                                                                                ),
+                                                                                                column(6, 
+                                                                                                       numericInput("colsamplexgb","Colsample by tree" , 1, min =0.1, max = 1, step = 0.1)
+                                                                                                )
+                                                                                         # )
+                                                                                       ),
+                                                                                       fluidRow(
+                                                                                         # column(12, 
+                                                                                                column(6,
+                                                                                                       numericInput("subsamplexgb","Subsample" , 1, min =0.1, max = 1, step = 0.1)
+                                                                                                ),
+                                                                                                column(6,
+                                                                                                       numericInput('gamme_xgb', "gamma", value = 0.1, min = 0, max = 1, step = 0.1)
+                                                                                                )
+                                                                                         # )
+                                                                                       )
+                                                                                       ,
                                                                                        conditionalPanel(condition ="input.help",helpText("Manually set XGBoost hyperparameters"))
                                                                       )
                                                                       # ,
