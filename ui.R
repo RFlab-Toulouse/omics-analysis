@@ -579,6 +579,17 @@ shinyUI(fluidPage(
                                                                                        helpText("tuneRF: optimizes mtry only"),
                                                                                        helpText("GridSearchCV: optimizes ntree, mtry, nodesize")),
                                                                       numericInput("ntreerf","Number of trees" , 1000, min =100, max = 5000, step = 100),
+                                                                      # conditionalPanel(
+                                                                      #   condition = "input.tuning_method_rf == 'manual'",
+                                                                      #   numericInput("ntreerf", "Number of trees (fixed)", 1000, min = 100, max = 5000, step = 100)
+                                                                      # ),
+                                                                      # conditionalPanel(
+                                                                      #   condition = "input.tuning_method_rf == 'traditional'",
+                                                                      #   checkboxGroupInput("ntree_range_rf", "ntree values to test:",
+                                                                      #                      choices  = c("100" = 100, "300" = 300, "500" = 500, "1000" = 1000, "2000" = 2000),
+                                                                      #                      selected = c(100, 500, 1000)
+                                                                      #   )
+                                                                      # ),
                                                                       conditionalPanel(condition ="input.tuning_method_rf=='manual'",
                                                                                        numericInput("mtryrf","mtry (variables per split)" , 5, min =1, max = 100, step = 1),
                                                                                        conditionalPanel(condition ="input.help",
@@ -604,6 +615,8 @@ shinyUI(fluidPage(
                                                                                                     "Polynomial" = "polynomial",
                                                                                                     "Sigmoid" = "sigmoid"),
                                                                                                   selected = "radial"),
+                                                                                       # numeric("epsilonsvm", "Epsilon (for regression)", 
+                                                                                       #         value = 0.1, min = 0.001, max = 1, step = 0.01),
                                                                                        conditionalPanel(condition ="input.help",
                                                                                                         helpText("Manually set SVM hyperparameters")
                                                                                                         )
@@ -834,14 +847,15 @@ shinyUI(fluidPage(
                                                                                                                    class =  "well",
                                                                                                                    style = 'color :  blue;',
                                                                                                                    fluidRow(
-                                                                                                                     column(3, strong("Cost (C):"), textOutput("svmcost",inline=T)),
-                                                                                                                     column(3, strong("Gamma:"), textOutput("svmgamma",inline=T)),
-                                                                                                                     column(3, strong("Kernel:"), textOutput("svmkernel",inline=T)
+                                                                                                                     column(4, strong("Cost (C):"), textOutput("svmcost",inline=T)),
+                                                                                                                     column(4, strong("Gamma:"), textOutput("svmgamma",inline=T)),
+                                                                                                                     column(4, strong("Kernel:"), textOutput("svmkernel",inline=T)
                                                                                                                             #"Radial"
-                                                                                                                            ),
-                                                                                                                     column(3,
-                                                                                                                       strong("Epsilon :"), textOutput("svmepsilon",inline=T)
-                                                                                                                     )
+                                                                                                                            )
+                                                                                                                     # ,
+                                                                                                                     # column(3,
+                                                                                                                     #   strong("Epsilon :"), textOutput("svmepsilon",inline=T)
+                                                                                                                     # )
                                                                                                                    )
                                                                                                                  )
                                                                                                 ),
@@ -896,7 +910,8 @@ shinyUI(fluidPage(
                                                                         column(2,
                                                                                conditionalPanel(condition="input.plotscoremodel=='points'",checkboxInput("shownames1","show indivuals names",value=FALSE)),
                                                                                br(),
-                                                                               tableOutput("tabmodeldecouv"),
+                                                                               # tableOutput("tabmodeldecouv"),
+                                                                               uiOutput("tabmodeldecouv"),
                                                                                "Sensibility = ",textOutput("sensibilitydecouv",inline=T), 
                                                                                br(),
                                                                                "Specificity = ",textOutput("specificitydecouv",inline=T),
@@ -924,7 +939,8 @@ shinyUI(fluidPage(
                                                                                          ),
                                                                                          column(2,
                                                                                                 #conditionalPanel(condition="input.plotscoremodel=='points'",checkboxInput("shownames2","show indivuals names",value=FALSE)),
-                                                                                                tableOutput("tabmodelval"),
+                                                                                                # tableOutput("tabmodelval"),
+                                                                                                uiOutput("tabmodelval"),
                                                                                                 "Sensibility = ",textOutput("sensibilityval",inline=T), 
                                                                                                 br(),
                                                                                                 "Specificity = ",textOutput("specificityval",inline=T),

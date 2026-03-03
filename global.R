@@ -72,7 +72,7 @@ importfile<-function (datapath,extension,NAstring="NA",sheet=1,skiplines=0,dec="
   toto<-toto[-1,]
   row.names(toto)<-rnames[-1]
   colnames(toto)<-cnames[-1]
-
+  
   toto<-as.data.frame(toto)
   rownames(toto)<-rnames[-1]
   colnames(toto)<-cnames[-1]
@@ -160,23 +160,23 @@ gg_color_hue <- function(n) {
 }
 
 transformdata<-function(toto,transpose,zeroegalNA){
-#   if(length(which(apply(X = toto,MARGIN=1,function(x){sum(is.na(x))})==ncol(toto)))!=0){
-#     toto<-toto[-which(apply(X = toto,MARGIN=1,function(x){sum(is.na(x))})==ncol(toto)),]}
-#   #remove empty rows
-#   if(length(which(apply(X = toto,MARGIN=2,function(x){sum(is.na(x))})==nrow(toto)))!=0){
-#     toto<-toto[,-which(apply(X = toto,MARGIN=2,function(x){sum(is.na(x))})==nrow(toto))]}
-#   #remove empty columns
+  #   if(length(which(apply(X = toto,MARGIN=1,function(x){sum(is.na(x))})==ncol(toto)))!=0){
+  #     toto<-toto[-which(apply(X = toto,MARGIN=1,function(x){sum(is.na(x))})==ncol(toto)),]}
+  #   #remove empty rows
+  #   if(length(which(apply(X = toto,MARGIN=2,function(x){sum(is.na(x))})==nrow(toto)))!=0){
+  #     toto<-toto[,-which(apply(X = toto,MARGIN=2,function(x){sum(is.na(x))})==nrow(toto))]}
+  #   #remove empty columns
   
   # transpose du data frame
   if(transpose){
     toto<-t(toto)
-    }
+  }
   
   if(zeroegalNA){
     toto[which(toto==0,arr.ind = T)]<-NA
-    }
+  }
   
-toto<-as.data.frame(toto[,c(colnames(toto)[1],sort(colnames(toto)[-1]))])
+  toto<-as.data.frame(toto[,c(colnames(toto)[1],sort(colnames(toto)[-1]))])
 }
 
 confirmdata<-function(toto){
@@ -203,23 +203,23 @@ importfunction<-function(importparameters){
     #lev<-previous$data$LEVELS
     previousparameters<-previous$parameters
   }
-
+  
   if(!is.null(importparameters$learningfile)  ){
     #if(importparameters$confirmdatabutton==0){
-      datapath<- importparameters$learningfile$datapath
-      #datapath <- input$learningfile$datapath
-      #print(datapath)
-      #print(paste(datapath, ".xlsx", sep=""))
-      #out<<-tryCatch(
-      learning<-importfile(datapath = datapath,extension = importparameters$extension,NAstring=importparameters$NAstring,
-                           sheet=importparameters$sheetn,skiplines=importparameters$skipn,dec=importparameters$dec,sep=importparameters$sep)
-      #              ,error=function(e) e )
-      #            if(any(class(out)=="error")){tablearn<-data.frame()}
-      #            else{tablearn<<-out}
-      #            validate(need(ncol(tablearn)>1 & nrow(tablearn)>1,"problem import"))
-      
-      learning<-transformdata(toto = learning,transpose=importparameters$transpose,zeroegalNA=importparameters$zeroegalNA)
-      
+    datapath<- importparameters$learningfile$datapath
+    #datapath <- input$learningfile$datapath
+    #print(datapath)
+    #print(paste(datapath, ".xlsx", sep=""))
+    #out<<-tryCatch(
+    learning<-importfile(datapath = datapath,extension = importparameters$extension,NAstring=importparameters$NAstring,
+                         sheet=importparameters$sheetn,skiplines=importparameters$skipn,dec=importparameters$dec,sep=importparameters$sep)
+    #              ,error=function(e) e )
+    #            if(any(class(out)=="error")){tablearn<-data.frame()}
+    #            else{tablearn<<-out}
+    #            validate(need(ncol(tablearn)>1 & nrow(tablearn)>1,"problem import"))
+    
+    learning<-transformdata(toto = learning,transpose=importparameters$transpose,zeroegalNA=importparameters$zeroegalNA)
+    
     #}
     if(importparameters$confirmdatabutton!=0){
       learning<-confirmdata(toto = learning)
@@ -227,39 +227,39 @@ importfunction<-function(importparameters){
       
       #learning<-learning[-which(apply(X = learning,MARGIN=1,function(x){sum(is.na(x))})==ncol(learning)),]
       
-#       lev<-levels(x = tablearn[,1])
-#       print(lev)
-#       names(lev)<-c("positif","negatif")
+      #       lev<-levels(x = tablearn[,1])
+      #       print(lev)
+      #       names(lev)<-c("positif","negatif")
     }
     # else{lev<-NULL}
   }
-
+  
   
   if(!is.null(importparameters$validationfile)  ){
     
     # if(importparameters$confirmdatabutton==0){
-      datapathV<- importparameters$validationfile$datapath
-      # out<<-tryCatch(
-      validation<-importfile(datapath = datapathV,extension = importparameters$extension,
-                 NAstring=importparameters$NAstring,sheet=importparameters$sheetn,skiplines=importparameters$skipn,dec=importparameters$dec,sep=importparameters$sep)
-      #             ,error=function(e) e)
-      #             if(any(class(out)=="error")){tabval<-NULL}
-      #            else{tabval<<-out}
-      #            validate(need(ncol(tabval)>1 & nrow(tabval)>1,"problem import"))
-        validation<-transformdata(toto = validation,transpose=importparameters$transpose,zeroegalNA=importparameters$zeroegalNA)
-      
-      
+    datapathV<- importparameters$validationfile$datapath
+    # out<<-tryCatch(
+    validation<-importfile(datapath = datapathV,extension = importparameters$extension,
+                           NAstring=importparameters$NAstring,sheet=importparameters$sheetn,skiplines=importparameters$skipn,dec=importparameters$dec,sep=importparameters$sep)
+    #             ,error=function(e) e)
+    #             if(any(class(out)=="error")){tabval<-NULL}
+    #            else{tabval<<-out}
+    #            validate(need(ncol(tabval)>1 & nrow(tabval)>1,"problem import"))
+    validation<-transformdata(toto = validation,transpose=importparameters$transpose,zeroegalNA=importparameters$zeroegalNA)
+    
+    
     # }
     if(importparameters$confirmdatabutton!=0){
       validation<-confirmdata(toto = validation)
       if(importparameters$invers){validation[,1]<-factor(validation[,1],levels = rev(levels(validation[,1])))}
       
       #validation<-validation[-which(apply(X = validation,MARGIN=1,function(x){sum(is.na(x))})==ncol(validation)),]
-        
+      
     }
     
   }
-
+  
   res<-list("learning"=learning,"validation"=validation,previousparameters=previousparameters)#,"lev"=lev)
   return(res)
 }
@@ -344,18 +344,18 @@ selectprctvalues<-function(toto,prctvalues=100,selectmethod="nogroup"){
 }
 
 heatmapNA<-function(toto,maintitle="Distribution of NA",graph=T){
- 
-    if(ncol(toto)==1){errorplot(text = " No structured variables")}
-    else{
-      names<- paste(toto[,1],1:length(toto[,1]))
-      tab<-as.data.frame(toto[,-1])
-      tab[which(!is.na(tab) ,arr.ind = T )]<-"Value"
-      tab[which(is.na(tab) ,arr.ind = T )]<-"NA"
-      #tab<-cbind(paste(toto[,1],1:length(toto[,1])),tab)
-      tab<-apply(tab,2,as.factor)
-      rownames(tab)<-names
-      if(!graph){ return(cbind(rownames(toto),tab))}
-      if(graph){
+  
+  if(ncol(toto)==1){errorplot(text = " No structured variables")}
+  else{
+    names<- paste(toto[,1],1:length(toto[,1]))
+    tab<-as.data.frame(toto[,-1])
+    tab[which(!is.na(tab) ,arr.ind = T )]<-"Value"
+    tab[which(is.na(tab) ,arr.ind = T )]<-"NA"
+    #tab<-cbind(paste(toto[,1],1:length(toto[,1])),tab)
+    tab<-apply(tab,2,as.factor)
+    rownames(tab)<-names
+    if(!graph){ return(cbind(rownames(toto),tab))}
+    if(graph){
       tabm <- melt(tab)
       #tabm<-tabm[-c(1:nrow(toto)),]
       colnames(tabm)<-c("individuals","variables","value")
@@ -440,7 +440,7 @@ testNAstructure<-function(toto,threshold=0.05,maxvaluesgroupmin=100,minvaluesgro
     colnames(totopropselect)<-resp$names[order(resp[,2])]
   }
   else{return(NULL)}
-
+  
   return(list("varNAstructure"=totopropselect,"restestNAstructure"=resp))
 }
 
@@ -479,14 +479,14 @@ transformationlog<-function(x,logtype){
 }
 
 histplot<-function(toto,graph=T){
-
-    data<-data.frame("values"=as.vector(as.matrix(toto[,-1])))
-    if(graph==F){ return(datahistogram(data = data,nbclass = 20))}
-    if(graph==T){
+  
+  data<-data.frame("values"=as.vector(as.matrix(toto[,-1])))
+  if(graph==F){ return(datahistogram(data = data,nbclass = 20))}
+  if(graph==T){
     ggplot(data=data,aes(x=values) )+ 
       geom_histogram(col="lightgrey",fill="steelblue",bins=20)+ggtitle("Distribution of values")+
       theme(plot.title = element_text(size=15))+
-       annotate("text",x=Inf,y=Inf,label=paste(nrow(data),"values"),size=6,vjust=2,hjust=1.5)
+      annotate("text",x=Inf,y=Inf,label=paste(nrow(data),"values"),size=6,vjust=2,hjust=1.5)
   }
 }
 datahistogram<-function(data,nbclass){
@@ -581,8 +581,8 @@ heatmapplot<-function(toto,ggplot=T,maintitle="Heatmap of the transform data ",s
   #colnames(toto)<-seq(1:ncol(toto))
   if(scale)toto<-scale(toto, center = F, scale = TRUE)
   if(!ggplot){
-      heatmap.2(toto,Rowv = NA,Colv=F,trace="none",dendrogram = "none",key=T,margins=c(2,4),keysize=1.30,main=maintitle)
-    }
+    heatmap.2(toto,Rowv = NA,Colv=F,trace="none",dendrogram = "none",key=T,margins=c(2,4),keysize=1.30,main=maintitle)
+  }
   if(ggplot){
     titi<-melt(toto,value.name = "Intensity")
     colnames(titi)<-c("Individuals","Variables","Intensity")
@@ -598,7 +598,7 @@ testfunction<-function(tabtransform,testparameters){
     datatesthypothesis<-SFtest(tabtransform,shaptest=T,Ftest=T,threshold=0.05)
   }
   else{datatesthypothesis<-data.frame()}
-
+  
   #diff test
   if(testparameters$test=="notest"){
     tabdiff<-tabtransform
@@ -615,7 +615,7 @@ testfunction<-function(tabtransform,testparameters){
                                                alpha = testparameters$alpha,
                                                nlambda = 100)
     datatest<-multivariateresults$results
-
+    
     if(nrow(datatest)==0){
       print("no variables selected by multivariate method")
       tabdiff<<-data.frame()
@@ -628,9 +628,9 @@ testfunction<-function(tabtransform,testparameters){
       tabdiff<<-tabtransform[,indvar]
       useddata<-data.frame("names"=datatest$name,
                            "coefficient"=datatest$coefficient,
-                          "logFC"=datatest$logFoldChange,
-                          "mean1"=datatest$mean_group1,
-                          "mean2"=datatest$mean_group2)
+                           "logFC"=datatest$logFoldChange,
+                           "mean1"=datatest$mean_group1,
+                           "mean2"=datatest$mean_group2)
     }
   }else if (testparameters$test=="clustEnet"){
     # Clustering + Elastic Net selection method
@@ -652,6 +652,8 @@ testfunction<-function(tabtransform,testparameters){
                                               preprocess = preprocess,
                                               min_patients = min_patients)
     datatest <- multivariateresults$results
+    
+    cat("number of selected variables :  ", length(multivariateresults$selected_vars), "\n")
     
     if(nrow(datatest)==0){
       print("no variables selected by clustering + elasticnet method")
@@ -675,6 +677,8 @@ testfunction<-function(tabtransform,testparameters){
     
     multivariateresults <- borutaSelection(toto = tabtransform)
     datatest <- multivariateresults$results
+    
+    cat("number of selected variables :  ", length(multivariateresults$selected_vars), "\n")
     
     if(nrow(datatest)==0){
       print("no variables selected by Boruta method")
@@ -724,7 +728,7 @@ testfunction<-function(tabtransform,testparameters){
               "testparameters"=testparameters,
               "multivariateresults"=multivariateresults))
 }
-  
+
 
 diffexptest<-function(toto,test="Wtest"){ 
   #fonction test if the variables (in column) of toto (dataframe) are differently 
@@ -791,12 +795,12 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
   # lambda: regularization parameter (NULL for automatic selection via CV)
   # alpha: elastic net mixing parameter (0=ridge, 1=lasso)
   # nlambda: number of lambda values to test
-
+  
   # IMPORTANT: Encode group so that 1 = first level (positif), 0 = second level (negatif)
   lev <- levels(toto[,1])
   group <- ifelse(toto[,1] == lev[1], 1, 0)
   x <- as.matrix(toto[,-1])
-
+  
   # Set alpha based on method
   if(method == "lasso"){
     alpha <- 1
@@ -805,48 +809,48 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
   } else if(method == "elasticnet"){
     # alpha is provided by user, default 0.5
   }
-
+  
   # Perform cross-validation to find optimal lambda if not provided
   if(is.null(lambda)){
     set.seed(20011203)
     cvfit <- cv.glmnet(x, group, family="binomial", alpha=alpha, nlambda=nlambda,
                        type.measure="auc", nfolds=min(5, nrow(toto)-1)
-                       )
+    )
     lambda <- cvfit$lambda.min  # lambda that gives minimum CV error
     lambda_1se <- cvfit$lambda.1se  # lambda within 1 SE of minimum
   } else {
     cvfit <- NULL
     lambda_1se <- lambda
   }
-
+  
   # Fit model with optimal lambda
   fit <- glmnet(x, group, family="binomial", alpha=alpha, lambda=lambda)
-
+  
   # Extract coefficients
   coef_matrix <- as.matrix(coef(fit))
   coef_values <- coef_matrix[-1, 1]  # Remove intercept
   names(coef_values) <- colnames(x)
-
+  
   # Select non-zero coefficients
   selected_vars <- names(coef_values[coef_values != 0])
-
+  
   # Calculate additional statistics for selected variables
   if(length(selected_vars) > 0){
     # AUC for each selected variable
     auc_values <- sapply(selected_vars, function(var){
       auc(roc(group, x[, var], quiet=TRUE))
     })
-
+    
     # Mean values by group
     mlev1 <- colMeans(x[which(group==0), selected_vars, drop=FALSE], na.rm=TRUE)
     mlev2 <- colMeans(x[which(group==1), selected_vars, drop=FALSE], na.rm=TRUE)
-
+    
     # Fold change : class 1 sur class 2:  case versus control
     # class 1 : first level (positif)
     # class 2 : second level (negatif)
     FC1o2 <- mlev1 / (mlev2 + 0.0001)
     logFC1o2 <- log2(abs(FC1o2))
-
+    
     # Create results dataframe
     results <- data.frame(
       name = selected_vars,
@@ -858,13 +862,13 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
       mean_group2 = mlev2,
       stringsAsFactors = FALSE
     )
-
+    
     # Sort by absolute coefficient value
     results <- results[order(abs(results$coefficient), decreasing=TRUE), ]
   } else {
     results <- data.frame()
   }
-
+  
   # Return results with model information
   return(list(
     results = results,
@@ -1180,7 +1184,7 @@ borutaSelection =  function(toto, maxRuns = 100, seed = 123) {
     )
     
     # Sort by absolute coefficient value
-   # results <- results[order(abs(results$coefficient), decreasing=TRUE), ]
+    # results <- results[order(abs(results$coefficient), decreasing=TRUE), ]
   } else {
     results <- data.frame()
   }
@@ -1298,7 +1302,7 @@ barplottest<-function(feature,logFC,levels,pval,mean1,mean2,thresholdpv=0.05,thr
             legend.text = element_text(size=10, face = 'bold'),
             axis.title.y = element_text(size=12, face = "bold"),
             axis.text.x = element_text(size = 12, angle = 0, vjust = 0.5, hjust=0.51, face = 'bold')
-            )
+      )
   }
 }
 errorplot<-function(text=paste("error /n","text error")){
@@ -1367,7 +1371,7 @@ SFtest<-function(toto,shaptest=T,Ftest=T,threshold=0.05){
     }
   }
   if(shaptest){ conditiontest<-data.frame(conditiontest,pvalnormlev1,pvalnormlev2,"samplenorm"=samplenorm)
-                colnames(conditiontest)<-c("names",paste("pvalshapiro",levels(x)[1],sep=""),paste("pvalshapiro",levels(x)[2],sep = ""),"samplenorm")
+  colnames(conditiontest)<-c("names",paste("pvalshapiro",levels(x)[1],sep=""),paste("pvalshapiro",levels(x)[2],sep = ""),"samplenorm")
   }
   if(Ftest){conditiontest<-data.frame(conditiontest,"pvalF"=pvalF,"variancelev1"=vlev1,"variancelev2"=vlev2,"varequal"=varequal)}
   return(conditiontest) 
@@ -1388,20 +1392,20 @@ tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
   if(!requireNamespace("superml", quietly = TRUE)) {
     stop("Package 'superml' is required but not installed")
   }
-
+  
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
     param_grid <- list(
-      n_estimators = c(100, 500, 1000),  # ntree in randomForest
+      n_estimators = c(100,200,300,400, 500, 1000),  # ntree in randomForest
       max_depth = c(5, 10, 15, 20, NULL),  # maxnodes (NULL = unlimited)
       min_samples_split = c(2, 5, 10),  # nodesize
       max_features = c("sqrt", "log2", floor(ncol(X)/3), floor(ncol(X)/2))  # mtry
     )
   }
-
+  
   # Create trainer object
   rf_trainer <- superml::RFTrainer$new()
-
+  
   # Create GridSearchCV object
   gst <-  superml::GridSearchCV$new(
     trainer = rf_trainer,
@@ -1409,13 +1413,13 @@ tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
     n_folds = n_folds,
     scoring = scoring
   )
-
+  
   # Fit the grid search
   gst$fit(cbind(y = y, X), "y")
-
+  
   # Get best iteration
   best_result <- gst$best_iteration(metric = scoring[1])
-
+  
   return(list(
     best_params = best_result,
     grid_search = gst,
@@ -1432,7 +1436,7 @@ tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
 #' @return List with best parameters and best score
 tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
   # library(superml)
-
+  
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
     param_grid <- list(
@@ -1442,13 +1446,15 @@ tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
       gamma = c(0, 0.1, 0.5),
       subsample = c(0.6, 0.8, 1.0),
       colsample_bytree = c(0.6, 0.8, 1.0),
-      min_child_weight = c(1, 3, 5)
+      min_child_weight = c(1, 3, 5),
+      alpha = c(0, 0.1, 0.5),  # L1 regularization
+      lambda = c(1, 1.5, 2)    # L2 regularization
     )
   }
-
+  
   # Create trainer object
   xgb_trainer <- XGBTrainer$new()
-
+  
   # Create GridSearchCV object
   gst <- GridSearchCV$new(
     trainer = xgb_trainer,
@@ -1456,13 +1462,13 @@ tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
     n_folds = n_folds,
     scoring = scoring
   )
-
+  
   # Fit the grid search
   gst$fit(cbind(y = y, X), "y")
-
+  
   # Get best iteration
   best_result <- gst$best_iteration(metric = scoring[1])
-
+  
   return(list(
     best_params = best_result,
     grid_search = gst,
@@ -1479,17 +1485,17 @@ tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
 #' @return List with best parameters and best score
 tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
   # library(superml)
-
+  
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
     param_grid <- list(
       laplace = c(0, 0.5, 1, 2, 5)  # Smoothing parameter
     )
   }
-
+  
   # Create trainer object
   nb_trainer <- NBTrainer$new()
-
+  
   # Create GridSearchCV object
   gst <- GridSearchCV$new(
     trainer = nb_trainer,
@@ -1497,13 +1503,13 @@ tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
     n_folds = n_folds,
     scoring = scoring
   )
-
+  
   # Fit the grid search
   gst$fit(cbind(y = y, X), "y")
-
+  
   # Get best iteration
   best_result <- gst$best_iteration(metric = scoring[1])
-
+  
   return(list(
     best_params = best_result,
     grid_search = gst,
@@ -1566,9 +1572,10 @@ tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c
 #     best_score = best_acc
 #   ))
 # }
+
 tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
   # library(superml)
-
+  
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
     max_k <- min(floor(sqrt(length(y))), 30)
@@ -1578,10 +1585,10 @@ tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
       algorithm = c("brute", "kd_tree")
     )
   }
-
+  
   # Create trainer object
   knn_trainer <- superml::KNNTrainer$new(type = "class")
-
+  
   # Create GridSearchCV object
   gst <- superml::GridSearchCV$new(
     trainer = knn_trainer,
@@ -1589,13 +1596,13 @@ tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
     n_folds = n_folds,
     scoring = scoring
   )
-
+  
   # Fit the grid search
   gst$fit(cbind(y = y, X), "y")
-
+  
   # Get best iteration
   best_result <- gst$best_iteration(metric = scoring[1])
-
+  
   return(list(
     best_params = best_result,
     grid_search = gst,
@@ -1612,7 +1619,7 @@ tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = 
 #' @return List with best parameters and best score
 tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
   # library(superml)
-
+  
   # Default parameter grid if not provided
   if(is.null(param_grid)) {
     param_grid <- list(
@@ -1621,10 +1628,10 @@ tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, sco
       penalty = c("elasticnet")
     )
   }
-
+  
   # Create trainer object
   lm_trainer <- LMTrainer$new(family = "binomial")
-
+  
   # Create GridSearchCV object
   gst <- GridSearchCV$new(
     trainer = lm_trainer,
@@ -1632,13 +1639,13 @@ tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, sco
     n_folds = n_folds,
     scoring = scoring
   )
-
+  
   # Fit the grid search
   gst$fit(cbind(y = y, X), "y")
-
+  
   # Get best iteration
   best_result <- gst$best_iteration(metric = scoring[1])
-
+  
   return(list(
     best_params = best_result,
     grid_search = gst,
@@ -1695,6 +1702,84 @@ tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, sco
 
 ####
 
+
+tune_svm_stratified <- function(data, gamma_range = 10^(-5:2),
+                                cost_range   = 10^(-3:2),
+                                kernel       = "radial",
+                                n_folds      = 5,
+                                seed         = 20011203) {
+  set.seed(seed)
+  
+  # Folds stratifiés (équilibre les classes dans chaque fold)
+  folds <- caret::createFolds(data$group, k = n_folds,
+                              list = TRUE, returnTrain = TRUE)
+  
+  grid <- expand.grid(gamma = gamma_range, cost = cost_range)
+  
+  grid$mean_auc <- sapply(seq_len(nrow(grid)), function(i) {
+    g <- grid$gamma[i]
+    c <- grid$cost[i]
+    
+    fold_aucs <- sapply(folds, function(train_idx) {
+      train <- data[ train_idx, ]
+      test  <- data[-train_idx, ]
+      
+      model <- tryCatch(
+        svm(group ~ ., data = train,
+            kernel      = kernel,
+            gamma       = g,
+            cost        = c,
+            type        = "C-classification",
+            probability = TRUE),
+        error = function(e) NULL
+      )
+      if (is.null(model)) return(NA)
+      
+      probs <- attr(predict(model, test, probability = TRUE), "probabilities")
+      lev   <- levels(data$group)
+      
+      # AUC via wilcoxon/Mann-Whitney
+      scores  <- probs[, lev[2]]
+      true_bin <- as.integer(test$group == lev[2])
+      r        <- rank(scores)
+      n_pos    <- sum(true_bin)
+      n_neg    <- length(true_bin) - n_pos
+      if (n_pos == 0 || n_neg == 0) return(NA)
+      (sum(r[true_bin == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+    })
+    mean(fold_aucs, na.rm = TRUE)
+  })
+  
+  best_idx <- which.max(grid$mean_auc)
+  cat("Best SVM params → gamma:", grid$gamma[best_idx],
+      "| cost:", grid$cost[best_idx],
+      "| AUC:", round(grid$mean_auc[best_idx], 4), "\n")
+  
+  list(
+    best.parameters = list(gamma = grid$gamma[best_idx],
+                           cost  = grid$cost[best_idx]),
+    best.auc        = grid$mean_auc[best_idx],
+    all.results     = grid
+  )
+}
+
+# Fonction custom AUC pour tune.svm 
+auc_error_fun <- function(true, pred) {
+  # pred est une matrice de probabilités quand probability=TRUE
+  # on retourne 1 - AUC (car tune minimise)
+  if (is.matrix(pred)) {
+    scores <- pred[, 2]
+  } else {
+    scores <- as.numeric(pred)
+  }
+  true_bin <- as.integer(true == levels(true)[2])
+  r        <- rank(scores)
+  n_pos    <- sum(true_bin)
+  n_neg    <- length(true_bin) - n_pos
+  if (n_pos == 0 || n_neg == 0) return(0.5)
+  auc <- (sum(r[true_bin == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+  return(1 - auc)  # tune minimise → on retourne 1 - AUC
+}
 
 modelfunction_V2 <- function(learningmodel,
                              validation = NULL,
@@ -1794,29 +1879,39 @@ modelfunction_V2 <- function(learningmodel,
     # ── SVM ────────────────────────────────────────────────────────────────────
     if (modelparameters$modeltype == "svm") {
       if (is.null(modelparameters$autotunesvm) || modelparameters$autotunesvm) {
+        set.seed(20011203)
+        # tune_result <- tune.svm(group ~ ., data = learningmodel,
+        #                         gamma = 10^(-5:2), cost = 10^(-3:2),
+        #                   
+        #                         degree = c(2,4,3),
+        #                         cross = min(dim(learningmodel)[1] - 2, 10),
+        #                         tunecontrol = tune.control(sampling = "cross"))
         tune_result <- tune.svm(group ~ ., data = learningmodel,
-                                gamma = 10^(-5:2), cost = 10^(-3:2),
-                                epsilon = c(0.01, 0.1, 0.5), 
-                                degree = c(2,4,3),
-                                  #ifelse(is.null(modelparameters$kernel) || modelparameters$kernel != "polynomial", NULL, 2:4),
-                                cross = min(dim(learningmodel)[1] - 2, 10),
-                                tunecontrol = tune.control(sampling = "cross"))
+                                gamma       = 10^(-5:2),
+                                cost        = 10^(-3:2),
+                                probability = TRUE,
+                                cross       = min(dim(learningmodel)[1] - 2, 10),
+                                tunecontrol = tune.control(
+                                  sampling  = "cross",
+                                  cross     = 5,
+                                  error.fun = auc_error_fun
+                                ))
         cat("tunning results :  \n"); print(tune_result)
         cost_param   <- tune_result$best.parameters$cost
         gamma_param  <- tune_result$best.parameters$gamma
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
-        epsilon_param <- tune_result$best.parameters$epsilon
+        # epsilon_param <- tune_result$best.parameters$epsilon
       } else {
         cat("define svm parameters manually \n")
         cost_param   <- ifelse(is.null(modelparameters$cost),   1,       modelparameters$cost)
         gamma_param  <- ifelse(is.null(modelparameters$gamma),  0.1,     modelparameters$gamma)
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
-        epsilon_param <- ifelse(is.null(modelparameters$epsilon), 0.1, modelparameters$epsilon)
+        # epsilon_param <- ifelse(is.null(modelparameters$epsilon), 0.1, modelparameters$epsilon)
       }
       
       model <- svm(group ~ ., data = learningmodel,
                    kernel = kernel_param, cost = cost_param, gamma = gamma_param,
-                   epsilon = epsilon_param, 
+                   # epsilon = epsilon_param, 
                    type = "C-classification", probability = TRUE)
       model$cost  <- cost_param
       model$gamma <- gamma_param
@@ -2114,11 +2209,15 @@ modelfunction_V2 <- function(learningmodel,
             optimal_gamma            <- if (!is.null(best_params$gamma))        best_params$gamma        else 0
             optimal_subsample        <- if (!is.null(best_params$subsample))    best_params$subsample    else 1.0
             optimal_min_child_weight <- if (!is.null(best_params$min_child_weight)) best_params$min_child_weight else 1
+            optimal_alpha =  if (!is.null(best_params$alpha)) best_params$alpha else 0
+            optimal_lambda = if (!is.null(best_params$lambda)) best_params$lambda else 0
+            
             cat(sprintf("GridSearchCV best params: nrounds=%d, max_depth=%d, eta=%.3f, gamma=%.3f, score=%.4f\n",
                         optimal_nrounds, optimal_max_depth, optimal_eta, optimal_gamma, grid_result$best_score))
             final_params <- list(objective = "binary:logistic", eval_metric = "auc",
                                  max_depth = optimal_max_depth, eta = optimal_eta,
                                  gamma = optimal_gamma, subsample = optimal_subsample,
+                                 lambda = optimal_lambda, alpha = optimal_alpha,
                                  min_child_weight = optimal_min_child_weight)
             model <- xgb.train(params = final_params, data = dtrain, nrounds = optimal_nrounds, verbose = 0)
             model$optimal_nrounds          <- optimal_nrounds
@@ -2142,6 +2241,8 @@ modelfunction_V2 <- function(learningmodel,
             model$optimal_max_depth        <- best_params$max_depth
             model$optimal_eta              <- best_params$eta
             model$optimal_min_child_weight <- best_params$min_child_weight
+            model$optimal_gamma            <- best_params$gamma
+            model$optimal_subsample        <- best_params$subsample
           }
         } else {
           set.seed(20011203)
@@ -2160,16 +2261,29 @@ modelfunction_V2 <- function(learningmodel,
           model$optimal_min_child_weight <- best_params$min_child_weight
         }
       } else {
+        
+        cat("Creating XGBoost model with manual parameters \n")
         nrounds_param   <- ifelse(is.null(modelparameters$nrounds),    100, modelparameters$nrounds)
         max_depth_param <- ifelse(is.null(modelparameters$max_depth),    6,  modelparameters$max_depth)
         eta_param       <- ifelse(is.null(modelparameters$eta),         0.3, modelparameters$eta)
+        
+        gamma_param <- ifelse(is.null(modelparameters$gamma_xgb), 0, modelparameters$gamma_xgb)
+        subsample_param <- ifelse(is.null(modelparameters$subsample_xgb), 1.0, modelparameters$subsample_xgb)
+        min_child_weight_param <- ifelse(is.null(modelparameters$min_child_weight), 1, modelparameters$min_child_weight)
+        
+        
         params <- list(objective = "binary:logistic", eval_metric = "auc",
                        max_depth = max_depth_param, eta = eta_param, min_child_weight = 1)
         model <- xgb.train(params = params, data = dtrain, nrounds = nrounds_param, verbose = 0)
         model$optimal_nrounds          <- nrounds_param
         model$optimal_max_depth        <- max_depth_param
         model$optimal_eta              <- eta_param
-        model$optimal_min_child_weight <- 1
+        
+        model$optimal_min_child_weight <- min_child_weight_param
+        model$optimal_gamma <- gamma_param
+        model$optimal_subsample <- subsample_param
+        cat("optimal_subsample :  ", subsample_param, "\n")
+        cat("optimal_gamma :  ", gamma_param, "\n")
       }
       
       # ← Scores bruts seulement
@@ -2213,7 +2327,13 @@ modelfunction_V2 <- function(learningmodel,
         learningselectval <<- learningselect2
         sdselect <- apply(learningselect2[, which(colnames(learningselect2) %in% colnames(validationdiff))], 2, sd, na.rm = TRUE)
         print("sdselect"); print(sdselect)
-        validationdiff[, -1] <- scale(as.matrix(validationdiff[, -1]), center = FALSE, scale = sdselect[-1])
+        # Align sdselect to the feature columns of validationdiff (col 1 is the group/ID column)
+        feat_cols       <- colnames(validationdiff)[-1]
+        sdselect_aligned <- sdselect[feat_cols]
+        if (length(sdselect_aligned) != length(feat_cols) || any(is.na(sdselect_aligned))) {
+          warning("sdselect_aligned contient des NA ou longueur incorrecte — vérifier la correspondance des colonnes entre learningselect2 et validationdiff")
+        }
+        validationdiff[, -1] <- scale(as.matrix(validationdiff[, -1]), center = FALSE, scale = sdselect_aligned)
       }
       if (!is.null(datastructuresfeatures)) {
         validationdiff[which(is.na(validationdiff), arr.ind = TRUE)[
@@ -2228,6 +2348,8 @@ modelfunction_V2 <- function(learningmodel,
       
       # ── Scores bruts validation selon le type de modèle ──────────────────────
       if (modelparameters$modeltype == "randomforest") {
+        cat("colnames of validationmodel : \n")
+        print(colnames(validationmodel))
         scoreval <- randomForest:::predict.randomForest(object = model, type = "prob",
                                                         newdata = validationmodel)[, lev["positif"]]
       }
@@ -2318,64 +2440,64 @@ modelfunction <- function(learningmodel,
                           learningselect){
   if(modelparameters$modeltype!="nomodel"){
     colnames(learningmodel)[1]<-"group"
-
+    
     if(modelparameters$invers){
       learningmodel[,1]<-factor(learningmodel[,1],levels = rev(levels(learningmodel[,1])),ordered = TRUE)
     }
     lev<-levels(x = learningmodel[,1])
     names(lev)<-c("positif","negatif")
-
+    
     #Build model
     if (modelparameters$modeltype=="randomforest"){
       learningmodel<-as.data.frame(learningmodel[sort(rownames(learningmodel)),])
-
+      
       x<-as.data.frame(learningmodel[,-1])
       colnames(x)<-colnames(learningmodel)[-1]
       x<-as.data.frame(x[,sort(colnames(x))])
       set.seed(20011203)
       ntree_param <- ifelse(is.null(modelparameters$ntree), 1000, modelparameters$ntree)
-
+      
       # Determine mtry parameter
       if(is.null(modelparameters$autotunerf) || modelparameters$autotunerf){
         # Check if GridSearchCV should be used
         if(!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch){
           # Use GridSearchCV from superml for comprehensive hyperparameter tuning
           cat("Using GridSearchCV for Random Forest hyperparameter tuning...\n")
-
+          
           # Prepare parameter grid
           param_grid <- list(
             n_estimators = if(!is.null(modelparameters$rf_grid_ntree)) modelparameters$rf_grid_ntree else c(100, 500, 1000),
             max_features = if(!is.null(modelparameters$rf_grid_mtry)) modelparameters$rf_grid_mtry else c("sqrt", "log2"),
             min_samples_split = if(!is.null(modelparameters$rf_grid_nodesize)) modelparameters$rf_grid_nodesize else c(2, 5, 10)
           )
-
+          
           # Run GridSearchCV
           grid_result <- tryCatch({
             tune_rf_gridsearch(X = x, y = learningmodel[,1],
-                              param_grid = param_grid,
-                              n_folds = 5,
-                              scoring = c("auc", "accuracy"))
+                               param_grid = param_grid,
+                               n_folds = 5,
+                               scoring = c("auc", "accuracy"))
           }, error = function(e) {
             cat("GridSearchCV failed, falling back to tuneRF:", e$message, "\n")
             NULL
           })
-
+          
           if(!is.null(grid_result)) {
             # Extract best parameters from GridSearchCV
             best_params <- grid_result$best_params
-
+            
             # Convert superml parameters to randomForest parameters
             optimal_mtry <- if(!is.null(best_params$max_features)) {
               if(best_params$max_features == "sqrt") floor(sqrt(ncol(x)))
               else if(best_params$max_features == "log2") floor(log2(ncol(x)))
               else as.numeric(best_params$max_features)
             } else floor(sqrt(ncol(x)))
-
+            
             ntree_param <- if(!is.null(best_params$n_estimators)) best_params$n_estimators else ntree_param
             nodesize_param <- if(!is.null(best_params$min_samples_split)) best_params$min_samples_split else 1
-
+            
             cat(sprintf("GridSearchCV best params: ntree=%d, mtry=%d, nodesize=%d, score=%.4f\n",
-                       ntree_param, optimal_mtry, nodesize_param, grid_result$best_score))
+                        ntree_param, optimal_mtry, nodesize_param, grid_result$best_score))
           } else {
             # Fallback to tuneRF if GridSearchCV fails
             tuneRF_result <- tuneRF(x = x, y = learningmodel[,1],
@@ -2402,25 +2524,25 @@ modelfunction <- function(learningmodel,
           nodesize_param <- 1
         }
       } else {
-
+        
         # Use manual mtry parameter
         optimal_mtry <- ifelse(is.null(modelparameters$mtry), floor(sqrt(ncol(x))), modelparameters$mtry)
         nodesize_param <- 1
       }
-
+      
       # Build final model with optimal or manual parameters
       model <- randomForest(x = x, y = learningmodel[,1],
-                           ntree = ntree_param,
-                           mtry = optimal_mtry,
-                           nodesize = nodesize_param,
-                           importance = TRUE)
-
-
-
+                            ntree = ntree_param,
+                            mtry = optimal_mtry,
+                            nodesize = nodesize_param,
+                            importance = TRUE)
+      
+      
+      
       # Store optimal parameters in model object
-
+      
       model$optimal_mtry <- optimal_mtry
-
+      
       model$ntree_used <- ntree_param
       model$nodesize_used <- nodesize_param
       if(modelparameters$fs){
@@ -2429,7 +2551,7 @@ modelfunction <- function(learningmodel,
         model<-featureselect$model
         learningmodel<-featureselect$dataset
       }
-
+      
       scorelearning =data.frame(model$votes[,lev["positif"]])
       colnames(scorelearning)<-paste(lev[1],"/",lev[2],sep="")
       predictclasslearning<-factor(levels = lev)
@@ -2438,40 +2560,41 @@ modelfunction <- function(learningmodel,
       predictclasslearning<-as.factor(predictclasslearning)
       #predictclasslearning==model$predicted
     }
-
+    
     if(modelparameters$modeltype=="svm"){
       # Determine hyperparameters
       if(is.null(modelparameters$autotunesvm) || modelparameters$autotunesvm){
+        #set.seed(20011203)
         # Perform hyperparameter tuning using tune.svm
         tune_result <- tune.svm(group ~ ., data = learningmodel,
-                               gamma = 10^(-5:2), cost = 10^(-3:2),
-                               epsilon = c(0.01, 0.1, 0.5), 
-                               #class.weights = list(lev[1] = 1, lev[2] = 1),
-                               cross=min(dim(learningmodel)[1]-2,10),
-                               #kernel=c("linear", "polynomial", "radial", "sigmoid"),
-                               # ranges=list(kernel=c("linear", "polynomial",
-                               #                      "radial", "sigmoid")),
-                               tunecontrol = tune.control(sampling = "cross"))
-
+                                gamma       = 10^(-5:2),
+                                cost        = 10^(-3:2),
+                                probability = TRUE,
+                                cross       = min(dim(learningmodel)[1] - 2, 10),
+                                tunecontrol = tune.control(
+                                  sampling  = "cross",
+                                  cross     = 5,
+                                  error.fun = auc_error_fun
+                                ))
         # Extract best model and parameters
         # model <- tune_result$best.model
         # model$cost <- tune_result$best.parameters$cost
         # model$gamma <- tune_result$best.parameters$gamma
         cat('tunning results :  \n')
         print(tune_result$best.parameters)
-        epsilon_param <- tune_result$best.parameters$epsilon
+        # epsilon_param <- tune_result$best.parameters$epsilon
         cost_param <- tune_result$best.parameters$cost
         gamma_param <- tune_result$best.parameters$gamma
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
-
+        
       } else {
         # Use manual hyperparameters
         cat("define svm parameters manually \n")
-        epsilon_param <- ifelse(is.null(modelparameters$epsilon), 0.1, modelparameters$epsilon)
+        # epsilon_param <- ifelse(is.null(modelparameters$epsilon), 0.1, modelparameters$epsilon)
         cost_param <- ifelse(is.null(modelparameters$cost), 1, modelparameters$cost)
         gamma_param <- ifelse(is.null(modelparameters$gamma), 0.1, modelparameters$gamma)
         kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
-
+        
         # model <- svm(group ~ ., data = learningmodel,
         #             kernel= kernel_param ,
         #             cost=cost_param, gamma=gamma_param,
@@ -2480,26 +2603,26 @@ modelfunction <- function(learningmodel,
         # model$gamma <- gamma_param
         # model$kernel <- kernel_param
       }
-
+      
       model <- svm(group ~ ., data = learningmodel,
                    kernel= kernel_param ,
-                   epsilon  = epsilon_param,
+                   # epsilon  = epsilon_param,
                    cost=cost_param, gamma=gamma_param,
                    type = "C-classification",
                    probability=TRUE)
       model$cost <- cost_param
       model$gamma <- gamma_param
-      model$epsilon <- epsilon_param
+      # model$epsilon <- epsilon_param
       # model$kernel <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
-
+      
       if(modelparameters$fs){
-
+        
         featureselect<-selectedfeature(model=model,modeltype = "svm",tab=learningmodel,
                                        criterionimportance = "fscore",criterionmodel = "auc")
         model<-featureselect$model
         learningmodel<-featureselect$dataset
       }
-
+      
       # calculate the decision values for the learning set
       scorelearning <-model$decision.values
       #scorelearning = attr(e1071:::predict.svm(model, learningmodel[,-1], probability  = TRUE), "probabilities")
@@ -2507,20 +2630,20 @@ modelfunction <- function(learningmodel,
         scorelearning<-scorelearning*(-1)
         colnames(scorelearning)<-paste(lev[1],"/",lev[2],sep="")
       }
-
+      
       # Obtenir les probabilités au lieu des decision values
       # pred_probs <- attr(predict(model, learningmodel[,-1], probability=TRUE), "probabilities")
       # scorelearning <- data.frame(pred_probs[, lev["positif"]])
       # colnames(scorelearning) <- paste(lev[1],"/",lev[2],sep="")
-
+      
       predictclasslearning<-factor(levels = lev)
       predictclasslearning[which(scorelearning>=modelparameters$thresholdmodel)]<-lev["positif"]
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
       predictclasslearning<-as.factor(predictclasslearning)
     }
-
+    
     if(modelparameters$modeltype=="lightgbm"){
-
+      
       # LightGBM gradient boosting
       x <- as.matrix(learningmodel[,-1])
       # IMPORTANT: Encode y so that 1 = lev["positif"] (first level), 0 = lev["negatif"] (second level)
@@ -2542,7 +2665,7 @@ modelfunction <- function(learningmodel,
           bagging_freq = 5,
           verbose = -1
         )
-
+        
         # Cross-validation to find optimal nrounds
         cv_results <- lgb.cv(
           params = best_params,
@@ -2552,7 +2675,7 @@ modelfunction <- function(learningmodel,
           early_stopping_rounds = 10,
           verbose = -1
         )
-
+        
         optimal_nrounds <- cv_results$best_iter
         # Train final model with optimal parameters
         model <- lgb.train(
@@ -2561,7 +2684,7 @@ modelfunction <- function(learningmodel,
           nrounds = optimal_nrounds,
           verbose = -1
         )
-
+        
         # Store optimal parameters
         model$optimal_nrounds <- optimal_nrounds
         model$optimal_num_leaves <- best_params$num_leaves
@@ -2581,24 +2704,24 @@ modelfunction <- function(learningmodel,
           bagging_freq = 5,
           verbose = -1
         )
-
-
-
+        
+        
+        
         model <- lgb.train(
           params = params,
           data = dtrain,
           nrounds = nrounds_param,
           verbose = -1
         )
-
-
-
+        
+        
+        
         # Store parameters
         model$optimal_nrounds <- nrounds_param
         model$optimal_num_leaves <- num_leaves_param
         model$optimal_learning_rate <- learning_rate_param
       }
-
+      
       # Make predictions (probabilities)
       scorelearning <- predict(model, x)
       scorelearning <- data.frame(scorelearning)
@@ -2608,48 +2731,48 @@ modelfunction <- function(learningmodel,
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
       predictclasslearning<-as.factor(predictclasslearning)
     }
-
+    
     if(modelparameters$modeltype=="naivebayes"){
       # Naive Bayes classifier
       # Check if GridSearchCV should be used
       optimal_laplace <- 0  # Default value
-
+      
       if(!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch){
         # Use GridSearchCV from superml for hyperparameter tuning
         cat("Using GridSearchCV for Naive Bayes hyperparameter tuning...\n")
-
+        
         # Prepare parameter grid
         param_grid <- list(
           laplace = if(!is.null(modelparameters$nb_grid_laplace)) modelparameters$nb_grid_laplace else c(0, 0.5, 1, 2, 5)
         )
-
+        
         # Run GridSearchCV
         grid_result <- tryCatch({
           X_df <- as.data.frame(learningmodel[,-1])
           tune_nb_gridsearch(X = X_df, y = learningmodel[,1],
-                            param_grid = param_grid,
-                            n_folds = 5,
-                            scoring = c("auc", "accuracy"))
+                             param_grid = param_grid,
+                             n_folds = 5,
+                             scoring = c("auc", "accuracy"))
         }, error = function(e) {
           cat("GridSearchCV failed, using default laplace=0:", e$message, "\n")
           NULL
         })
-
+        
         if(!is.null(grid_result)) {
           best_params <- grid_result$best_params
           optimal_laplace <- if(!is.null(best_params$laplace)) best_params$laplace else 0
           cat(sprintf("GridSearchCV best params: laplace=%.2f, score=%.4f\n",
-                     optimal_laplace, grid_result$best_score))
+                      optimal_laplace, grid_result$best_score))
         }
       }
-
+      
       # Build model with optimal or default laplace parameter
       model <- naiveBayes(x = learningmodel[,-1], y = learningmodel[,1], laplace = optimal_laplace)
-
+      
       # Store model type and optimal parameter
       model$model_type <- "naivebayes"
       model$optimal_laplace <- optimal_laplace
-
+      
       # Make predictions (probabilities)
       pred_probs <- e1071:::predict.naiveBayes(model, learningmodel[,-1], type="raw")
       scorelearning <- data.frame(pred_probs[, lev["positif"]])
@@ -2659,7 +2782,7 @@ modelfunction <- function(learningmodel,
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
       predictclasslearning<-as.factor(predictclasslearning)
     }
-
+    
     if(modelparameters$modeltype=="knn"){
       # K-Nearest Neighbors
       # Determine k parameter
@@ -2668,30 +2791,30 @@ modelfunction <- function(learningmodel,
         if(!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch){
           # Use GridSearchCV from superml for comprehensive hyperparameter tuning
           cat("Using GridSearchCV for KNN hyperparameter tuning...\n")
-
+          
           # Prepare parameter grid
           max_k <- min(floor(sqrt(nrow(learningmodel))), 30)
           param_grid <- list(
             n_neighbors = if(!is.null(modelparameters$knn_grid_k)) modelparameters$knn_grid_k else seq(3, max_k, by=2)
           )
-
+          
           # Run GridSearchCV
           grid_result <- tryCatch({
             X_df <- as.data.frame(learningmodel[,-1])
             tune_knn_gridsearch(X = X_df, y = learningmodel[,1],
-                               param_grid = param_grid,
-                               n_folds = 5,
-                               scoring = c("auc", "accuracy"))
+                                param_grid = param_grid,
+                                n_folds = 5,
+                                scoring = c("auc", "accuracy"))
           }, error = function(e) {
             cat("GridSearchCV failed, falling back to manual CV:", e$message, "\n")
             NULL
           })
-
+          
           if(!is.null(grid_result)) {
             best_params <- grid_result$best_params
             optimal_k <- if(!is.null(best_params$n_neighbors)) best_params$n_neighbors else 5
             cat(sprintf("GridSearchCV best params: k=%d, score=%.4f\n",
-                       optimal_k, grid_result$best_score))
+                        optimal_k, grid_result$best_score))
           } else {
             # Fallback to traditional CV if GridSearchCV fails
             # Automatic tuning: try different k values via cross-validation
@@ -2699,7 +2822,7 @@ modelfunction <- function(learningmodel,
             # Test k values from 3 to min(sqrt(n), 20)
             max_k <- min(floor(sqrt(nrow(learningmodel))), 20)
             k_values <- seq(3, max_k, by=2) # odd numbers only
-
+            
             # Cross-validation to find best k
             best_k <- 3
             best_acc <- 0
@@ -2712,19 +2835,19 @@ modelfunction <- function(learningmodel,
                 test_idx <- ((fold-1)*fold_size + 1):min(fold*fold_size, nrow(learningmodel))
                 train_idx <- setdiff(1:nrow(learningmodel), test_idx)
                 pred <- knn(train = learningmodel[train_idx, -1],
-                           test = learningmodel[test_idx, -1],
-                           cl = learningmodel[train_idx, 1],
-                           k = k_test)
+                            test = learningmodel[test_idx, -1],
+                            cl = learningmodel[train_idx, 1],
+                            k = k_test)
                 accuracies[fold] <- mean(pred == learningmodel[test_idx, 1])
               }
-
+              
               avg_acc <- mean(accuracies)
               if(avg_acc > best_acc){
                 best_acc <- avg_acc
                 best_k <- k_test
               }
             }
-
+            
             optimal_k <- best_k
           }
         } else {
@@ -2734,7 +2857,7 @@ modelfunction <- function(learningmodel,
           # Test k values from 3 to min(sqrt(n), 20)
           max_k <- min(floor(sqrt(nrow(learningmodel))), 20)
           k_values <- seq(3, max_k, by=2) # odd numbers only
-
+          
           # Cross-validation to find best k
           best_k <- 3
           best_acc <- 0
@@ -2747,95 +2870,95 @@ modelfunction <- function(learningmodel,
               test_idx <- ((fold-1)*fold_size + 1):min(fold*fold_size, nrow(learningmodel))
               train_idx <- setdiff(1:nrow(learningmodel), test_idx)
               pred <- knn(train = learningmodel[train_idx, -1],
-                         test = learningmodel[test_idx, -1],
-                         cl = learningmodel[train_idx, 1],
-                         k = k_test)
+                          test = learningmodel[test_idx, -1],
+                          cl = learningmodel[train_idx, 1],
+                          k = k_test)
               accuracies[fold] <- mean(pred == learningmodel[test_idx, 1])
             }
-
+            
             avg_acc <- mean(accuracies)
             if(avg_acc > best_acc){
               best_acc <- avg_acc
               best_k <- k_test
             }
           }
-
+          
           optimal_k <- best_k
         }
-
+        
       } else {
         # Use manual k parameter
         optimal_k <- ifelse(is.null(modelparameters$k_neighbors), 5, modelparameters$k_neighbors)
       }
-
-
-
+      
+      
+      
       # KNN doesn't have a traditional "model" object, store parameters
       model <- list(
         train_data = learningmodel[,-1],
         train_labels = learningmodel[,1],
         optimal_k = optimal_k,
         model_type = "knn"
-
+        
       )
-
+      
       # Make predictions using knn with probability estimation
       # For probability, we'll use the proportion of k neighbors in each class
-
+      
       scorelearning_vec <- numeric(nrow(learningmodel))
-
+      
       for(i in 1:nrow(learningmodel)){
         # Leave-one-out prediction for training set
         train_idx <- setdiff(1:nrow(learningmodel), i)
-
+        
         # Get k nearest neighbors
         distances <- apply(learningmodel[train_idx, -1], 1, function(row) {
           sqrt(sum((as.numeric(learningmodel[i, -1]) - as.numeric(row))^2))
-
+          
         })
-
+        
         k_nearest_idx <- order(distances)[1:optimal_k]
         k_nearest_labels <- learningmodel[train_idx, 1][k_nearest_idx]
-
+        
         # Calculate probability as proportion of positif class
-
+        
         scorelearning_vec[i] <- sum(k_nearest_labels == lev["positif"]) / optimal_k
       }
-
-
-
+      
+      
+      
       scorelearning <- data.frame(scorelearning_vec)
       colnames(scorelearning) <- paste(lev[1],"/",lev[2],sep="")
-
+      
       predictclasslearning<-factor(levels = lev)
       predictclasslearning[which(scorelearning>=modelparameters$thresholdmodel)]<-lev["positif"]
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
       predictclasslearning<-as.factor(predictclasslearning)
-
+      
     }
-
+    
     if(modelparameters$modeltype=="elasticnet"){
       # Penalized Logistic Regression (ElasticNet)
       x <- as.matrix(learningmodel[,-1])
       # IMPORTANT: Encode y so that 1 = lev["positif"] (first level), 0 = lev["negatif"] (second level)
       # This ensures that predict returns P(lev["positif"])
       y <- ifelse(learningmodel[,1] == lev["positif"], 1, 0)
-
+      
       # Get hyperparameters (use defaults if not provided)
       alpha_param <- ifelse(is.null(modelparameters$alpha), 0.5, modelparameters$alpha)
       lambda_param <- modelparameters$lambda  # NULL for CV selection
-
+      
       # Check if GridSearchCV should be used
       if(!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch && is.null(lambda_param)){
         # Use GridSearchCV from superml for comprehensive hyperparameter tuning
         cat("Using GridSearchCV for ElasticNet hyperparameter tuning...\n")
-
+        
         # Prepare parameter grid
         param_grid <- list(
           alpha = if(!is.null(modelparameters$en_grid_alpha)) modelparameters$en_grid_alpha else c(0, 0.25, 0.5, 0.75, 1.0),
           lambda = if(!is.null(modelparameters$en_grid_lambda)) modelparameters$en_grid_lambda else c(0.001, 0.01, 0.1, 1.0)
         )
-
+        
         # Run GridSearchCV
         grid_result <- tryCatch({
           X_df <- as.data.frame(x)
@@ -2847,15 +2970,15 @@ modelfunction <- function(learningmodel,
           cat("GridSearchCV failed, falling back to cv.glmnet:", e$message, "\n")
           NULL
         })
-
+        
         if(!is.null(grid_result)) {
           best_params <- grid_result$best_params
           alpha_param <- if(!is.null(best_params$alpha)) best_params$alpha else 0.5
           lambda_param <- if(!is.null(best_params$lambda)) best_params$lambda else NULL
-
+          
           cat(sprintf("GridSearchCV best params: alpha=%.3f, lambda=%.4f, score=%.4f\n",
                       alpha_param, lambda_param, grid_result$best_score))
-
+          
           # Use the best parameters to fit with cv.glmnet for consistency
           set.seed(20011203)
           cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
@@ -2893,9 +3016,9 @@ modelfunction <- function(learningmodel,
         model <- list(glmnet_model=fit, lambda=lambda_param, alpha=alpha_param,
                       cvfit=NULL, optimal_lambda=lambda_param, lambda_1se=NULL)
       }
-
+      
       cat("la classe de model$glmnet_model est : ", class(model$glmnet_model), "\n" )
-
+      
       # Feature selection based on non-zero coefficients
       if(modelparameters$fs){
         coef_values <- as.matrix(coef(model$glmnet_model, s=lambda_param))
@@ -2920,7 +3043,7 @@ modelfunction <- function(learningmodel,
           }
         }
       }
-
+      
       # Make predictions (probabilities)
       # Use appropriate predict method based on model class
       if(inherits(model$glmnet_model, "cv.glmnet")){
@@ -2930,30 +3053,30 @@ modelfunction <- function(learningmodel,
       }
       scorelearning <- data.frame(scorelearning)
       colnames(scorelearning) <- paste(lev[1],"/",lev[2],sep="")
-
+      
       predictclasslearning<-factor(levels = lev)
       predictclasslearning[which(scorelearning>=modelparameters$thresholdmodel)]<-lev["positif"]
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
       predictclasslearning<-as.factor(predictclasslearning)
     }
-
+    
     if(modelparameters$modeltype=="xgboost"){
       # XGBoost gradient boosting
       x <- as.matrix(learningmodel[,-1])
       # IMPORTANT: Encode y so that 1 = lev["positif"] (first level), 0 = lev["negatif"] (second level)
       # This ensures that predict returns P(lev["positif"])
       y <- ifelse(learningmodel[,1] == lev["positif"], 1, 0)
-
+      
       # Create DMatrix for XGBoost
       dtrain <- xgb.DMatrix(data = x, label = y)
-
+      
       # Determine hyperparameters
       if(is.null(modelparameters$autotunexgb) || modelparameters$autotunexgb){
         # Check if GridSearchCV should be used
         if(!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch){
           # Use GridSearchCV from superml for comprehensive hyperparameter tuning
           cat("Using GridSearchCV for XGBoost hyperparameter tuning...\n")
-
+          
           # Prepare parameter grid
           param_grid <- list(
             n_estimators = if(!is.null(modelparameters$xgb_grid_nrounds)) modelparameters$xgb_grid_nrounds else c(50, 100, 200),
@@ -2962,34 +3085,34 @@ modelfunction <- function(learningmodel,
             gamma = if(!is.null(modelparameters$xgb_grid_gamma)) modelparameters$xgb_grid_gamma else c(0, 0.1, 0.5),
             subsample = if(!is.null(modelparameters$xgb_grid_subsample)) modelparameters$xgb_grid_subsample else c(0.8, 1.0)
           )
-
+          
           # Run GridSearchCV
           grid_result <- tryCatch({
             # Convert data for superml
             X_df <- as.data.frame(x)
             tune_xgb_gridsearch(X = X_df, y = learningmodel[,1],
-                               param_grid = param_grid,
-                               n_folds = 5,
-                               scoring = c("auc", "accuracy"))
+                                param_grid = param_grid,
+                                n_folds = 5,
+                                scoring = c("auc", "accuracy"))
           }, error = function(e) {
             cat("GridSearchCV failed, falling back to xgb.cv:", e$message, "\n")
             NULL
           })
-
+          
           if(!is.null(grid_result)) {
             # Extract best parameters from GridSearchCV
             best_params <- grid_result$best_params
-
+            
             optimal_nrounds <- if(!is.null(best_params$n_estimators)) best_params$n_estimators else 100
             optimal_max_depth <- if(!is.null(best_params$max_depth)) best_params$max_depth else 6
             optimal_eta <- if(!is.null(best_params$learning_rate)) best_params$learning_rate else 0.3
             optimal_gamma <- if(!is.null(best_params$gamma)) best_params$gamma else 0
             optimal_subsample <- if(!is.null(best_params$subsample)) best_params$subsample else 1.0
             optimal_min_child_weight <- if(!is.null(best_params$min_child_weight)) best_params$min_child_weight else 1
-
+            
             cat(sprintf("GridSearchCV best params: nrounds=%d, max_depth=%d, eta=%.3f, gamma=%.3f, score=%.4f\n",
-                       optimal_nrounds, optimal_max_depth, optimal_eta, optimal_gamma, grid_result$best_score))
-
+                        optimal_nrounds, optimal_max_depth, optimal_eta, optimal_gamma, grid_result$best_score))
+            
             # Create final parameters list
             final_params <- list(
               objective = "binary:logistic",
@@ -3000,7 +3123,7 @@ modelfunction <- function(learningmodel,
               subsample = optimal_subsample,
               min_child_weight = optimal_min_child_weight
             )
-
+            
             # Train final model with optimal parameters
             model <- xgb.train(
               params = final_params,
@@ -3008,7 +3131,7 @@ modelfunction <- function(learningmodel,
               nrounds = optimal_nrounds,
               verbose = 0
             )
-
+            
             # Store optimal parameters
             model$optimal_nrounds <- optimal_nrounds
             model$optimal_max_depth <- optimal_max_depth
@@ -3021,16 +3144,18 @@ modelfunction <- function(learningmodel,
             # Fallback to traditional xgb.cv if GridSearchCV fails
             # Perform hyperparameter tuning using cross-validation
             set.seed(20011203)
-
+            
             # Parameter grid search
             best_params <- list(
               objective = "binary:logistic",
               eval_metric = "auc",
               max_depth = 6,
               eta = 0.3,
-              min_child_weight = 1
+              min_child_weight = 1,
+              alpha = 0.5,
+              lambda = 0.5
             )
-
+            
             # Cross-validation to find optimal nround
             tryCatch({
               cv_results <- xgb.cv(
@@ -3041,20 +3166,20 @@ modelfunction <- function(learningmodel,
                 early_stopping_rounds = 10,
                 verbose = 0
               )
-
+              
               optimal_nrounds <- cv_results$best_iteration
             }, error =  function(e){
               e$message
               showNotification(
                 "Something wrong where running!, Try GridSearchCV (superml) option ",
                 type = 'error',
-
+                
               )
-
+              
               optimal_nrounds <- 20
             })
-
-
+            
+            
             # Train final model with optimal parameters
             model <- xgb.train(
               params = best_params,
@@ -3062,27 +3187,31 @@ modelfunction <- function(learningmodel,
               nrounds = optimal_nrounds,
               verbose = 0
             )
-
+            
             # Store optimal parameters
             model$optimal_nrounds <- optimal_nrounds
             model$optimal_max_depth <- best_params$max_depth
             model$optimal_eta <- best_params$eta
             model$optimal_min_child_weight <- best_params$min_child_weight
+            model$optimal_gamma <- 0
+            model$optimal_subsample <- 1.0
           }
         } else {
           # Use traditional xgb.cv for hyperparameter tuning
           # Perform hyperparameter tuning using cross-validation
           set.seed(20011203)
-
+          
           # Parameter grid search
           best_params <- list(
             objective = "binary:logistic",
             eval_metric = "auc",
             max_depth = 6,
             eta = 0.3,
-            min_child_weight = 1
+            min_child_weight = 1,
+            gamma = 0,
+            subsample = 1.0
           )
-
+          
           # Cross-validation to find optimal nrounds
           cv_results <- xgb.cv(
             params = best_params,
@@ -3092,13 +3221,13 @@ modelfunction <- function(learningmodel,
             early_stopping_rounds = 10,
             verbose = 0
           )
-
+          
           optimal_nrounds <- cv_results$best_iteration
-
+          
           # Train final model with optimal parameters
           cat("best parmeters \n")
           print(best_params)
-
+          
           cat("optimal rounds  : ", optimal_nrounds, "\n")
           model <- xgb.train(
             params = best_params,
@@ -3106,20 +3235,26 @@ modelfunction <- function(learningmodel,
             nrounds = optimal_nrounds,
             verbose = 0
           )
-
+          
           # Store optimal parameters
           model$optimal_nrounds <- optimal_nrounds
           model$optimal_max_depth <- best_params$max_depth
           model$optimal_eta <- best_params$eta
           model$optimal_min_child_weight <- best_params$min_child_weight
+          model$optimal_gamma <- best_params$gamma
+          model$optimal_subsample <- best_params$subsample
+          cat("optimal_subsample :  ", best_params$subsample, "\n")
         }
-
+        
       } else {
         # Use manual hyperparameters
         nrounds_param <- ifelse(is.null(modelparameters$nrounds), 100, modelparameters$nrounds)
         max_depth_param <- ifelse(is.null(modelparameters$max_depth), 6, modelparameters$max_depth)
         eta_param <- ifelse(is.null(modelparameters$eta), 0.3, modelparameters$eta)
-
+        gamma_param <- ifelse(is.null(modelparameters$gamma_xgb), 0, modelparameters$gamma_xgb)
+        subsample_param <- ifelse(is.null(modelparameters$subsample_xgb), 1.0, modelparameters$subsample_xgb)
+        min_child_weight_param <- ifelse(is.null(modelparameters$min_child_weight), 1, modelparameters$min_child_weight)
+        
         params <- list(
           objective = "binary:logistic",
           eval_metric = "auc",
@@ -3127,36 +3262,40 @@ modelfunction <- function(learningmodel,
           eta = eta_param,
           min_child_weight = 1
         )
-
+        
         model <- xgb.train(
           params = params,
           data = dtrain,
           nrounds = nrounds_param,
           verbose = 0
         )
-
+        
         # Store parameters
         model$optimal_nrounds <- nrounds_param
         model$optimal_max_depth <- max_depth_param
         model$optimal_eta <- eta_param
-        model$optimal_min_child_weight <- 1
+        model$optimal_min_child_weight <- min_child_weight_param
+        model$optimal_gamma <- gamma_param
+        model$optimal_subsample <- subsample_param
+        cat("optimal_subsample :  ", subsample_param, "\n")
+        cat("optimal_gamma :  ", gamma_param, "\n")
       }
-
+      
       # Make predictions (probabilities)
       scorelearning <- xgboost:::predict.xgb.Booster(model, x)
       scorelearning <- data.frame(scorelearning)
       colnames(scorelearning) <- paste(lev[1],"/",lev[2],sep="")
-
+      
       predictclasslearning<-factor(levels = lev)
       predictclasslearning[which(scorelearning>=modelparameters$thresholdmodel)]<-lev["positif"]
       predictclasslearning[which(scorelearning<modelparameters$thresholdmodel)]<-lev["negatif"]
       predictclasslearning<-as.factor(predictclasslearning)
     }
-
+    
     #levels(predictclassval)<-paste("test",levels(predictclasslearning),sep="")
-    levels(predictclasslearning)<-paste("test",lev,sep="")
+    levels(predictclasslearning)<-paste("test ",lev,sep="")
     classlearning<-learningmodel[,1]
-
+    
     ##########
     # # Calculate Youden threshold from training data
     # youden_result <- younden(classlearning, scorelearning[,1])
@@ -3171,13 +3310,13 @@ modelfunction <- function(learningmodel,
     # predictclasslearning[which(scorelearning[,1] < youden_threshold)] <- lev["negatif"]
     # predictclasslearning <- as.factor(predictclasslearning)
     # levels(predictclasslearning)<-paste("test",lev,sep="")
-
+    
     ########
-
+    
     reslearningmodel<-data.frame(classlearning,scorelearning,predictclasslearning)
     colnames(reslearningmodel) <-c("classlearning","scorelearning","predictclasslearning")
     datalearningmodel<-list("learningmodel"=learningmodel,"reslearningmodel"=reslearningmodel)
-
+    
     if (modelparameters$adjustval){
       #Validation
       colnames(validation)[1]<-"group"
@@ -3190,11 +3329,11 @@ modelfunction <- function(learningmodel,
         maxlearn<-apply(X = learningselect[,-1],MARGIN = 2,FUN = max,na.rm=T)
         minlearn<-apply(X = learningselect[,-1],MARGIN = 2,FUN = min,na.rm=T)
         for (i in 2:dim(validationdiff)[2]){
-        validationdiff[,i]<-(validationdiff[,i]-minlearn[i-1])/(maxlearn[i-1]-minlearn[i-1])
-        #validationdiff[,-1]<-apply(X = as.data.frame(validationdiff[,-1]),MARGIN = 2,FUN = function(x){{(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))}})
-        validationdiff[which(validationdiff[,i]>1),i]<-1
-        validationdiff[which(validationdiff[,i]<0),i]<-0
-        validationdiff[,i]<-asin(sqrt(validationdiff[,i]))
+          validationdiff[,i]<-(validationdiff[,i]-minlearn[i-1])/(maxlearn[i-1]-minlearn[i-1])
+          #validationdiff[,-1]<-apply(X = as.data.frame(validationdiff[,-1]),MARGIN = 2,FUN = function(x){{(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))}})
+          validationdiff[which(validationdiff[,i]>1),i]<-1
+          validationdiff[which(validationdiff[,i]<0),i]<-0
+          validationdiff[,i]<-asin(sqrt(validationdiff[,i]))
         }
         learningselect2[,-1]<-apply(X = learningselect2[,-1],MARGIN = 2,FUN = function(x){{(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))}})
         learningselect2[,-1]<-asin(sqrt(learningselect2[,-1]))
@@ -3206,7 +3345,7 @@ modelfunction <- function(learningmodel,
         print(sdselect)
         validationdiff[,-1]<-scale(as.matrix(validationdiff[,-1]),center=F,scale=sdselect[-1])
       }
-
+      
       #NAstructure if NA ->0
       if(!is.null(datastructuresfeatures)){
         validationdiff[which(is.na(validationdiff),arr.ind = T)[which(which(is.na(validationdiff),arr.ind = T)[,2]%in%which(colnames(validationdiff)%in%datastructuresfeatures$names)),]]<-0
@@ -3215,7 +3354,7 @@ modelfunction <- function(learningmodel,
       validationmodel<<- replaceNAvalidation(as.data.frame(validationdiff[,-1]),toto=as.data.frame(learningmodel[,-1]),rempNA=transformdataparameters$rempNA)
       colnames(validationmodel)<-colnames(validationdiff)[-1]
       rownames(validationmodel)<-rownames(validationdiff)
-
+      
       #prediction a partir du model
       if(modelparameters$modeltype=="randomforest"){
         scoreval <- randomForest:::predict.randomForest(object=model,type="prob",newdata = validationmodel)[,lev["positif"]]
@@ -3223,32 +3362,32 @@ modelfunction <- function(learningmodel,
         predictclassval[which(scoreval>=modelparameters$thresholdmodel)]<-lev["positif"]
         predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
         predictclassval<-as.factor(predictclassval)
-
+        
       }
-
+      
       if(modelparameters$modeltype=="svm"){
         if(!is.null(model)){
           # SVM validation predictions
           # print("On est dans le SVM pour la validation")
           # print(str(model))
           # print(str(validationmodel))
-
+          
           #calculate decision values for the validation set
           scoreval =attr(e1071:::predict.svm(model,newdata =  validationmodel,decision.values=T),"decision.values")
           if(sum(lev==(strsplit(colnames(scoreval),split = "/")[[1]]))==0){scoreval<-scoreval*(-1)}
-
+          
           # Utiliser les probabilités pour la validation
           # pred_probs_val <- attr(e1071:::predict.svm(model, newdata = validationmodel, probability=TRUE), "probabilities")
           # scoreval <- pred_probs_val[, lev["positif"]]
-
+          
           predictclassval<-vector(length = length(scoreval) )
           predictclassval[which(scoreval>=modelparameters$thresholdmodel)]<-lev["positif"]
           predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
           predictclassval<-as.factor(predictclassval)
         }
-
+        
       }
-
+      
       if(modelparameters$modeltype=="elasticnet"){
         req(model$glmnet_model)
         # ElasticNet validation predictions
@@ -3266,7 +3405,7 @@ modelfunction <- function(learningmodel,
         predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
         predictclassval<-as.factor(predictclassval)
       }
-
+      
       if(modelparameters$modeltype=="xgboost"){
         # XGBoost validation predictions
         x_val <- as.matrix(validationmodel)
@@ -3277,7 +3416,7 @@ modelfunction <- function(learningmodel,
         predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
         predictclassval<-as.factor(predictclassval)
       }
-
+      
       if(modelparameters$modeltype=="lightgbm"){
         # LightGBM validation predictions
         x_val <- as.matrix(validationmodel)
@@ -3287,7 +3426,7 @@ modelfunction <- function(learningmodel,
         predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
         predictclassval<-as.factor(predictclassval)
       }
-
+      
       if(modelparameters$modeltype=="naivebayes"){
         # Naive Bayes validation predictions
         pred_probs <- e1071:::predict.naiveBayes(model, validationmodel, type="raw")
@@ -3297,7 +3436,7 @@ modelfunction <- function(learningmodel,
         predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
         predictclassval<-as.factor(predictclassval)
       }
-
+      
       if(modelparameters$modeltype=="knn"){
         # KNN validation predictions
         # Get k nearest neighbors for probability estimation
@@ -3319,7 +3458,7 @@ modelfunction <- function(learningmodel,
         predictclassval[which(scoreval<modelparameters$thresholdmodel)]<-lev["negatif"]
         predictclassval<-as.factor(predictclassval)
       }
-
+      
       if(sum(lev==(levels(predictclassval)))==0){
         predictclassval<-factor(predictclassval,levels = rev(levels(predictclassval)),ordered = TRUE)
       }
@@ -3327,14 +3466,14 @@ modelfunction <- function(learningmodel,
       if(sum(lev==(levels(classval)))==0){
         classval<-factor(classval,levels = rev(levels(classval)),ordered = TRUE)
       }
-
+      
       #levels(predictclassval)<-paste("test",levels(predictclassval),sep="")
-      levels(predictclassval)<-paste("test",lev,sep="")
+      levels(predictclassval)<-paste("test ",lev,sep="")
       resvalidationmodel<-data.frame(classval,scoreval,predictclassval)
       colnames(resvalidationmodel) <-c("classval","scoreval","predictclassval")
       auc<-auc(roc(as.vector(classval), as.vector(scoreval),quiet=T))
       datavalidationmodel<-list("validationdiff"=validationdiff,"validationmodel"=validationmodel,"resvalidationmodel"=resvalidationmodel,"auc"=auc)
-
+      
     }
     else{datavalidationmodel<-list()}
     res<-list("datalearningmodel"=datalearningmodel,"model"=model,"datavalidationmodel"=datavalidationmodel,"groups"=lev,"parameters"=modelparameters)
@@ -3394,7 +3533,7 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
             axis.text.y =  element_text(size = 15 , face =  'bold'),
             axis.title.x = element_text(size = 18 , face = 'bold'), 
             axis.title.y =  element_text(size = 18 , face = 'bold')
-            ) + 
+      ) + 
       labs(y = "Sensitivity", x = "1 - Specificity", title = maintitle) +
       annotate("text",x=0.2,y=0.1,label=paste("AUC = ",as.character(round(auc,digits = 3))),size=7,colour= roccol)+
       scale_x_reverse()
@@ -3405,7 +3544,7 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
 
 scoremodelplot<-function(class,score,names,threshold,type,graph,printnames, maintitle = "Score representation train"){
   class<-factor(class,levels =rev(levels(class)))
-
+  
   if(type=="boxplot"){
     boxplotggplot(class = class,
                   score = score, 
@@ -3444,7 +3583,8 @@ boxplotggplot<-function(class,score,names,threshold,maintitle="Score representat
   p
 }
 
-plot_pred_type_distribution <- function(class,score,names, threshold,maintitle="Score representation",printnames=F,graph=T) {
+plot_pred_type_distribution <- function(class,score,names, threshold,
+                                        maintitle="Score representation",printnames=F,graph=T) {
   #in this function the levels of the class is inverted in order to have the control group on the left side of the graph
   df<-data.frame(names,class,score)
   colnames(df)<-c("names","class","score")
@@ -3460,6 +3600,7 @@ plot_pred_type_distribution <- function(class,score,names, threshold,maintitle="
   if(printnames){
     g<-ggplot(data=df, aes(x=class, y=score)) + 
       #geom_violin(fill=rgb(1,1,1,alpha=0.6), color=NA) + 
+      # geom_boxplot(fill=rgb(1,1,1,alpha=0.6), color=NA) +
       geom_text(label=names,colour=palet(df$predtype,multiple = TRUE))+
       geom_jitter(aes(color=predtype), alpha=0.6) +
       geom_hline(yintercept=threshold, color="red", alpha=0.6) +
@@ -3477,6 +3618,7 @@ plot_pred_type_distribution <- function(class,score,names, threshold,maintitle="
   else{
     g<-ggplot(data=df, aes(x=class, y=score)) + 
       #geom_violin(fill=rgb(1,1,1,alpha=0.6), color=NA) + 
+      # geom_boxplot(fill=rgb(1,1,1,alpha=0.6), color=NA) +
       geom_jitter(aes(color=predtype), alpha=0.6) +
       geom_hline(yintercept=threshold, color="red", alpha=0.6) +
       scale_color_manual(values=palet(predtype = df$predtype),name="") +
@@ -3494,6 +3636,29 @@ plot_pred_type_distribution <- function(class,score,names, threshold,maintitle="
   
 }
 
+
+# fonction wiht boxplot with jitter $
+
+jitter_boxlpot =  function(class, score , names , threshold, maintitle =  "score plot with boxplot", graph = T){
+  data <-data.frame("names"=names,"class"= class,"score"=as.vector(score))
+  
+  if(!graph){return(data)}
+  p<-ggplot(data, aes(x=class, y=score)) +
+    scale_fill_manual( values = c("#00BFC4","#F8766D") ) +
+    geom_boxplot(aes(fill=class)) +
+    geom_jitter(aes(color=class), alpha=0.6) +
+    geom_hline(yintercept = threshold, color='red', alpha=0.6) +
+    ggtitle(maintitle) + 
+    theme(plot.title=element_text( size=15), 
+          axis.text.x = element_text(size = 12 ,  face = 'bold' ) ,
+          axis.text.y =  element_text(size = 12 , face =  'bold'),
+          axis.title.x = element_text(size = 15 , face = 'bold'), 
+          axis.title.y =  element_text(size = 15 , face = 'bold'),
+          legend.text = element_text( size = 12 , face = 'bold'),
+          legend.title = element_text(size = 14 , face =  'bold'))
+  
+  p
+}
 palet<-function(predtype,multiple=FALSE){
   if(multiple){col<-as.character(predtype)}
   else{col<-sort(unique(as.character(predtype)))}
@@ -3515,9 +3680,10 @@ selectedfeature<-function(model,modeltype,tab,validation,criterionimportance,cri
     print(paste(i,"eliminates features"))
     tabdiff2<-tabdiff2[,-rmvar]
     if(modeltype=="svm"){
+      #set.seed(20011203)
       tune_result <- tune.svm(x=tabdiff2[,-1], y=tabdiff2[,1],
-                             gamma = 10^(-5:2), cost = 10^(-3:2),
-                             cross=min(dim(tabdiff2)[1]-2,10))
+                              gamma = 10^(-5:2), cost = 10^(-3:2),
+                              cross=min(dim(tabdiff2)[1]-2,10))
       model <- tune_result$best.model
       model$cost <- tune_result$best.parameters$cost
       model$gamma <- tune_result$best.parameters$gamma
@@ -3529,7 +3695,7 @@ selectedfeature<-function(model,modeltype,tab,validation,criterionimportance,cri
       set.seed(20011203)
       model <- randomForest(tabdiff2[,-1],tabdiff2[,1],ntree=1000,importance=T,keep.forest=T)
     }
-      rmvar<-testmodel(model=model,modeltype = modeltype,tab=tabdiff2,validation=validation,
+    rmvar<-testmodel(model=model,modeltype = modeltype,tab=tabdiff2,validation=validation,
                      criterionimportance = criterionimportance,criterionmodel = criterionmodel,fstype=fstype)
   }
   res<-list("dataset"=tabdiff2,"model"=model)
@@ -3550,12 +3716,13 @@ testmodel<-function(model,modeltype,tab,validation,criterionimportance,criterion
         print("")
         #predict sur la validation
         #mais pour ca validation doit etre = a validationmodel, avec toute les transformation
-        }}
+      }}
     for(i in 1:length(lessimportantevar)){
       tabdiff2<-tab[,-lessimportantevar[i]]
       tune_result_diff <- tune.svm(x=tabdiff2[,-1], y=tabdiff2[,1],
-                                  gamma = 10^(-5:2), cost = 10^(-3:2),
-                                  cross=min(dim(tabdiff2)[1]-2,10))
+                                   gamma = 10^(-5:2), cost = 10^(-3:2),
+                                   cross=min(dim(tabdiff2)[1]-2,10))
+      
       resmodeldiff <- tune_result_diff$best.model
       if(criterionmodel=="accuracy"){test[i]<-resmodeldiff$tot.accuracy-model$tot.accuracy}
       if(criterionmodel=="BER"){
@@ -3627,6 +3794,9 @@ importancemodelsvm<-function(model,modeltype,tabdiff,criterion){
   }
   return(importancevar)
 }
+# fonction qui calcule le fscore de chaque variable d'un tableau en fonction de la classe, 
+# qui represente la distance entre les classes en fonction de la variable et la variance intra classe, 
+#plus le fscore est eleve plus la variable est importante pour differencier les classes
 Fscore<-function(tab,class){
   tabpos<-as.data.frame(tab[which(class==levels(class)[1]),])
   npos<-nrow(tabpos)
@@ -3656,9 +3826,9 @@ nll<-function(element){
 }
 
 sensibility<-function(predict,class){
-data<-table(predict,class)
-sensi<-round(data[1,1]/(data[1,1]+data[2,1]),digits = 3)
-return(sensi)
+  data<-table(predict,class)
+  sensi<-round(data[1,1]/(data[1,1]+data[2,1]),digits = 3)
+  return(sensi)
 }
 
 specificity<-function(predict,class){
@@ -3730,166 +3900,166 @@ testparametersfunction<-function(learning,validation,tabparameters){
     else{learningmodel<-restest$tabdiff}
     
     if(ncol(learningmodel)!=0){
-    
-    # Determine if automatic tuning should be used based on tuning_method parameter
-    use_autotuning <- (!is.null(parameters$tuning_method) && parameters$tuning_method == "automatic")
-    
-    # Set autotuning flags for each model type
-    autotunerf_flag <- use_autotuning
-    autotunesvm_flag <- use_autotuning
-    autotunexgb_flag <- use_autotuning
-    autotunelgb_flag <- use_autotuning
-    autotuneknn_flag <- use_autotuning
       
-    modelparameters<<-list("modeltype"=parameters$model,
-                           "invers"=FALSE,
-                           "thresholdmodel"=parameters$thresholdmodel,
-                           "fs"=as.logical(parameters$fs),
-                           "adjustval"=!is.null(validation),
-                           "autotunerf"=autotunerf_flag,
-                           "autotunesvm"=autotunesvm_flag,
-                           "autotunexgb"=autotunexgb_flag,
-                           "autotunelgb"=autotunelgb_flag,
-                           "autotuneknn"=autotuneknn_flag
-                           )
-    validate(need(ncol(learning)!=0,"No select dataset"))
-    
-
-    #resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,modelparameters = modelparameters,
-    #                         transformdataparameters = transformdataparameters,datastructuresfeatures =  datastructuresfeatures)
-    out<- tryCatch(modelfunction(learningmodel = learningmodel,
-                                 validation = validation,
-                                 modelparameters = modelparameters,
-                                 transformdataparameters = transformdataparameters,
-                                 datastructuresfeatures =  datastructuresfeatures,
-                                 learningselect = resselectdata$learningselect), 
-                   error = function(e) e)
-    if(any(class(out)=="error"))parameters$model<-"nomodel"
-    else{
+      # Determine if automatic tuning should be used based on tuning_method parameter
+      use_autotuning <- (!is.null(parameters$tuning_method) && parameters$tuning_method == "automatic")
       
-      resmodel<-out
+      # Set autotuning flags for each model type
+      autotunerf_flag <- use_autotuning
+      autotunesvm_flag <- use_autotuning
+      autotunexgb_flag <- use_autotuning
+      autotunelgb_flag <- use_autotuning
+      autotuneknn_flag <- use_autotuning
       
-      # Apply threshold optimization if requested
-      if(!is.null(parameters$threshold_method) && parameters$threshold_method != "fixed" && parameters$model != "nomodel"){
-        tryCatch({
-          # Calculate optimal threshold from ROC curve on learning data
-          classlearning <- resmodel$datalearningmodel$reslearningmodel$classlearning
-          scorelearning <- resmodel$datalearningmodel$reslearningmodel$scorelearning
-          
-          # Create ROC object
-          roc_obj <- roc(classlearning, scorelearning, quiet=TRUE)
-          
-          # Find optimal threshold based on selected method
-          if(parameters$threshold_method == "youden"){
-            # Youden method: maximizes sensitivity + specificity - 1
-            optimal_coords <- coords(roc_obj, "best", best.method="youden", ret=c("threshold", "sensitivity", "specificity"))
-            optimal_threshold <- optimal_coords$threshold
+      modelparameters<<-list("modeltype"=parameters$model,
+                             "invers"=FALSE,
+                             "thresholdmodel"=parameters$thresholdmodel,
+                             "fs"=as.logical(parameters$fs),
+                             "adjustval"=!is.null(validation),
+                             "autotunerf"=autotunerf_flag,
+                             "autotunesvm"=autotunesvm_flag,
+                             "autotunexgb"=autotunexgb_flag,
+                             "autotunelgb"=autotunelgb_flag,
+                             "autotuneknn"=autotuneknn_flag
+      )
+      validate(need(ncol(learning)!=0,"No select dataset"))
+      
+      
+      #resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,modelparameters = modelparameters,
+      #                         transformdataparameters = transformdataparameters,datastructuresfeatures =  datastructuresfeatures)
+      out<- tryCatch(modelfunction(learningmodel = learningmodel,
+                                   validation = validation,
+                                   modelparameters = modelparameters,
+                                   transformdataparameters = transformdataparameters,
+                                   datastructuresfeatures =  datastructuresfeatures,
+                                   learningselect = resselectdata$learningselect), 
+                     error = function(e) e)
+      if(any(class(out)=="error"))parameters$model<-"nomodel"
+      else{
+        
+        resmodel<-out
+        
+        # Apply threshold optimization if requested
+        if(!is.null(parameters$threshold_method) && parameters$threshold_method != "fixed" && parameters$model != "nomodel"){
+          tryCatch({
+            # Calculate optimal threshold from ROC curve on learning data
+            classlearning <- resmodel$datalearningmodel$reslearningmodel$classlearning
+            scorelearning <- resmodel$datalearningmodel$reslearningmodel$scorelearning
             
-            # Display optimization results
-            cat(sprintf("    ✓ Youden optimization (iter %d): threshold=%.4f (sens=%.3f, spec=%.3f, Youden=%.3f)\n",
-                        i, optimal_threshold,
-                        optimal_coords$sensitivity,
-                        optimal_coords$specificity,
-                        optimal_coords$sensitivity + optimal_coords$specificity - 1))
+            # Create ROC object
+            roc_obj <- roc(classlearning, scorelearning, quiet=TRUE)
             
-          } else if(parameters$threshold_method == "equiprob"){
-            # Equiprobability method: closest point to diagonal (minimizes |FP-FN|)
-            optimal_coords <- coords(roc_obj, "best", best.method="closest.topleft", ret=c("threshold", "sensitivity", "specificity"))
-            optimal_threshold <- optimal_coords$threshold
+            # Find optimal threshold based on selected method
+            if(parameters$threshold_method == "youden"){
+              # Youden method: maximizes sensitivity + specificity - 1
+              optimal_coords <- coords(roc_obj, "best", best.method="youden", ret=c("threshold", "sensitivity", "specificity"))
+              optimal_threshold <- optimal_coords$threshold
+              
+              # Display optimization results
+              cat(sprintf("    ✓ Youden optimization (iter %d): threshold=%.4f (sens=%.3f, spec=%.3f, Youden=%.3f)\n",
+                          i, optimal_threshold,
+                          optimal_coords$sensitivity,
+                          optimal_coords$specificity,
+                          optimal_coords$sensitivity + optimal_coords$specificity - 1))
+              
+            } else if(parameters$threshold_method == "equiprob"){
+              # Equiprobability method: closest point to diagonal (minimizes |FP-FN|)
+              optimal_coords <- coords(roc_obj, "best", best.method="closest.topleft", ret=c("threshold", "sensitivity", "specificity"))
+              optimal_threshold <- optimal_coords$threshold
+              
+              # Calculate false positive and false negative rates for display
+              fp_rate <- 1 - optimal_coords$specificity
+              fn_rate <- 1 - optimal_coords$sensitivity
+              
+              # Display optimization results
+              cat(sprintf("    ✓ Equiprobability optimization (iter %d): threshold=%.4f (sens=%.3f, spec=%.3f, FPR=%.3f, FNR=%.3f)\n",
+                          i, optimal_threshold,
+                          optimal_coords$sensitivity,
+                          optimal_coords$specificity,
+                          fp_rate, fn_rate))
+            }
             
-            # Calculate false positive and false negative rates for display
-            fp_rate <- 1 - optimal_coords$specificity
-            fn_rate <- 1 - optimal_coords$sensitivity
+            # Recalculate predicted classes using optimal threshold for learning data
+            # IMPORTANT: In this application, levels(classlearning)[1] = "positif" (case)
+            # Score represents probability of being positive, so high score → predict positive
+            # Therefore: score >= threshold → levels[1] (positif), score < threshold → levels[2] (negatif)
+            resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- ifelse(scorelearning >= optimal_threshold, levels(classlearning)[1], levels(classlearning)[2])
+            resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- factor(resmodel$datalearningmodel$reslearningmodel$predictclasslearning, levels = levels(classlearning))
             
-            # Display optimization results
-            cat(sprintf("    ✓ Equiprobability optimization (iter %d): threshold=%.4f (sens=%.3f, spec=%.3f, FPR=%.3f, FNR=%.3f)\n",
-                        i, optimal_threshold,
-                        optimal_coords$sensitivity,
-                        optimal_coords$specificity,
-                        fp_rate, fn_rate))
-          }
-          
-          # Recalculate predicted classes using optimal threshold for learning data
-          # IMPORTANT: In this application, levels(classlearning)[1] = "positif" (case)
-          # Score represents probability of being positive, so high score → predict positive
-          # Therefore: score >= threshold → levels[1] (positif), score < threshold → levels[2] (negatif)
-          resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- ifelse(scorelearning >= optimal_threshold, levels(classlearning)[1], levels(classlearning)[2])
-          resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- factor(resmodel$datalearningmodel$reslearningmodel$predictclasslearning, levels = levels(classlearning))
-          
-          # If validation data exists, apply optimal threshold to validation predictions as well
-          # Same logic: high score → predict positive (level 1)
-          if(!is.null(validation)){
-            classval <- resmodel$datavalidationmodel$resvalidationmodel$classval
-            scoreval <- resmodel$datavalidationmodel$resvalidationmodel$scoreval
-            resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- ifelse(scoreval >= optimal_threshold, levels(classval)[1], levels(classval)[2])
-            resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- factor(resmodel$datavalidationmodel$resvalidationmodel$predictclassval, levels = levels(classval))
-          }
-          
-          # Update threshold in parameters for record
-          parameters$thresholdmodel <- optimal_threshold
-        }, error = function(e){
-          # If threshold optimization fails, continue with original threshold
-          cat(sprintf("    ✗ Threshold optimization FAILED (iteration %d): %s\n", i, e$message))
-          cat(sprintf("      → Keeping initial threshold: %.4f\n", parameters$thresholdmodel))
-          warning(paste("Threshold optimization failed:", e$message))
-        })
-      } else {
-        # For "fixed" threshold method, use the threshold from parameters (already set to 0.5 for proba, 0 for SVM)
-        # The classes are already predicted in modelfunction with this threshold
-        # No need to recalculate, just ensure threshold is recorded
-        if(parameters$model != "nomodel" && parameters$model != "svm"){
-          # For probabilistic models, threshold should be 0.5 (already set)
-          # For SVM, threshold is 0 (handled in modelfunction)
-          # Just ensure the threshold is recorded correctly
-          if(is.null(parameters$thresholdmodel) || is.na(parameters$thresholdmodel)){
-            parameters$thresholdmodel <- 0.5
+            # If validation data exists, apply optimal threshold to validation predictions as well
+            # Same logic: high score → predict positive (level 1)
+            if(!is.null(validation)){
+              classval <- resmodel$datavalidationmodel$resvalidationmodel$classval
+              scoreval <- resmodel$datavalidationmodel$resvalidationmodel$scoreval
+              resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- ifelse(scoreval >= optimal_threshold, levels(classval)[1], levels(classval)[2])
+              resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- factor(resmodel$datavalidationmodel$resvalidationmodel$predictclassval, levels = levels(classval))
+            }
+            
+            # Update threshold in parameters for record
+            parameters$thresholdmodel <- optimal_threshold
+          }, error = function(e){
+            # If threshold optimization fails, continue with original threshold
+            cat(sprintf("    ✗ Threshold optimization FAILED (iteration %d): %s\n", i, e$message))
+            cat(sprintf("      → Keeping initial threshold: %.4f\n", parameters$thresholdmodel))
+            warning(paste("Threshold optimization failed:", e$message))
+          })
+        } else {
+          # For "fixed" threshold method, use the threshold from parameters (already set to 0.5 for proba, 0 for SVM)
+          # The classes are already predicted in modelfunction with this threshold
+          # No need to recalculate, just ensure threshold is recorded
+          if(parameters$model != "nomodel" && parameters$model != "svm"){
+            # For probabilistic models, threshold should be 0.5 (already set)
+            # For SVM, threshold is 0 (handled in modelfunction)
+            # Just ensure the threshold is recorded correctly
+            if(is.null(parameters$thresholdmodel) || is.na(parameters$thresholdmodel)){
+              parameters$thresholdmodel <- 0.5
+            }
           }
         }
+        
+        
+        # # Apply Youden threshold optimization if requested
+        # if(!is.null(parameters$optimize_threshold) && parameters$optimize_threshold && parameters$model != "nomodel"){
+        #   tryCatch({
+        #     # Calculate optimal threshold using Youden method from ROC curve on learning data
+        #     classlearning <- resmodel$datalearningmodel$reslearningmodel$classlearning
+        #     scorelearning <- resmodel$datalearningmodel$reslearningmodel$scorelearning
+        #     
+        #     # Create ROC object
+        #     roc_obj <- roc(classlearning, scorelearning, quiet=TRUE)
+        #     
+        #     # Find optimal threshold using Youden method (maximizes sensitivity + specificity - 1)
+        #     optimal_coords <- coords(roc_obj, "best", best.method="youden", ret=c("threshold", "sensitivity", "specificity"))
+        #     optimal_threshold <- optimal_coords$threshold
+        #     
+        #     # Recalculate predicted classes using optimal threshold for learning data
+        #     #resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- ifelse(scorelearning >= optimal_threshold, levels(classlearning)[2], levels(classlearning)[1])
+        #     # IMPORTANT: In this application, levels(classlearning)[1] = "positif" (case)
+        #     # Score represents probability of being positive, so high score → predict positive
+        #     # Therefore: score >= threshold → levels[1] (positif), score < threshold → levels[2] (negatif)
+        #     resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- ifelse(scorelearning >= optimal_threshold, levels(classlearning)[1], levels(classlearning)[2])
+        #     resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- factor(resmodel$datalearningmodel$reslearningmodel$predictclasslearning, levels = levels(classlearning))
+        #     
+        #     # If validation data exists, apply optimal threshold to validation predictions as well
+        #     if(!is.null(validation)){
+        #       classval <- resmodel$datavalidationmodel$resvalidationmodel$classval
+        #       scoreval <- resmodel$datavalidationmodel$resvalidationmodel$scoreval
+        #       # resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- ifelse(scoreval >= optimal_threshold, levels(classval)[2], levels(classval)[1])
+        #       resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- ifelse(scoreval >= optimal_threshold, levels(classval)[1], levels(classval)[2])
+        #       resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- factor(resmodel$datavalidationmodel$resvalidationmodel$predictclassval, levels = levels(classval))
+        #     }
+        #     
+        #     # Update threshold in parameters for record
+        #     parameters$thresholdmodel <- optimal_threshold
+        #   }, error = function(e){
+        #     # If threshold optimization fails, continue with original threshold
+        #     cat(sprintf("    ✗ Youden optimization FAILED (iteration %d): %s\n", i, e$message))
+        #     cat(sprintf("      → Keeping initial threshold: %.4f\n", parameters$thresholdmodel))
+        #     warning(paste("Threshold optimization failed:", e$message))
+        #   })
+        # }
+        
       }
-      
-      
-      # # Apply Youden threshold optimization if requested
-      # if(!is.null(parameters$optimize_threshold) && parameters$optimize_threshold && parameters$model != "nomodel"){
-      #   tryCatch({
-      #     # Calculate optimal threshold using Youden method from ROC curve on learning data
-      #     classlearning <- resmodel$datalearningmodel$reslearningmodel$classlearning
-      #     scorelearning <- resmodel$datalearningmodel$reslearningmodel$scorelearning
-      #     
-      #     # Create ROC object
-      #     roc_obj <- roc(classlearning, scorelearning, quiet=TRUE)
-      #     
-      #     # Find optimal threshold using Youden method (maximizes sensitivity + specificity - 1)
-      #     optimal_coords <- coords(roc_obj, "best", best.method="youden", ret=c("threshold", "sensitivity", "specificity"))
-      #     optimal_threshold <- optimal_coords$threshold
-      #     
-      #     # Recalculate predicted classes using optimal threshold for learning data
-      #     #resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- ifelse(scorelearning >= optimal_threshold, levels(classlearning)[2], levels(classlearning)[1])
-      #     # IMPORTANT: In this application, levels(classlearning)[1] = "positif" (case)
-      #     # Score represents probability of being positive, so high score → predict positive
-      #     # Therefore: score >= threshold → levels[1] (positif), score < threshold → levels[2] (negatif)
-      #     resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- ifelse(scorelearning >= optimal_threshold, levels(classlearning)[1], levels(classlearning)[2])
-      #     resmodel$datalearningmodel$reslearningmodel$predictclasslearning <- factor(resmodel$datalearningmodel$reslearningmodel$predictclasslearning, levels = levels(classlearning))
-      #     
-      #     # If validation data exists, apply optimal threshold to validation predictions as well
-      #     if(!is.null(validation)){
-      #       classval <- resmodel$datavalidationmodel$resvalidationmodel$classval
-      #       scoreval <- resmodel$datavalidationmodel$resvalidationmodel$scoreval
-      #       # resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- ifelse(scoreval >= optimal_threshold, levels(classval)[2], levels(classval)[1])
-      #       resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- ifelse(scoreval >= optimal_threshold, levels(classval)[1], levels(classval)[2])
-      #       resmodel$datavalidationmodel$resvalidationmodel$predictclassval <- factor(resmodel$datavalidationmodel$resvalidationmodel$predictclassval, levels = levels(classval))
-      #     }
-      #     
-      #     # Update threshold in parameters for record
-      #     parameters$thresholdmodel <- optimal_threshold
-      #   }, error = function(e){
-      #     # If threshold optimization fails, continue with original threshold
-      #     cat(sprintf("    ✗ Youden optimization FAILED (iteration %d): %s\n", i, e$message))
-      #     cat(sprintf("      → Keeping initial threshold: %.4f\n", parameters$thresholdmodel))
-      #     warning(paste("Threshold optimization failed:", e$message))
-      #   })
-      # }
-      
-    }
     }
     else{parameters$model<-"nomodel"}
     #numberfeaturesselected
@@ -3914,13 +4084,13 @@ testparametersfunction<-function(learning,validation,tabparameters){
       #specificitylearning
       results[i,6]<-specificity(resmodel$datalearningmodel$reslearningmodel$predictclasslearning,resmodel$datalearningmodel$reslearningmodel$classlearning)
       if(!is.null(validation)){
-      #aucvalidation
-      results[i,1]<-round(as.numeric(auc(roc(resmodel$datavalidationmodel$resvalidationmodel$classval,resmodel$datavalidationmodel$resvalidationmodel$scoreval,quiet=T))),digits = 3)
-      #sensibilityvalidation
-      results[i,2]<-sensibility(resmodel$datavalidationmodel$resvalidationmodel$predictclassval,resmodel$datavalidationmodel$resvalidationmodel$classval)
-      #specificityvalidation
-      results[i,3]<-specificity(resmodel$datavalidationmodel$resvalidationmodel$predictclassval,resmodel$datavalidationmodel$resvalidationmodel$classval)
-    }
+        #aucvalidation
+        results[i,1]<-round(as.numeric(auc(roc(resmodel$datavalidationmodel$resvalidationmodel$classval,resmodel$datavalidationmodel$resvalidationmodel$scoreval,quiet=T))),digits = 3)
+        #sensibilityvalidation
+        results[i,2]<-sensibility(resmodel$datavalidationmodel$resvalidationmodel$predictclassval,resmodel$datavalidationmodel$resvalidationmodel$classval)
+        #specificityvalidation
+        results[i,3]<-specificity(resmodel$datavalidationmodel$resvalidationmodel$predictclassval,resmodel$datavalidationmodel$resvalidationmodel$classval)
+      }
     }
   }
   return(cbind(results,tabparameters))
@@ -3928,23 +4098,25 @@ testparametersfunction<-function(learning,validation,tabparameters){
 
 ##
 importanceplot<-function(model,learningmodel,modeltype,graph=T){
-  validate(need(!is.null(model),"No model"))
-  validate(need(ncol(learningmodel)>2,"only one feature"))
+  shiny::validate(need(!is.null(model),"No model"))
+  shiny::validate(need(ncol(learningmodel)>2,"only one feature"))
   if(modeltype=="randomforest"){
     var_importance<- data.frame(variables=rownames(model$importance),
                                 importance=as.vector(model$importance[,4]))
-
+    
     varo<-var_importance[order(var_importance$importance,decreasing = T),1]
     var_importance$variables<-as.character(var_importance$variables)
     var_importance$variables<-factor(x =var_importance$variables,levels =varo  )
-
+    
     p <- ggplot(var_importance, aes(x=variables, weight=importance,fill=variables))
     g<-p + geom_bar()+coord_flip()+ylab("Variable Importance (Mean Decrease in Gini Index)")+
       theme(legend.position="none",plot.title=element_text( size=15))+ggtitle("Importance of variables in the model")+scale_fill_grey()
   }
   if(modeltype=="svm"){
+    # fscore represente la distance entre les classes en fonction de la variable et la variance intra classe, 
+    #plus le fscore est eleve plus la variable est importante pour differencier les classes
     importancevar<-importancemodelsvm(model = model,modeltype="svm",tabdiff=learningmodel,criterion = "fscore")
-
+    
     var_importance<-as.data.frame(cbind(colnames(learningmodel),importancevar)[-1,])
     var_importance[,1]<-as.character(var_importance[,1])
     var_importance[,2]<-as.numeric(as.character(var_importance[,2]))
@@ -3952,33 +4124,52 @@ importanceplot<-function(model,learningmodel,modeltype,graph=T){
     varo<-var_importance[order(var_importance$importance,decreasing = T),1]
     var_importance$variables<-as.character(var_importance$variables)
     var_importance$variables<-factor(x =var_importance$variables,levels =varo  )
-
+    
     p <- ggplot(var_importance, aes(x=variables, weight=importance,fill=variables))
-    g<-p + geom_bar()+coord_flip()+ylab("Variable Importance (fscore)")+theme(legend.position="none",plot.title=element_text( size=15))+ggtitle("Importance of variables in the model")+scale_fill_grey()
+    g<-p + geom_bar()+
+      coord_flip()+
+      ylab("Variable Importance (fscore)") + 
+      theme(legend.position="none",
+            plot.title = element_text(size = 15, face = "bold"),
+            axis.title = element_text(size = 15, face = "bold"),
+            axis.text = element_text(size = 15, face = "bold"),
+            legend.text = element_text(size = 10, face = "bold"),
+            legend.title = element_text(size = 15, face = "bold"),
+            axis.title.x = element_text(size = 15, face = "bold"),
+            axis.title.y = element_text(size = 15, face = "bold"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank()) + 
+      ggtitle("Importance of variables in the model")+
+      scale_fill_grey()
+    
+
   }
   if(modeltype=="elasticnet"){
     # Extract coefficients from elasticnet model
     coef_matrix <- as.matrix(coef(model$glmnet_model, s=model$lambda))
     coef_values <- coef_matrix[-1, 1]  # Remove intercept
     names(coef_values) <- colnames(learningmodel)[-1]
-
+    
     # Keep only non-zero coefficients
     nonzero_coefs <- coef_values[coef_values != 0]
-
+    
     if(length(nonzero_coefs) > 0){
       var_importance <- data.frame(
         variables = names(nonzero_coefs),
         importance = abs(nonzero_coefs),
         stringsAsFactors = FALSE
       )
-
+      
       varo <- var_importance[order(var_importance$importance, decreasing = T), 1]
       var_importance$variables <- factor(x = var_importance$variables, levels = varo)
-
+      
       p <- ggplot(var_importance, aes(x=variables, weight=importance, fill=variables))
-      g <- p + geom_bar()+coord_flip()+ylab("Variable Importance (Absolute Coefficient)")+
+      g <- p + geom_bar()+
+        coord_flip()+
+        ylab("Variable Importance (Absolute Coefficient)")+
         theme(legend.position="none",plot.title=element_text( size=15))+
-        ggtitle("Importance of variables in the model")+scale_fill_grey()
+        ggtitle("Importance of variables in the model")+
+        scale_fill_grey()
     } else {
       var_importance <- data.frame()
       g <- errorplot(text = "No variables with non-zero coefficients")
@@ -3987,21 +4178,22 @@ importanceplot<-function(model,learningmodel,modeltype,graph=T){
   if(modeltype=="xgboost"){
     # Extract feature importance from XGBoost model
     importance_matrix <- xgb.importance(model = model)
-
+    
     if(nrow(importance_matrix) > 0){
       var_importance <- data.frame(
         variables = importance_matrix$Feature,
         importance = importance_matrix$Gain,
         stringsAsFactors = FALSE
       )
-
+      
       varo <- var_importance[order(var_importance$importance, decreasing = T), 1]
       var_importance$variables <- factor(x = var_importance$variables, levels = varo)
-
+      
       p <- ggplot(var_importance, aes(x=variables, weight=importance, fill=variables))
       g <- p + geom_bar()+coord_flip()+ylab("Variable Importance (Gain)")+
         theme(legend.position="none",plot.title=element_text( size=15))+
-        ggtitle("Importance of variables in the model")+scale_fill_grey()
+        ggtitle("Importance of variables in the model")+
+        scale_fill_grey()
     } else {
       var_importance <- data.frame()
       g <- errorplot(text = "No feature importance available")
@@ -4010,45 +4202,45 @@ importanceplot<-function(model,learningmodel,modeltype,graph=T){
   if(modeltype=="lightgbm"){
     # Extract feature importance from LightGBM model
     importance_matrix <- lgb.importance(model = model)
-
- 
-
+    
+    
+    
     if(nrow(importance_matrix) > 0){
       var_importance <- data.frame(
         variables = importance_matrix$Feature,
         importance = importance_matrix$Gain,
         stringsAsFactors = FALSE
       )
-
+      
       varo <- var_importance[order(var_importance$importance, decreasing = T), 1]
       var_importance$variables <- factor(x = var_importance$variables, levels = varo)
- 
-
+      
+      
       p <- ggplot(var_importance, aes(x=variables, weight=importance, fill=variables))
       g <- p + geom_bar()+coord_flip()+ylab("Variable Importance (Gain)")+
         theme(legend.position="none",plot.title=element_text( size=15))+
         ggtitle("Importance of variables in the model")+scale_fill_grey()
-
+      
     } else {
       var_importance <- data.frame()
       g <- errorplot(text = "No feature importance available")
-
+      
     }
-
+    
   }
   if(modeltype=="naivebayes"){
     # Naive Bayes doesn't have traditional feature importance
     # We can compute conditional probabilities per class
     var_importance <- data.frame()
     g <- errorplot(text = "Naive Bayes: Feature importance not available\nModel uses probabilistic independence assumptions")
-
+    
   }
   if(modeltype=="knn"){
     # KNN doesn't have traditional feature importance
     # Could compute based on feature scaling but not meaningful
     var_importance <- data.frame()
     g <- errorplot(text = "KNN: Feature importance not available\nModel uses distance-based classification")
-
+    
   }
   if(!graph){return(var_importance)}
   if(graph){
@@ -4204,7 +4396,7 @@ apply_threshold <- function(model_result, new_threshold, groups = NULL) {
   predictclasslearning <- as.factor(predictclasslearning)
   
   # Renommage des niveaux (cohérence avec le reste de l'application)
-  levels(predictclasslearning) <- paste("test", lev, sep = "")
+  levels(predictclasslearning) <- paste("test ", lev, sep = "")
   
   reslearningmodel <- data.frame(
     classlearning        = classlearning,
@@ -4234,7 +4426,7 @@ apply_threshold <- function(model_result, new_threshold, groups = NULL) {
     predictclassval <- as.factor(predictclassval)
     
     # Renommage des niveaux (cohérence avec le reste de l'application)
-    levels(predictclassval) <- paste("test", lev, sep = "")
+    levels(predictclassval) <- paste("test ", lev, sep = "")
     
     resvalidationmodel <- data.frame(classval, scoreval, predictclassval)
     colnames(resvalidationmodel) <- c("classval", "scoreval", "predictclassval")
@@ -4260,5 +4452,3 @@ apply_threshold <- function(model_result, new_threshold, groups = NULL) {
     "modelparameters"     = modelparameters
   )
 }
-
-

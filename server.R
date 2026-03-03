@@ -273,7 +273,7 @@ shinyServer(function(input, output,session) {
      out<-tryCatch(importfunction(importparameters),error=function(e) e )
 #      if(any(class(out)=="error"))print("error")
 #      else{resimport<-out}
-     validate(need(any(class(out)!="error"),"error import"))
+     shiny::validate(need(any(class(out)!="error"),"error import"))
      resimport<<-out
       #resimport<-importfunction(importparameters)
     list(LEARNING=resimport$learning, 
@@ -285,7 +285,7 @@ shinyServer(function(input, output,session) {
   
   output$JDDlearn=renderDataTable({
     learning<-DATA()$LEARNING
-    validate(need(!is.null(learning),"problem import"))
+    shiny::validate(need(!is.null(learning),"problem import"))
     colmin<-min(ncol(learning),100)
     rowmin<-min(nrow(learning),100)
     cbind(Names=rownames(learning[1:rowmin,1:colmin]),learning[1:rowmin,1:colmin])},
@@ -301,7 +301,7 @@ shinyServer(function(input, output,session) {
   
   output$JDDval=renderDataTable({
     validation<-DATA()$VALIDATION
-    validate(need(!is.null(validation),"problem import"))
+    shiny::validate(need(!is.null(validation),"problem import"))
     colmin<-min(ncol(validation),100)
     rowmin<-min(nrow(validation),100)
     cbind(Names=rownames(validation[1:rowmin,1:colmin]),validation[1:rowmin,1:colmin])},
@@ -319,13 +319,13 @@ shinyServer(function(input, output,session) {
 SELECTDATA<-reactive({
   selectdataparameters<<-list("prctvalues"=input$prctvalues,"selectmethod"=input$selectmethod,"NAstructure"=input$NAstructure,"structdata"=input$structdata,
                               "thresholdNAstructure"=input$thresholdNAstructure,"maxvaluesgroupmin"=input$maxvaluesgroupmin,"minvaluesgroupmax"=input$minvaluesgroupmax)
-  validate(need(selectdataparameters$prctvalues>=0 &selectdataparameters$prctvalues<=100,"%  NA has to be between 0 and 100"))
-  validate(need(input$minvaluesgroupmax>=0 &input$minvaluesgroupmax<=100 & input$maxvaluesgroupmin>=0 &input$maxvaluesgroupmin<=100,"% threshold has to be between 0 and 100"),
+  shiny::validate(need(selectdataparameters$prctvalues>=0 &selectdataparameters$prctvalues<=100,"%  NA has to be between 0 and 100"))
+  shiny::validate(need(input$minvaluesgroupmax>=0 &input$minvaluesgroupmax<=100 & input$maxvaluesgroupmin>=0 &input$maxvaluesgroupmin<=100,"% threshold has to be between 0 and 100"),
            need(input$thresholdNAstructure>0,input$thresholdNAstructure<1,"threshold of the pvalue has to be between 0 and 1"))
   learning<<-DATA()$LEARNING
-  validate(need(input$confirmdatabutton!=0,"Importation of datas has to be confirmed"))
+  shiny::validate(need(input$confirmdatabutton!=0,"Importation of datas has to be confirmed"))
   
-  validate(need(length(levels(learning[,1]))==2,"number of groups is not equal to 2"))
+  shiny::validate(need(length(levels(learning[,1]))==2,"number of groups is not equal to 2"))
   resselectdata<<-selectdatafunction(learning = learning,selectdataparameters = selectdataparameters)
   list(LEARNINGSELECT=resselectdata$learningselect,STRUCTUREDFEATURES=resselectdata$structuredfeatures,DATASTRUCTUREDFEATURES=resselectdata$datastructuredfeatures,selectdataparameters)
 })
@@ -426,9 +426,9 @@ TRANSFORMDATA<-reactive({
   structuredfeatures<<-SELECTDATA()$STRUCTUREDFEATURES
   datastructuresfeatures<<-SELECTDATA()$DATASTRUCTUREDFEATURES
   transformdataparameters<<-list("log"=input$log,"logtype"=input$logtype,"standardization"=input$standardization,"arcsin"=input$arcsin,"rempNA"=input$rempNA)
-  validate(need(ncol(learningselect)>0,"No select dataset"))
+  shiny::validate(need(ncol(learningselect)>0,"No select dataset"))
   if(transformdataparameters$rempNA%in%c("pca","missforest")){
-    validate(need(min(apply(X = learningselect,MARGIN = 2,FUN = function(x){sum(!is.na(x))}))>1,"not enough data for pca estimation"))
+    shiny::validate(need(min(apply(X = learningselect,MARGIN = 2,FUN = function(x){sum(!is.na(x))}))>1,"not enough data for pca estimation"))
   } 
   learningtransform<-transformdatafunction(learningselect = learningselect,structuredfeatures = structuredfeatures,
                                       datastructuresfeatures =   datastructuresfeatures,transformdataparameters = transformdataparameters)
@@ -537,8 +537,8 @@ TEST<-reactive({
                         "preprocess"=preprocess_param,"min_patients"=min_patients_param  )
   learningtransform<<-TRANSFORMDATA()$LEARNINGTRANSFORM
   restest<<-testfunction(tabtransform = learningtransform,testparameters = testparameters )
-  validate(need(testparameters$thresholdFC>=0,"threshold Foldchange has to be positive"))
-  validate(need(testparameters$thresholdpv>=0 &testparameters$thresholdpv<=1,"p-value has to be between 0 and 1"))
+  shiny::validate(need(testparameters$thresholdFC>=0,"threshold Foldchange has to be positive"))
+  shiny::validate(need(testparameters$thresholdpv>=0 &testparameters$thresholdpv<=1,"p-value has to be between 0 and 1"))
 
   list(LEARNINGDIFF=restest$tabdiff,DATATEST=restest$datatest,HYPOTHESISTEST=restest$hypothesistest,
        USEDDATA=restest$useddata,testparameters=restest$testparameters,
@@ -894,14 +894,6 @@ output$donwloadPCAPlot =  downloadHandler(
 )
 
 
-# ── MODEL_TRAIN ───────────────────────────────────────────────────────────────
-# CHANGEMENTS vs version précédente :
-#   - thresholdmodel retiré de modelparameters (n'est plus un paramètre de modelfunction)
-#   - Retourne des clés en minuscules (datalearningmodel, model, datavalidationmodel,
-#     groups, modelparameters) pour être directement compatible avec apply_threshold()
-#   - Ne dépend PLUS de input$thresholdmodel → le tuning ne se relance PAS
-#     quand l'utilisateur change le seuil
-# ══════════════════════════════════════════════════════════════════════════════
 MODEL_TRAIN <- reactive({
   
   if (input$test == "notest") { learningmodel <<- TRANSFORMDATA()$LEARNINGTRANSFORM }
@@ -921,8 +913,10 @@ MODEL_TRAIN <- reactive({
   autotunesvm_param  <- TRUE
   cost_model         <- NULL
   gamma_model        <- NULL
+  gamma_xgb_model       <- NULL
+  subsample_xgb_model    <- NULL
   kernel_model       <- NULL
-  epsilon_model      <- NULL
+  # epsilon_model      <- NULL
   autotunexgb_param  <- TRUE
   nrounds_model      <- NULL
   maxdepth_model     <- NULL
@@ -948,7 +942,7 @@ MODEL_TRAIN <- reactive({
       gamma_model  <- input$gammasvm
       kernel_model <- input$kernelsvm
       # if (kernel_model == "eps-svr") 
-      epsilon_model <- input$epsilonsvm
+      # epsilon_model <- input$epsilonsvm
     }
   }
   
@@ -959,6 +953,8 @@ MODEL_TRAIN <- reactive({
       nrounds_model   <- input$nroundsxgb
       maxdepth_model  <- input$maxdepthxgb
       eta_model       <- input$etaxgb
+      gamma_xgb_model <- input$gamme_xgb
+      subsample_xgb_model <- input$subsamplexgb
     }
   }
   
@@ -1010,15 +1006,17 @@ MODEL_TRAIN <- reactive({
     "autotunerf"     = autotunerf_param,  "mtry"          = mtry_model,
     "autotunesvm"    = autotunesvm_param, "cost"          = cost_model,
     "gamma"          = gamma_model,       "kernel"        = kernel_model,
-    "epsilon"        = epsilon_model,
+    # "epsilon"        = epsilon_model,
     "autotunexgb"    = autotunexgb_param, "nrounds"       = nrounds_model,
     "max_depth"      = maxdepth_model,    "eta"           = eta_model,
     "autotunelgb"    = autotunelgb_param, "nrounds_lgb"   = nrounds_lgb_model,
+    "gamma_xgb"       = gamma_xgb_model,
+    "subsample_xgb" = if(!is.null(input$subsamplexgb)) input$subsamplexgb else NULL,
     "num_leaves"     = num_leaves_model,  "learning_rate_lgb" = learning_rate_lgb_model,
     "autotuneknn"    = autotuneknn_param, "k_neighbors"   = k_neighbors_model
   )
   
-  validate(need(ncol(learningmodel) > 1, "Not enough features"))
+  shiny::validate(need(ncol(learningmodel) > 1, "Not enough features"))
   
   # ── Appel à modelfunction (tuning + entraînement + scores bruts) ─────────────
   resmodel <<- modelfunction_V2(
@@ -1043,14 +1041,6 @@ MODEL_TRAIN <- reactive({
 })
 
 
-# ── MODEL ─────────────────────────────────────────────────────────────────────
-# CHANGEMENTS vs version précédente :
-#   - Délègue entièrement l'application du seuil à apply_threshold()
-#   - apply_threshold() reçoit MODEL_TRAIN() dont les clés sont en minuscules
-#     → pas de problème de mapping de noms
-#   - Retourne les clés en MAJUSCULES (DATALEARNINGMODEL, DATAVALIDATIONMODEL,
-#     MODEL, GROUPS) pour ne PAS casser le code en aval existant dans server.R
-# ══════════════════════════════════════════════════════════════════════════════
 MODEL <- reactive({
   req(MODEL_TRAIN())   # garantit que le modèle est entraîné
   
@@ -1259,13 +1249,13 @@ output$svmcost<-renderText({
   }
 })
 
-output$svmepsilon<-renderText({
-  if(input$model=="svm" && !is.null(MODEL()$MODEL)){
-    format(MODEL()$MODEL$epsilon, digits = 4)
-  } else {
-    "N/A"
-  }
-})
+# output$svmepsilon<-renderText({
+#   if(input$model=="svm" && !is.null(MODEL()$MODEL)){
+#     format(MODEL()$MODEL$epsilon, digits = 4)
+#   } else {
+#     "N/A"
+#   }
+# })
 
 output$svmgamma<-renderText({
   if(input$model=="svm" && !is.null(MODEL()$MODEL)){
@@ -1467,10 +1457,19 @@ output$nbselectmodel<-renderText({
   ncol(datalearningmodel$learningmodel)-1
 })
 
-output$tabmodeldecouv<-renderTable({
-  datalearningmodel<-MODEL()$DATALEARNINGMODEL
-  as.data.frame.matrix(table(datalearningmodel$reslearningmodel$predictclasslearning,datalearningmodel$reslearningmodel$classlearning ))
-},include.rownames=TRUE)
+# output$tabmodeldecouv<-renderTable({
+#   datalearningmodel<-MODEL()$DATALEARNINGMODEL
+#   as.data.frame.matrix(table(datalearningmodel$reslearningmodel$predictclasslearning,datalearningmodel$reslearningmodel$classlearning ))
+# },include.rownames=TRUE)
+
+output$tabmodeldecouv <- renderUI({
+  datalearningmodel <- MODEL()$DATALEARNINGMODEL
+  cm <- table(
+    Predicted = datalearningmodel$reslearningmodel$predictclasslearning,
+    Actual    = datalearningmodel$reslearningmodel$classlearning
+  )
+  confusionMatrixHTML(cm, title = "Confusion Matrix - Discovery")
+})
 
 output$sensibilitydecouv<-renderText({
   datalearningmodel<-MODEL()$DATALEARNINGMODEL
@@ -1493,7 +1492,7 @@ output$plotmodelvalroc <- renderPlot({
   datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
   ROCcurve(validation =  datavalidationmodel$resvalidationmodel$classval,
            decisionvalues =  datavalidationmodel$resvalidationmodel$scoreval,
-           maintitle = "ROC curve validation Model"
+           maintitle = "ROC curve - Validation Model"
            )
 })
 
@@ -1502,7 +1501,7 @@ output$downloadplotvalroc = downloadHandler(
   content = function(file) {
     ggsave(file, plot =ROCcurve(validation =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval,
                                 decisionvalues =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,
-                                maintitle = "ROc curve validation Model"),  device = input$paramdownplot)},
+                                maintitle = "ROC curve - Validation Model"),  device = input$paramdownplot)},
   contentType=NA)
 
 output$downloaddatavalroc <- downloadHandler(
@@ -1517,7 +1516,7 @@ output$plotmodelvalbp <- renderPlot({
                  score =datavalidationmodel$resvalidationmodel$scoreval,
                  names=rownames(datavalidationmodel$resvalidationmodel),
                  threshold =input$thresholdmodel ,
-                 maintitle =  "score plot - validation Model",
+                 maintitle =  "score plot - Validation Model",
                  type =input$plotscoremodel,
                  graph = T,printnames=input$shownames1)
 })
@@ -1548,10 +1547,21 @@ output$youndenval<-renderTable({
   resyounden
 },include.rownames=TRUE)
 
-output$tabmodelval<-renderTable({ 
-  datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
-  as.data.frame.matrix(table(datavalidationmodel$resvalidationmodel$predictclassval, datavalidationmodel$resvalidationmodel$classval))
-},include.rownames=TRUE)
+# output$tabmodelval<-renderTable({ 
+#   datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
+#   as.data.frame.matrix(table(datavalidationmodel$resvalidationmodel$predictclassval, datavalidationmodel$resvalidationmodel$classval))
+# },include.rownames=TRUE)
+
+output$tabmodelval <- renderUI({
+  datavalidationmodel <- MODEL()$DATAVALIDATIONMODEL
+  cm <- table(
+    Predicted = datavalidationmodel$resvalidationmodel$predictclassval,
+    Actual    = datavalidationmodel$resvalidationmodel$classval
+  )
+  confusionMatrixHTML(cm, title = "Confusion Matrix - Validation")
+})
+
+
 output$sensibilityval<-renderText({
   req(MODEL()$DATAVALIDATIONMODEL)
   datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
@@ -1613,7 +1623,7 @@ TESTPARAMETERS <- eventReactive(input$tunetest, {
                         "threshold_method"=input$threshold_method_test, 
                         "tuning_method"=input$tuning_method_test)
     length(listparameters$prctvalues)
-    validate(need( sum(do.call(rbind, lapply(listparameters, FUN=function(x){length(x)==0})))==0,"One of the parameters is empty"))
+    shiny::validate(need( sum(do.call(rbind, lapply(listparameters, FUN=function(x){length(x)==0})))==0,"One of the parameters is empty"))
     tabparameters<<-constructparameters(listparameters)
     # Set initial thresholds for probabilistic models
     # Note: If threshold_method != "fixed", these values will be recalculated
@@ -2402,6 +2412,44 @@ output$download_pca_combined <- downloadHandler(
                                  full.names = TRUE))
   }
 )
+
+
+confusionMatrixHTML <- function(cm, title = "Confusion Matrix") {
+  classes_act  <- colnames(cm)
+  classes_pred <- rownames(cm)
+  
+  header_cells <- paste0(
+    "<th style='padding:6px 10px;background:#34495e;color:white;'>", classes_act, "</th>",
+    collapse = ""
+  )
+  
+  rows <- lapply(seq_along(classes_pred), function(i) {
+    pred  <- classes_pred[i]
+    cells <- sapply(seq_along(classes_act), function(j) {
+      val    <- cm[i, j]
+      is_dia <- i == j   # <-- détection par POSITION, pas par nom
+      bg     <- if (is_dia) "#d5f5e3" else if (val > 0) "#fadbd8" else "#f9f9f9"
+      fw     <- if (is_dia) "bold" else "normal"
+      paste0("<td style='text-align:center;padding:6px 10px;background:", bg,
+             ";font-weight:", fw, ";'>", val, "</td>")
+    })
+    paste0("<tr><td style='padding:6px 10px;background:#ecf0f1;font-weight:bold;'>",
+           pred, "</td>", paste(cells, collapse = ""), "</tr>")
+  })
+  
+  HTML(paste0(
+    "<div style='margin:8px 0'>",
+    "<p style='font-weight:bold;margin-bottom:4px;font-size:13px;'>", title, "</p>",
+    "<table style='border-collapse:collapse;font-size:12px;'>",
+    "<thead><tr>",
+    "<th style='padding:6px 10px;background:#2c3e50;color:white;'>Pred \\ Actual</th>",
+    header_cells, "</tr></thead><tbody>",
+    paste(rows, collapse = ""),
+    "</tbody></table>",
+    "<p style='font-size:11px;color:#888;margin-top:4px;'>🟢 correct &nbsp; 🔴 error</p>",
+    "</div>"
+  ))
+}
 
 }) 
 
