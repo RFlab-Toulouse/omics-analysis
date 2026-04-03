@@ -551,6 +551,7 @@ replaceNA<-function(toto,rempNA="z",pos=F,NAstructure=F,thresholdstruct=0.05,max
   
   return(toto)
 }
+
 mdsplot<-function(toto,ggplot=T,maintitle="MDS representation of the individuals",graph=T){
   class<-toto[,1]
   toto<-toto[-1]
@@ -1763,10 +1764,19 @@ tune_svm_stratified <- function(data, gamma_range = 10^(-5:2),
   )
 }
 
+
+accuracy_error_fun <- function(true, pred) {
+  
+  if (is.matrix(pred)) {
+    predicted_class <- colnames(pred)[apply(pred, 1, which.max)]
+  } else {
+    predicted_class <- as.character(pred)
+  }
+  accuracy <- mean(predicted_class == as.character(true))
+  return(1 - accuracy)  #  minimise function
+}
 # Fonction custom AUC pour tune.svm 
 auc_error_fun <- function(true, pred) {
-  # pred est une matrice de probabilités quand probability=TRUE
-  # on retourne 1 - AUC (car tune minimise)
   if (is.matrix(pred)) {
     scores <- pred[, 2]
   } else {
@@ -1778,7 +1788,7 @@ auc_error_fun <- function(true, pred) {
   n_neg    <- length(true_bin) - n_pos
   if (n_pos == 0 || n_neg == 0) return(0.5)
   auc <- (sum(r[true_bin == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
-  return(1 - auc)  # tune minimise → on retourne 1 - AUC
+  return(1 - auc)  # tune minimise 
 }
 
 modelfunction_V2 <- function(learningmodel,
@@ -1879,7 +1889,7 @@ modelfunction_V2 <- function(learningmodel,
     # ── SVM ────────────────────────────────────────────────────────────────────
     if (modelparameters$modeltype == "svm") {
       if (is.null(modelparameters$autotunesvm) || modelparameters$autotunesvm) {
-        set.seed(20011203)
+        # set.seed(20011203)
         # tune_result <- tune.svm(group ~ ., data = learningmodel,
         #                         gamma = 10^(-5:2), cost = 10^(-3:2),
         #                   
@@ -1894,7 +1904,8 @@ modelfunction_V2 <- function(learningmodel,
                                 tunecontrol = tune.control(
                                   sampling  = "cross",
                                   cross     = 5,
-                                  error.fun = auc_error_fun
+                                  # error.fun = auc_error_fun  
+                                  error.fun = accuracy_error_fun
                                 ))
         cat("tunning results :  \n"); print(tune_result)
         cost_param   <- tune_result$best.parameters$cost
@@ -2607,13 +2618,14 @@ modelfunction <- function(learningmodel,
       model <- svm(group ~ ., data = learningmodel,
                    kernel= kernel_param ,
                    # epsilon  = epsilon_param,
-                   cost=cost_param, gamma=gamma_param,
+                   cost=cost_param, 
+                   gamma=gamma_param,
                    type = "C-classification",
                    probability=TRUE)
       model$cost <- cost_param
       model$gamma <- gamma_param
       # model$epsilon <- epsilon_param
-      # model$kernel <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
+      model$kernel <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
       
       if(modelparameters$fs){
         
@@ -3542,7 +3554,7 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
   }
 }
 
-scoremodelplot<-function(class,score,names,threshold,type,graph,printnames, maintitle = "Score representation train"){
+scoremodelplot<-function(class,score,names,threshold,type,graph,printnames,jitter, maintitle = "Score representation train"){
   class<-factor(class,levels =rev(levels(class)))
   
   if(type=="boxplot"){
@@ -3551,7 +3563,7 @@ scoremodelplot<-function(class,score,names,threshold,type,graph,printnames, main
                   names = names,
                   threshold=threshold,
                   maintitle = maintitle,
-                  graph = graph)
+                  graph = graph, jitter = jitter)
   }
   else if(type=="points"){
     plot_pred_type_distribution(class = class, 
@@ -3564,7 +3576,7 @@ scoremodelplot<-function(class,score,names,threshold,type,graph,printnames, main
   } 
 }
 
-boxplotggplot<-function(class,score,names,threshold,maintitle="Score representation ",graph=T){
+boxplotggplot<-function(class,score,names,threshold,maintitle="Score representation ",graph=T, jitter = TRUE){
   data<-data.frame("names"=names,"class"= class,"score"=as.vector(score))
   if(!graph){return(data)}
   p<-ggplot(data, aes(x=class, y=score)) +
@@ -3579,6 +3591,10 @@ boxplotggplot<-function(class,score,names,threshold,maintitle="Score representat
           axis.title.y =  element_text(size = 15 , face = 'bold'),
           legend.text = element_text( size = 12 , face = 'bold'),
           legend.title = element_text(size = 14 , face =  'bold'))
+  
+  if(jitter) {
+    p = p + geom_jitter()
+  }
   
   p
 }
@@ -4451,4 +4467,226 @@ apply_threshold <- function(model_result, new_threshold, groups = NULL) {
     "groups"              = lev,
     "modelparameters"     = modelparameters
   )
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# cv_model : Cross-validation k-fold sur le jeu d'apprentissage
+#
+# Paramètres :
+#   learningmodel    : data.frame (col1 = facteur groupe, col2:n = features)
+#   trained_model    : objet modèle retourné par MODEL_TRAIN()$model
+#                      (contient les hyperparamètres optimaux déjà tunés)
+#   modelparameters  : liste de paramètres (modeltype, fs, …)
+#   threshold        : seuil de classification
+#   k                : nombre de folds (défaut 5)
+#
+# Retour : data.frame avec colonnes Fold | AUC | Sensibilité | Spécificité
+#          + lignes résumé Mean et SD
+# ══════════════════════════════════════════════════════════════════════════════
+cv_model <- function(learningmodel, trained_model, modelparameters, threshold = 0.5, k = 5) {
+  
+  set.seed(42)
+  colnames(learningmodel)[1] <- "group"
+  y   <- learningmodel[, 1]
+  lev <- levels(y)
+  names(lev) <- c("positif", "negatif")
+  n   <- nrow(learningmodel)
+  
+  # ── Création des folds (stratifiés par classe) ──────────────────────────────
+  idx_pos <- which(y == lev["positif"])
+  idx_neg <- which(y == lev["negatif"])
+  
+  folds_pos <- split(sample(idx_pos), cut(seq_along(idx_pos), k, labels = FALSE))
+  folds_neg <- split(sample(idx_neg), cut(seq_along(idx_neg), k, labels = FALSE))
+  folds     <- lapply(seq_len(k), function(i) c(folds_pos[[i]], folds_neg[[i]]))
+  
+  # ── Extraction des hyperparamètres déjà tunés ───────────────────────────────
+  mt <- modelparameters$modeltype
+  
+  # randomforest
+  rf_mtry    <- if (!is.null(trained_model$optimal_mtry))  trained_model$optimal_mtry  else floor(sqrt(ncol(learningmodel) - 1))
+  rf_ntree   <- if (!is.null(trained_model$ntree_used))    trained_model$ntree_used    else 500
+  
+  # svm
+  svm_cost   <- if (!is.null(trained_model$cost))   trained_model$cost   else 1
+  svm_gamma  <- if (!is.null(trained_model$gamma))  trained_model$gamma  else 0.1
+  svm_kernel <- if (!is.null(modelparameters$kernel)) modelparameters$kernel else "radial"
+  
+  cat("type of svm  kernel  : ", svm_kernel, "\n")
+  
+  # elasticnet
+  en_alpha   <- if (!is.null(trained_model$alpha))           trained_model$alpha           else
+    if (!is.null(modelparameters$alpha))          modelparameters$alpha          else 0.5
+  en_lambda  <- if (!is.null(trained_model$lambda))          trained_model$lambda          else
+    if (!is.null(trained_model$optimal_lambda))   trained_model$optimal_lambda  else NULL
+  
+  # xgboost
+  xgb_nrounds <- if (!is.null(trained_model$optimal_nrounds))           trained_model$optimal_nrounds           else 100
+  xgb_depth   <- if (!is.null(trained_model$optimal_max_depth))         trained_model$optimal_max_depth         else 6
+  xgb_eta     <- if (!is.null(trained_model$optimal_eta))               trained_model$optimal_eta               else 0.1
+  xgb_gamma   <- if (!is.null(trained_model$optimal_gamma))             trained_model$optimal_gamma             else 0
+  xgb_sub     <- if (!is.null(trained_model$optimal_subsample))         trained_model$optimal_subsample         else 0.8
+  xgb_child   <- if (!is.null(trained_model$optimal_min_child_weight))  trained_model$optimal_min_child_weight  else 1
+  
+  # lightgbm
+  lgb_nrounds <- if (!is.null(trained_model$optimal_nrounds))           trained_model$optimal_nrounds           else 100
+  lgb_leaves  <- if (!is.null(trained_model$optimal_num_leaves))        trained_model$optimal_num_leaves        else 31
+  lgb_lr      <- if (!is.null(trained_model$optimal_learning_rate))     trained_model$optimal_learning_rate     else 0.1
+  
+  # knn
+  knn_k <- if (!is.null(trained_model$optimal_k)) trained_model$optimal_k else 5
+  
+  # ── Boucle sur les folds ────────────────────────────────────────────────────
+  results <- lapply(seq_len(k), function(i) {
+    
+    test_idx  <- folds[[i]]
+    train_idx <- setdiff(seq_len(n), test_idx)
+    
+    train_data <- learningmodel[train_idx, ]
+    test_data  <- learningmodel[test_idx,  ]
+    
+    y_train <- train_data[, 1]
+    y_test  <- test_data[,  1]
+    X_train <- train_data[, -1, drop = FALSE]
+    X_test  <- test_data[,  -1, drop = FALSE]
+    
+    score <- tryCatch({
+      
+      if (mt == "randomforest") {
+        mod <- randomForest(x = X_train, y = y_train,
+                            ntree = rf_ntree, mtry = rf_mtry,
+                            nodesize = 1, importance = FALSE)
+       randomForest:::predict.randomForest(mod, X_test, type = "prob")[, lev["positif"]]
+        
+      } else if (mt == "svm") {
+        mod <- svm(x = X_train, y = y_train,
+                   # probability = TRUE,
+                   cost = svm_cost, gamma = svm_gamma, kernel = svm_kernel)
+        attr(e1071:::predict.svm(mod, X_test, decision.values = TRUE), "decision.values")
+        
+      } else if (mt == "elasticnet") {
+        x_mat  <- as.matrix(X_train)
+        x_test_mat <- as.matrix(X_test)
+        y_bin  <- ifelse(y_train == lev["positif"], 1, 0)
+        if (is.null(en_lambda)) {
+          cv_fit <- cv.glmnet(x_mat, y_bin, alpha = en_alpha, family = "binomial", nfolds = 3)
+          lam <- cv_fit$lambda.min
+        } else { lam <- en_lambda }
+        mod <- glmnet(x_mat, y_bin, alpha = en_alpha, lambda = lam, family = "binomial")
+        as.numeric(glmnet:::predict.glmnet(mod, x_test_mat, s = lam, type = "response"))
+        
+      } else if (mt == "xgboost") {
+        y_bin  <- ifelse(y_train == lev["positif"], 1, 0)
+        dtrain <- xgb.DMatrix(data = as.matrix(X_train), label = y_bin)
+        dtest  <- xgb.DMatrix(data = as.matrix(X_test))
+        params <- list(objective = "binary:logistic", eval_metric = "auc",
+                       max_depth = xgb_depth, eta = xgb_eta,
+                       gamma = xgb_gamma, subsample = xgb_sub,
+                       min_child_weight = xgb_child)
+        mod <- xgb.train(params = params, data = dtrain,
+                         nrounds = xgb_nrounds, verbose = 0)
+        as.numeric(xgboost:::predict.xgb.Booster(mod, dtest))
+        
+      } else if (mt == "lightgbm") {
+        y_bin  <- ifelse(y_train == lev["positif"], 1, 0)
+        dtrain <- lgb.Dataset(data = as.matrix(X_train), label = y_bin)
+        params <- list(objective = "binary", metric = "auc",
+                       num_leaves = lgb_leaves, learning_rate = lgb_lr,
+                       verbose = -1)
+        mod <- lgb.train(params = params, data = dtrain,
+                         nrounds = lgb_nrounds, verbose = -1)
+        as.numeric(predict(mod, as.matrix(X_test)))
+        
+      } else if (mt == "naivebayes") {
+        mod <- naiveBayes(x = X_train, y = y_train)
+        e1071:::predict.naiveBayes(mod, X_test, type = "raw")[, lev["positif"]]
+        
+      } else if (mt == "knn") {
+        # kNN : score = proportion des voisins dans la classe positive
+        k_use <- min(knn_k, nrow(X_train) - 1)
+        scores_fold <- numeric(nrow(X_test))
+        for (j in seq_len(nrow(X_test))) {
+          d   <- apply(X_train, 1, function(r) sqrt(sum((as.numeric(X_test[j, ]) - as.numeric(r))^2)))
+          nn  <- order(d)[seq_len(k_use)]
+          scores_fold[j] <- sum(y_train[nn] == lev["positif"]) / k_use
+        }
+        scores_fold
+        
+      } else if (mt == "logistic") {
+        df_train <- cbind(group = y_train, X_train)
+        df_test  <- X_test
+        mod <- glm(group ~ ., data = df_train, family = binomial())
+        predict(mod, newdata = df_test, type = "response")
+        
+      } else { rep(NA_real_, nrow(X_test)) }
+      
+    }, error = function(e) {
+      warning(sprintf("CV fold %d failed (%s): %s", i, mt, e$message))
+      rep(NA_real_, nrow(X_test))
+    })
+    
+    # ── Métriques du fold ──────────────────────────────────────────────────────
+    auc_val <- tryCatch(
+      as.numeric(auc(roc(as.vector(y_test), as.vector(score), quiet = TRUE))),
+      error = function(e) NA_real_
+    )
+    
+    cat(" threshold used  :  ", threshold, "\n")
+    # pred_class <- factor(ifelse(score >= threshold, lev["positif"], lev["negatif"]),
+    #                      levels = lev)
+    # pred_class <- factor(paste("test", pred_class), levels = paste("test", lev))
+    y_test_lbl <- y_test
+    
+    pred_class <- factor(levels = lev)
+    pred_class[which(score >= threshold)] <- lev["positif"]
+    pred_class[which(score <  threshold)] <- lev["negatif"]
+    pred_class <- as.factor(pred_class)
+    
+    sensibility_cv<-function(predict,class){
+      sensibility(predict = predict, class = class)
+    }
+    
+    specificity_cv  <-function(predict,class){
+      specificity(predict = predict, class = class)
+    }
+    
+    # sen <- tryCatch({
+    #   tbl <- table(Predicted = pred_class, Actual = y_test_lbl)
+    #   round(tbl[1, 1] / (tbl[1, 1] + tbl[2, 1]), 3)
+    # }, error = function(e) NA_real_)
+    
+    sen = sensibility_cv(pred_class, y_test_lbl)
+    spe = specificity_cv(pred_class, y_test_lbl)
+    
+    # spe <- tryCatch({
+    #   tbl <- table(Predicted = pred_class, Actual = y_test_lbl)
+    #   round(tbl[2, 2] / (tbl[1, 2] + tbl[2, 2]), 3)
+    # }, error = function(e) NA_real_)
+    
+    data.frame(Fold = paste0("Fold ", i),
+               AUC          = round(auc_val, 3),
+               Sensibilité  = round(sen, 3),
+               Spécificité  = round(spe, 3),
+               stringsAsFactors = FALSE)
+  })
+  
+  res_df <- do.call(rbind, results)
+  
+  # ── Lignes résumé ────────────────────────────────────────────────────────────
+  mean_row <- data.frame(
+    Fold        = "Moyenne",
+    AUC         = round(mean(res_df$AUC,         na.rm = TRUE), 3),
+    Sensibilité = round(mean(res_df$Sensibilité, na.rm = TRUE), 3),
+    Spécificité = round(mean(res_df$Spécificité, na.rm = TRUE), 3),
+    stringsAsFactors = FALSE
+  )
+  sd_row <- data.frame(
+    Fold        = "Écart-type",
+    AUC         = round(sd(res_df$AUC,         na.rm = TRUE), 3),
+    Sensibilité = round(sd(res_df$Sensibilité, na.rm = TRUE), 3),
+    Spécificité = round(sd(res_df$Spécificité, na.rm = TRUE), 3),
+    stringsAsFactors = FALSE
+  )
+  
+  rbind(res_df, mean_row, sd_row)
 }

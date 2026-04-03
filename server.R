@@ -930,7 +930,8 @@ MODEL_TRAIN <- reactive({
   
   if (input$model == "randomforest") {
     tuning_method_rf <- if (!is.null(input$tuning_method_rf)) input$tuning_method_rf else "traditional"
-    ntree_model      <- input$ntreerf
+    # ntree_model      <- input$ntreerf
+    ntree_model <- if (tuning_method_rf == "gridsearch") 1000 else input$ntreerf
     autotunerf_param <- (tuning_method_rf != "manual")
     if (tuning_method_rf == "manual") mtry_model <- input$mtryrf
   }
@@ -1004,6 +1005,7 @@ MODEL_TRAIN <- reactive({
     "lambda"         = lambda_model,
     "ntree"          = ntree_model,
     "autotunerf"     = autotunerf_param,  "mtry"          = mtry_model,
+    "rf_grid_ntree"  = if (!is.null(input$ntree_grid_values)) as.numeric(input$ntree_grid_values) else c(100, 500, 1000),
     "autotunesvm"    = autotunesvm_param, "cost"          = cost_model,
     "gamma"          = gamma_model,       "kernel"        = kernel_model,
     # "epsilon"        = epsilon_model,
@@ -1432,6 +1434,7 @@ output$plotmodeldecouvbp <- renderPlot({
                  names=rownames(datalearningmodel$reslearningmodel),
                  threshold =input$thresholdmodel ,
                  type =input$plotscoremodel,graph = T,
+                 jitter =  input$showjiiterboxplot,
                  maintitle="Score plot - Learning Model",
                  printnames=input$shownames1)
 })
@@ -1442,6 +1445,7 @@ output$downloadplotmodeldecouvbp = downloadHandler(
                                        score =datalearningmodel$reslearningmodel$scorelearning,
                                        names=rownames(datalearningmodel$reslearningmodel),
                                       threshold =input$thresholdmodel ,
+                                      jitter =  input$showjiiterboxplot,
                                       maintitle="Score plot - validation Model",
                                       type =input$plotscoremodel,graph = T),  
            device = input$paramdownplot)},
@@ -1450,8 +1454,12 @@ output$downloadplotmodeldecouvbp = downloadHandler(
 output$downloaddatamodeldecouvbp <- downloadHandler(
   filename = function() { paste('dataset', '.',input$paramdowntable, sep='') },
   content = function(file) {
-    downloaddataset(   scoremodelplot(class =datalearningmodel$reslearningmodel$classlearning ,score =datalearningmodel$reslearningmodel$scorelearning,names=rownames(datalearningmodel$reslearningmodel),
-                                      threshold =input$thresholdmodel ,type =input$plotscoremodel,graph = F), file) })
+    downloaddataset(   scoremodelplot(class =datalearningmodel$reslearningmodel$classlearning ,
+                                      score =datalearningmodel$reslearningmodel$scorelearning,
+                                      names=rownames(datalearningmodel$reslearningmodel),
+                                      threshold =input$thresholdmodel ,
+                                      jitter =  input$showjiiterboxplot,
+                                      type =input$plotscoremodel,graph = F), file) })
 output$nbselectmodel<-renderText({
   datalearningmodel<-MODEL()$DATALEARNINGMODEL
   ncol(datalearningmodel$learningmodel)-1
@@ -1462,14 +1470,35 @@ output$nbselectmodel<-renderText({
 #   as.data.frame.matrix(table(datalearningmodel$reslearningmodel$predictclasslearning,datalearningmodel$reslearningmodel$classlearning ))
 # },include.rownames=TRUE)
 
+# matrice de confusion au format HTML 
 output$tabmodeldecouv <- renderUI({
   datalearningmodel <- MODEL()$DATALEARNINGMODEL
   cm <- table(
     Predicted = datalearningmodel$reslearningmodel$predictclasslearning,
     Actual    = datalearningmodel$reslearningmodel$classlearning
   )
-  confusionMatrixHTML(cm, title = "Confusion Matrix - Discovery")
+  # tagList(
+    confusionMatrixHTML(cm, title = "Confusion Matrix - Discovery")
+    # ,
+    # downloadButton("downloadconfusiondecouv", "save")
+  # )
 })
+
+# download as image 
+# output$downloadconfusiondecouv = downloadHandler(
+#   filename = function() { paste('confusion_matrix', '.', input$paramdownplot, sep='') },
+#   content = function(file) {
+#     datalearningmodel <- MODEL()$DATALEARNINGMODEL
+#     cm <- table(
+#       Predicted = datalearningmodel$reslearningmodel$predictclasslearning,
+#       Actual    = datalearningmodel$reslearningmodel$classlearning
+#     )
+#     ggsave(file, plot = confusionMatrixPlot(cm), device = input$paramdownplot)
+#     # ggsave(file, plot = confusionMatrixHTML(cm, title = "Confusion Matrix - Discovery"), 
+#     #        device = input$paramdownplot)
+#   },
+#   contentType = NA
+# )
 
 output$sensibilitydecouv<-renderText({
   datalearningmodel<-MODEL()$DATALEARNINGMODEL
@@ -1518,6 +1547,7 @@ output$plotmodelvalbp <- renderPlot({
                  threshold =input$thresholdmodel ,
                  maintitle =  "score plot - Validation Model",
                  type =input$plotscoremodel,
+                 jitter =  input$showjiiterboxplot,
                  graph = T,printnames=input$shownames1)
 })
 
@@ -1529,14 +1559,19 @@ output$downloadplotmodelvalbp = downloadHandler(
                                       names=rownames(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel),
                                       maintitle =  "score plot - validation Model",
                                       threshold =input$thresholdmodel ,
+                                      jitter =  input$showjiiterboxplot,
                                       type =input$plotscoremodel,graph = T),  device = input$paramdownplot)},
   contentType=NA)
 
 output$downloaddatamodelvalbp <- downloadHandler(
   filename = function() { paste('dataset', '.',input$paramdowntable, sep='') },
   content = function(file) {
-    downloaddataset(   scoremodelplot(class = MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval ,score =MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,names=rownames(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel),
-                                      threshold =input$thresholdmodel ,type =input$plotscoremodel,graph = F), file) })
+    downloaddataset(   scoremodelplot(class = MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval ,
+                                      score =MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,
+                                      names=rownames(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel),
+                                      threshold =input$thresholdmodel ,
+                                      jitter =  input$showjiiterboxplot,
+                                      type =input$plotscoremodel,graph = F), file) })
 
 output$youndenval<-renderTable({
   datavalidationmodel<<-MODEL()$DATAVALIDATIONMODEL
@@ -2371,7 +2406,7 @@ output$pca_plot_3d_stats <- renderPlotly({
     } else {
       plot_ly() %>%
         layout(
-          title = "Pas assez de variables pour la vue 3D",
+          title = "Not enough variables for the 3D view (minimum 3 variables required)",
           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)
         )
@@ -2450,6 +2485,83 @@ confusionMatrixHTML <- function(cm, title = "Confusion Matrix") {
     "</div>"
   ))
 }
+
+# ── Cross-Validation sur le jeu d'apprentissage ──────────────────────────────
+CROSS_VAL <- reactive({
+  req(MODEL_TRAIN())
+  req(input$model != "nomodel")
+  
+  # Données d'apprentissage (même pipeline que MODEL_TRAIN)
+  if (input$test == "notest") { lm_cv <- TRANSFORMDATA()$LEARNINGTRANSFORM }
+  else                        { lm_cv <- TEST()$LEARNINGDIFF }
+  
+  # Hyperparamètres déjà tunés extraits du modèle entraîné
+  trained_obj <- MODEL_TRAIN()$model
+  cat(" type if model :  ", class(trained_obj), "\n")
+  print(summary(trained_obj))
+  
+  # Paramètres du modèle (avec autotuning désactivé → utilise les valeurs fixes)
+  mp_cv <- MODEL_TRAIN()$modelparameters
+  mp_cv$autotunerf  <- FALSE
+  mp_cv$autotunesvm <- FALSE
+  mp_cv$autotunexgb <- FALSE
+  mp_cv$autotunelgb <- FALSE
+  mp_cv$autotuneknn <- FALSE
+  
+  k_folds    <- if (!is.null(input$cv_folds))    input$cv_folds    else 5
+  # threshold  <- if (!is.null(input$thresholdmodel)) input$thresholdmodel else 0.5
+  threshold <- if (input$model == "svm") 0  else 0.5
+  
+  withProgress(message = "Cross-validation en cours...", value = 0, {
+    cv_model(
+      learningmodel   = lm_cv,
+      trained_model   = trained_obj,
+      modelparameters = mp_cv,
+      threshold       = threshold,
+      k               = k_folds
+    )
+  })
+})
+
+output$cvtable <- renderDT({
+  req(CROSS_VAL())
+  df <- CROSS_VAL()
+  
+  # Mise en forme : Mean et SD en gras via DT
+  n_folds <- nrow(df) - 2   # les 2 dernières lignes sont Mean / SD
+  
+  datatable(
+    df,
+    rownames  = FALSE,
+    options   = list(
+      dom         = "t",
+      ordering    = FALSE,
+      pageLength  = nrow(df),
+      columnDefs  = list(list(className = "dt-center", targets = "_all"))
+    ),
+    class = "stripe hover compact"
+  ) %>%
+    formatStyle(
+      columns    = "Fold",
+      target     = "row",
+      fontWeight = styleEqual(c("Moyenne", "Écart-type"), c("bold", "bold")),
+      background = styleEqual(
+        c("Moyenne", "Écart-type"),
+        c("rgba(13,197,193,0.15)", "rgba(13,197,193,0.08)")
+      )
+    ) %>%
+    formatStyle(
+      columns   = c("AUC", "Sensibilité", "Spécificité"),
+      color     = styleInterval(c(0.5, 0.7), c("red", "orange", "darkgreen")),
+      fontWeight = "bold"
+    )
+}, server = FALSE)
+
+output$downloadcvtable <- downloadHandler(
+  filename = function() { paste("cross_validation", ".", input$paramdowntable, sep = "") },
+  content  = function(file) { downloaddataset(CROSS_VAL(), file, cnames = TRUE, rnames = FALSE) }
+)
+
 
 }) 
 

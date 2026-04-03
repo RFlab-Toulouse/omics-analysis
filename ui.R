@@ -145,7 +145,7 @@ shinyUI(fluidPage(
       ),           
       conditionalPanel(condition ="output.fileUploaded || output.modelUploaded",
                        tabsetPanel(id = "data",              
-                                   tabPanel("Learning Data", icon = icon("clipboard-list"),
+                                   tabPanel("Learning Data", icon = shiny::icon("clipboard-list"),
                                             br(),
                                             conditionalPanel(condition ="input.help",
                                                              fluidRow(
@@ -159,7 +159,7 @@ shinyUI(fluidPage(
                                             dataTableOutput("JDDlearn")%>% withSpinner(color="#0dc5c1",type = 1),
                                             p(downloadButton("downloaddataJDDlearn","Download dataset"),align="center")
                                    ),
-                                   tabPanel("Validation Data", icon = icon("check"),
+                                   tabPanel("Validation Data", icon = shiny::icon("check"),
                                             conditionalPanel(condition ="output.fileUploadedval",
                                                              br(),
                                                              dataTableOutput("JDDval")%>% withSpinner(color="#0dc5c1",type = 1),
@@ -167,7 +167,7 @@ shinyUI(fluidPage(
                                             )
                                    ),
                                    
-                                   tabPanel("Select Data", icon = icon("filter"),
+                                   tabPanel("Select Data", icon = shiny::icon("filter"),
                                             conditionalPanel(condition ="input.help",
                                                              helpText(" Select variables to extract variables from the learning dataset according to the number or the structure of Non-Attribute values (missing values)")
                                             ),  
@@ -222,7 +222,7 @@ shinyUI(fluidPage(
                                               )
                                             )
                                    ),
-                                   tabPanel("Transform Data", icon =  icon("magic"),
+                                   tabPanel("Transform Data", icon =  shiny::icon("magic"),
                                             conditionalPanel(condition ="input.help",
                                                              helpText("")),
                                             fluidRow(
@@ -261,7 +261,7 @@ shinyUI(fluidPage(
                                             p(downloadButton("downloadplothist","Download plot"),
                                               downloadButton('downloaddatahist', 'Download raw data'),align="center")
                                    ),
-                                   tabPanel("Statistics", icon =  icon("calculator"),
+                                   tabPanel("Statistics", icon =  shiny::icon("calculator"),
                                             conditionalPanel(condition ="input.help",
                                                              helpText("")),
                                             fluidRow(
@@ -518,7 +518,7 @@ shinyUI(fluidPage(
                                    #            )
                                    #          )
                                    # ) ,
-                                   tabPanel("Model", icon = icon("cogs"),
+                                   tabPanel("Model", icon = shiny::icon("cogs"),
                                             fluidRow(
                                               column(4,
                                                      radioButtons("model", "Type of model to adjust",
@@ -578,18 +578,18 @@ shinyUI(fluidPage(
                                                                                        helpText("Manual: set mtry manually"),
                                                                                        helpText("tuneRF: optimizes mtry only"),
                                                                                        helpText("GridSearchCV: optimizes ntree, mtry, nodesize")),
-                                                                      numericInput("ntreerf","Number of trees" , 1000, min =100, max = 5000, step = 100),
-                                                                      # conditionalPanel(
-                                                                      #   condition = "input.tuning_method_rf == 'manual'",
-                                                                      #   numericInput("ntreerf", "Number of trees (fixed)", 1000, min = 100, max = 5000, step = 100)
-                                                                      # ),
-                                                                      # conditionalPanel(
-                                                                      #   condition = "input.tuning_method_rf == 'traditional'",
-                                                                      #   checkboxGroupInput("ntree_range_rf", "ntree values to test:",
-                                                                      #                      choices  = c("100" = 100, "300" = 300, "500" = 500, "1000" = 1000, "2000" = 2000),
-                                                                      #                      selected = c(100, 500, 1000)
-                                                                      #   )
-                                                                      # ),
+                                                                      #numericInput("ntreerf","Number of trees" , 1000, min =100, max = 5000, step = 100),
+                                                                      conditionalPanel(
+                                                                        condition = "input.tuning_method_rf == 'manual'",
+                                                                        numericInput("ntreerf", "Number of trees (fixed)", 1000, min = 100, max = 5000, step = 100)
+                                                                      ),
+                                                                      conditionalPanel(
+                                                                        condition = "input.tuning_method_rf == 'traditional'",
+                                                                        checkboxGroupInput("ntree_range_rf", "ntree values to test:",
+                                                                                           choices  = c("100" = 100, "300" = 300, "500" = 500, "1000" = 1000, "2000" = 2000),
+                                                                                           selected = c(100, 500, 1000)
+                                                                        )
+                                                                      ),
                                                                       conditionalPanel(condition ="input.tuning_method_rf=='manual'",
                                                                                        numericInput("mtryrf","mtry (variables per split)" , 5, min =1, max = 100, step = 1),
                                                                                        conditionalPanel(condition ="input.help",
@@ -823,7 +823,8 @@ shinyUI(fluidPage(
                                                                                h3("Model Learning")
                                                                         ),
                                                                         column(4,br(),downloadButton('downloaddatalearning', 'Download learning data')),
-                                                                        column(4,radioButtons("plotscoremodel", "",c( "boxplot"="boxplot","points" = "points")))
+                                                                        column(2,radioButtons("plotscoremodel", "",c( "boxplot"="boxplot","points" = "points"))),
+                                                                        column(2,br(),checkboxInput("showjiiterboxplot", "Show jitter boxplot", value = FALSE))
                                                                       ),
                                                                       conditionalPanel(condition ="input.model=='elasticnet' || input.model=='svm' || input.model=='randomforest' || input.model=='xgboost'",
                                                                                        fluidRow(
@@ -921,6 +922,37 @@ shinyUI(fluidPage(
                                                                         )
                                                                       ),
                                                                       hr(),
+                                                                      # ── Cross-Validation ───────────────────────────────────────
+                                                                      # conditionalPanel(condition = "input.model != 'nomodel'",
+                                                                      #                  fluidRow(
+                                                                      #                    column(12,
+                                                                      #                           h3(icon("redo"), " Cross-Validation sur le Train"),
+                                                                      #                           p(em("Même modèle, mêmes hyperparamètres — évalué par validation croisée k-fold sur le jeu d'apprentissage.")),
+                                                                      #                           fluidRow(
+                                                                      #                             column(3,
+                                                                      #                                    numericInput("cv_folds",
+                                                                      #                                                 label    = "Nombre de folds (k)",
+                                                                      #                                                 value    = 5,
+                                                                      #                                                 min      = 3,
+                                                                      #                                                 max      = 10,
+                                                                      #                                                 step     = 1,
+                                                                      #                                                 width    = "150px")
+                                                                      #                             ),
+                                                                      #                             column(9,
+                                                                      #                                    br(),
+                                                                      #                                    p(strong("AUC"), " — Aire sous la courbe ROC",  br(),
+                                                                      #                                      strong("Sensibilité"), " — Taux de vrais positifs", br(),
+                                                                      #                                      strong("Spécificité"), " — Taux de vrais négatifs")
+                                                                      #                             )
+                                                                      #                           ),
+                                                                      #                           DTOutput("cvtable") %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                                      #                           br(),
+                                                                      #                           p(downloadButton("downloadcvtable", "Télécharger le tableau CV"),
+                                                                      #                             align = "left")
+                                                                      #                    )
+                                                                      #                  )
+                                                                      # ),
+                                                                      # hr(),
                                                                       conditionalPanel(condition ="input.adjustval==true  ",
                                                                                        fluidRow(div(
                                                                                          column(6,h3("model validation"))
@@ -952,14 +984,14 @@ shinyUI(fluidPage(
                                                                       )
                                                      )
                                                      ),
-                                              tabPanel("Details of the model", icon =  icon("file-alt"),
+                                              tabPanel("Details of the model", icon =  shiny::icon("file-alt"),
                                                        h3("Summary of the model"),
                                                        verbatimTextOutput("summarymodel"),
                                                        plotOutput("plotimportance"),
                                                        p(downloadButton("downloadplotimportance","Download plot"),
                                                          downloadButton('downloaddataplotimportance', 'Download raw data'),align="center")
                                               ),
-                                              tabPanel("Test parameters", icon  =  icon("cog"),
+                                              tabPanel("Test parameters", icon  =  shiny::icon("cog"),
                                                        fluidRow(
                                                          column(6,
                                                                 h4("Selection Parameters"),
