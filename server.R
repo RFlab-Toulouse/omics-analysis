@@ -4,6 +4,8 @@ source("global.R")
 #options(xtable.include.rownames=T)
 
 shinyServer(function(input, output,session) {
+  
+  # bs_themer()
   #if(requireNamespace("superml", quietly = TRUE)) {
     #attachNamespace("superml")
   #}
@@ -221,12 +223,12 @@ shinyServer(function(input, output,session) {
 #                  specificity(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval,MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$predictclassval)
 #       )
       table[20,1:5]<-c("main results",dim(MODEL()$DATALEARNINGMODEL$learningmodel)[2]-1,
-                  round(as.numeric(auc(roc(MODEL()$DATALEARNINGMODEL$reslearningmodel$classlearning,MODEL()$DATALEARNINGMODEL$reslearningmodel$scorelearning))),digits = 3),
+                  round(as.numeric(pROC::auc(pROC::roc(MODEL()$DATALEARNINGMODEL$reslearningmodel$classlearning,MODEL()$DATALEARNINGMODEL$reslearningmodel$scorelearning))),digits = 3),
                   sensibility(MODEL()$DATALEARNINGMODEL$reslearningmodel$predictclasslearning,MODEL()$DATALEARNINGMODEL$reslearningmodel$classlearning),
                   specificity(MODEL()$DATALEARNINGMODEL$reslearningmodel$predictclasslearning,MODEL()$DATALEARNINGMODEL$reslearningmodel$classlearning)
                   )
       if(input$adjustval){
-      table[20,6:8]<-c(round(as.numeric(auc(roc(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval,MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval))),digits = 3),
+      table[20,6:8]<-c(round(as.numeric(pROC::auc(pROC::roc(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval,MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval))),digits = 3),
                   sensibility(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$predictclassval,MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval),
                   specificity(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$predictclassval,MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval)
                   )
@@ -921,6 +923,9 @@ MODEL_TRAIN <- reactive({
   nrounds_model      <- NULL
   maxdepth_model     <- NULL
   eta_model          <- NULL
+  lambda_xgb_model    <-  NULL
+  alpha_xgb_model     <-  NULL
+  
   
   if (input$model == "elasticnet") {
     tuning_method_en <- if (!is.null(input$tuning_method_en)) input$tuning_method_en else "traditional"
@@ -928,17 +933,44 @@ MODEL_TRAIN <- reactive({
     if (tuning_method_en == "manual")                                       lambda_model <- input$lambdamodel
   }
   
+  nodesize_model     <- NULL
+  maxnodes_model     <- NULL
+  sampsize_frac_model <- NULL
+  replace_model      <- TRUE
+  rf_grid_nodesize   <- NULL
+  rf_grid_maxnodes   <- NULL
+  rf_grid_sampsize   <- NULL
+  rf_nodesize_range  <- NULL
+  
   if (input$model == "randomforest") {
     tuning_method_rf <- if (!is.null(input$tuning_method_rf)) input$tuning_method_rf else "traditional"
-    # ntree_model      <- input$ntreerf
     ntree_model <- if (tuning_method_rf == "gridsearch") 1000 else input$ntreerf
     autotunerf_param <- (tuning_method_rf != "manual")
-    if (tuning_method_rf == "manual") mtry_model <- input$mtryrf
+    if (tuning_method_rf == "manual") {
+      mtry_model         <- input$mtryrf
+      nodesize_model     <- input$nodesizerf
+      maxnodes_model     <- if (!is.null(input$maxnodesrf) && input$maxnodesrf > 0) input$maxnodesrf else NULL
+      sampsize_frac_model <- input$sampsizerf
+      replace_model      <- input$replacerf
+    }
+    if (tuning_method_rf == "traditional") {
+      rf_nodesize_range   <- if (!is.null(input$nodesize_range_rf)) as.numeric(input$nodesize_range_rf) else c(1, 5, 10)
+      sampsize_frac_model <- input$sampsize_trad_rf
+      replace_model       <- input$replace_trad_rf
+    }
+    if (tuning_method_rf == "gridsearch") {
+      rf_grid_nodesize <- if (!is.null(input$nodesize_grid_values)) as.numeric(input$nodesize_grid_values) else c(1, 5, 10)
+      rf_grid_maxnodes <- if (!is.null(input$maxnodes_grid_values)) as.numeric(input$maxnodes_grid_values) else c(0, 20, 50)
+      rf_grid_sampsize <- if (!is.null(input$sampsize_grid_values)) as.numeric(input$sampsize_grid_values) else c(0.632, 1.0)
+    }
   }
   
+  svm_scoring_param <- "auc"
   if (input$model == "svm") {
     autotunesvm_param <- input$autotunesvm
-    if (!input$autotunesvm) {
+    if (input$autotunesvm) {
+      svm_scoring_param <- if (!is.null(input$svm_scoring)) input$svm_scoring else "auc"
+    } else {
       cost_model   <- input$costsvm
       gamma_model  <- input$gammasvm
       kernel_model <- input$kernelsvm
@@ -956,6 +988,8 @@ MODEL_TRAIN <- reactive({
       eta_model       <- input$etaxgb
       gamma_xgb_model <- input$gamme_xgb
       subsample_xgb_model <- input$subsamplexgb
+      lambda_xgb_model <- input$lambdaxgb
+      alpha_xgb_model  <- input$alphaxgb
     }
   }
   
@@ -1005,14 +1039,26 @@ MODEL_TRAIN <- reactive({
     "lambda"         = lambda_model,
     "ntree"          = ntree_model,
     "autotunerf"     = autotunerf_param,  "mtry"          = mtry_model,
+    "nodesize"       = nodesize_model,
+    "maxnodes"       = maxnodes_model,
+    "sampsize_frac"  = sampsize_frac_model,
+    "replace"        = replace_model,
     "rf_grid_ntree"  = if (!is.null(input$ntree_grid_values)) as.numeric(input$ntree_grid_values) else c(100, 500, 1000),
-    "autotunesvm"    = autotunesvm_param, "cost"          = cost_model,
+    "rf_grid_nodesize" = rf_grid_nodesize,
+    "rf_grid_maxnodes" = rf_grid_maxnodes,
+    "rf_grid_sampsize" = rf_grid_sampsize,
+    "rf_nodesize_range" = rf_nodesize_range,
+    "rf_ntree_range" = if (!is.null(input$ntree_range_rf)) as.numeric(input$ntree_range_rf) else c(100, 500, 1000),
+    "autotunesvm"    = autotunesvm_param, "svm_scoring"   = svm_scoring_param,
+    "cost"           = cost_model,
     "gamma"          = gamma_model,       "kernel"        = kernel_model,
     # "epsilon"        = epsilon_model,
     "autotunexgb"    = autotunexgb_param, "nrounds"       = nrounds_model,
     "max_depth"      = maxdepth_model,    "eta"           = eta_model,
     "autotunelgb"    = autotunelgb_param, "nrounds_lgb"   = nrounds_lgb_model,
     "gamma_xgb"       = gamma_xgb_model,
+    "lambda_xgb"      = lambda_xgb_model,
+    "alpha_xgb"       = alpha_xgb_model,
     "subsample_xgb" = if(!is.null(input$subsamplexgb)) input$subsamplexgb else NULL,
     "num_leaves"     = num_leaves_model,  "learning_rate_lgb" = learning_rate_lgb_model,
     "autotuneknn"    = autotuneknn_param, "k_neighbors"   = k_neighbors_model
@@ -1295,6 +1341,39 @@ output$rfntree<-renderText({
   }
 })
 
+output$rfnodesize<-renderText({
+  if(input$model=="randomforest" && !is.null(MODEL()$MODEL)){
+    MODEL()$MODEL$nodesize_used
+  } else {
+    "N/A"
+  }
+})
+
+output$rfmaxnodes<-renderText({
+  if(input$model=="randomforest" && !is.null(MODEL()$MODEL)){
+    mn <- MODEL()$MODEL$maxnodes_used
+    if (is.null(mn)) "Unlimited" else mn
+  } else {
+    "N/A"
+  }
+})
+
+output$rfsampsize<-renderText({
+  if(input$model=="randomforest" && !is.null(MODEL()$MODEL)){
+    MODEL()$MODEL$sampsize_used
+  } else {
+    "N/A"
+  }
+})
+
+output$rfreplace<-renderText({
+  if(input$model=="randomforest" && !is.null(MODEL()$MODEL)){
+    if (isTRUE(MODEL()$MODEL$replace_used)) "Yes" else "No"
+  } else {
+    "N/A"
+  }
+})
+
 output$optiTuning_K = renderText({
   if(input$model=="knn" && !is.null(MODEL()$MODEL)){
     cat("the optimal k is :", MODEL()$MODEL$optimal_k, " \n")
@@ -1545,7 +1624,7 @@ output$plotmodelvalbp <- renderPlot({
                  score =datavalidationmodel$resvalidationmodel$scoreval,
                  names=rownames(datavalidationmodel$resvalidationmodel),
                  threshold =input$thresholdmodel ,
-                 maintitle =  "score plot - Validation Model",
+                 maintitle =  "Score plot - Validation Model",
                  type =input$plotscoremodel,
                  jitter =  input$showjiiterboxplot,
                  graph = T,printnames=input$shownames1)
@@ -1557,7 +1636,7 @@ output$downloadplotmodelvalbp = downloadHandler(
     ggsave(file, plot =scoremodelplot(class = MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval ,
                                       score =MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,
                                       names=rownames(MODEL()$DATAVALIDATIONMODEL$resvalidationmodel),
-                                      maintitle =  "score plot - validation Model",
+                                      maintitle =  "Score plot - validation Model",
                                       threshold =input$thresholdmodel ,
                                       jitter =  input$showjiiterboxplot,
                                       type =input$plotscoremodel,graph = T),  device = input$paramdownplot)},
@@ -1971,7 +2050,7 @@ plotbarstest =  function(dataset_test_params, type, filter_invalid = FALSE, show
     facet_wrap(~ test, ncol = 2) +
     labs(x = "Models (sorted by performance)", 
          y = "Scores", 
-         title = "Comparison of metrics by model and by test") +
+         title = "Comparison of indicators by model and by variable selection method") +
     theme_minimal() +
     theme(axis.text.x = element_text(size =  12,face = 'bold', angle = 45, hjust = 1),
           axis.text.y =  element_text(size =  12,face = 'bold'),
@@ -2096,10 +2175,11 @@ plot_overfitting = function(dataset_test_params, filter_invalid = TRUE){
          y = "Mean Overfitting (Learning - Validation)",
          title = "Model overfitting analysis (positive = overfitting)") +
     theme_minimal() +
-    theme(axis.text.x = element_text(size = 10, face = 'bold', angle = 45, hjust = 1),
-          axis.text.y = element_text(size = 10, face = 'bold'),
+    theme(axis.text.x = element_text(size = 12, face = 'bold', angle = 45, hjust = 1),
+          axis.text.y = element_text(size = 12, face = 'bold'),
           plot.title = element_text(size = 14, face = "bold"),
-          strip.text = element_text(size = 10, face = "bold"),
+          strip.text = element_text(size = 12, face = "bold"),
+          
           legend.position = "none")
   
   return(p)
@@ -2561,6 +2641,510 @@ output$downloadcvtable <- downloadHandler(
   filename = function() { paste("cross_validation", ".", input$paramdowntable, sep = "") },
   content  = function(file) { downloaddataset(CROSS_VAL(), file, cnames = TRUE, rnames = FALSE) }
 )
+
+# ==========================================================================
+# MODEL COMPARISON
+# ==========================================================================
+COMPARISON <- eventReactive(input$run_comparison, {
+  req(MODEL())
+  req(input$models_to_compare)
+  
+  # ── 1. Données d'apprentissage ────────────────────────────────────────────
+  # Données déjà sélectionnées + transformées, issues du modèle courant.
+  # C'est la même entrée que MODEL_TRAIN() utilisait → cohérence garantie.
+  learningmodel <- MODEL()$DATALEARNINGMODEL$learningmodel
+  
+  # ── 2. Données de validation BRUTES ──────────────────────────────────────
+  # modelfunction_V2() applique elle-même les transformations sur la validation
+  # (log, arcsin, standardisation via sdselect, remplacement NA).
+  # On doit donc passer les données ORIGINALES, pas les données transformées.
+  validation <- if (!is.null(DATA()$VALIDATION)) DATA()$VALIDATION else NULL
+  
+  # ── 3. Paramètres de transformation — source réactive, pas variable globale
+  # TRANSFORMDATA() garantit la valeur courante, synchronisée avec l'interface.
+  transform_params <- TRANSFORMDATA()$transformdataparameters
+  
+  # ── 4. Données sélectionnées (avant transformation) — source réactive ─────
+  # Nécessaire pour recalculer sdselect lors de la standardisation
+  # de la validation dans modelfunction_V2().
+  learning_select <- SELECTDATA()$LEARNINGSELECT
+  
+  # ── 5. Features structurées NA — source réactive ─────────────────────────
+  data_struct_features <- SELECTDATA()$DATASTRUCTUREDFEATURES
+  
+  # ── 6. Vérification de cohérence des colonnes ─────────────────────────────
+  # learningmodel est déjà filtré sur les variables sélectionnées + différentielles.
+  # On s'assure que learning_select couvre bien ces colonnes pour que
+  # sdselect dans modelfunction_V2() soit calculé sur le bon sous-ensemble.
+  if (!is.null(validation)) {
+    common_cols <- intersect(colnames(learningmodel)[-1],
+                             colnames(validation)[-1])
+    if (length(common_cols) == 0) {
+      showNotification(
+        "Aucune variable commune entre learningmodel et validation.",
+        type = "error"
+      )
+      return(NULL)
+    }
+    cat(sprintf("  Variables communes learning/validation : %d\n",
+                length(common_cols)))
+  }
+  
+  # ── 7. Appel à run_all_models avec sources réactives ─────────────────────
+  withProgress(message = "Model comparison in progress...", value = 0, {
+    
+    result <- run_all_models(
+      learningmodel           = learningmodel,
+      validation              = validation,
+      transformdataparameters = transform_params,    # réactif ✓
+      datastructuresfeatures  = data_struct_features, # réactif ✓
+      learningselect          = learning_select,       # réactif ✓
+      models_to_run           = input$models_to_compare,
+      threshold               = input$thresholdmodel
+    )
+    
+    incProgress(1, detail = "Done.")
+  })
+  
+  result
+})
+
+output$comparison_metrics_table <- renderDataTable({
+  req(COMPARISON())
+  COMPARISON()$metrics
+}, options = list(pageLength = 10, dom = 't'))
+
+output$download_comparison_metrics <- downloadHandler(
+  filename = function() { paste('model_comparison.', input$paramdowntable, sep='') },
+  content = function(file) { downloaddataset(COMPARISON()$metrics, file) })
+
+output$radar_plot_train <- renderPlot({
+  req(COMPARISON())
+  cat("colnames of COMPARISON()$metrics : \n")
+  print(colnames(COMPARISON()$metrics))
+  plot_radar_comparison(COMPARISON()$metrics, type = "training")
+})
+output$download_radar_train <- downloadHandler(
+  filename = function() { paste('radar_train.', input$paramdownplot, sep='') },
+  content = function(file) {
+    png(file, width = 600, height = 600)
+    plot_radar_comparison(COMPARISON()$metrics, type = "training")
+    dev.off()
+  })
+
+output$radar_plot_val <- renderPlot({
+  req(COMPARISON())
+  plot_radar_comparison(COMPARISON()$metrics, type = "validation")
+})
+output$download_radar_val <- downloadHandler(
+  filename = function() { paste('radar_validation.', input$paramdownplot, sep='') },
+  content = function(file) {
+    png(file, width = 600, height = 600)
+    plot_radar_comparison(COMPARISON()$metrics, type = "validation")
+    dev.off()
+  })
+
+output$delong_test_table <- renderDataTable({
+  req(COMPARISON())
+  delong_compare_models(COMPARISON())
+}, options = list(pageLength = 10, dom = 't'))
+
+output$download_delong_table <- downloadHandler(
+  filename = function() { paste('delong_test.', input$paramdowntable, sep='') },
+  content = function(file) { downloaddataset(delong_compare_models(COMPARISON()), file) })
+
+# ==========================================================================
+# XAI: SHAP
+# ==========================================================================
+SHAP_RESULT <- eventReactive(input$compute_shap, {
+  req(MODEL())
+  model <- MODEL()$MODEL
+  learningmodel <- MODEL()$DATALEARNINGMODEL$learningmodel
+  modeltype <- input$model
+  compute_shap_values(model, learningmodel, modeltype, n_samples = input$shap_n_samples)
+})
+
+output$shap_importance_plot <- renderPlot({
+  req(SHAP_RESULT())
+  plot_shap_importance(SHAP_RESULT())
+})
+output$download_shap_plot <- downloadHandler(
+  filename = function() { paste('shap_importance.', input$paramdownplot, sep='') },
+  content = function(file) {
+    ggsave(file, plot = plot_shap_importance(SHAP_RESULT()), device = input$paramdownplot)
+  })
+output$download_shap_data <- downloadHandler(
+  filename = function() { paste('shap_values.', input$paramdowntable, sep='') },
+  content = function(file) {
+    req(SHAP_RESULT())
+    downloaddataset(SHAP_RESULT()$shap_importance, file)
+  })
+
+# ==========================================================================
+# XAI: PDP
+# ==========================================================================
+observe({
+  req(MODEL())
+  features <- colnames(MODEL()$DATALEARNINGMODEL$learningmodel)[-1]
+  updateSelectInput(session, "pdp_feature", choices = features, selected = features[1])
+})
+
+PDP_RESULT <- eventReactive(input$compute_pdp, {
+  req(MODEL())
+  req(input$pdp_feature)
+  model <- MODEL()$MODEL
+  learningmodel <- MODEL()$DATALEARNINGMODEL$learningmodel
+  modeltype <- input$model
+  print(sprintf("Computing PDP for feature '%s' on model type '%s'", input$pdp_feature, modeltype))
+  plot_pdp(model, learningmodel, modeltype, input$pdp_feature)
+})
+
+output$pdp_plot <- renderPlot({
+  req(PDP_RESULT())
+  PDP_RESULT()
+})
+output$download_pdp_plot <- downloadHandler(
+  filename = function() { paste('pdp_', input$pdp_feature, '.', input$paramdownplot, sep='') },
+  content = function(file) {
+    ggsave(file, plot = PDP_RESULT(), device = input$paramdownplot)
+  })
+
+# ==========================================================================
+# XAI: LIME
+# ==========================================================================
+LIME_RESULT <- eventReactive(input$compute_lime, {
+  req(MODEL())
+  model <- MODEL()$MODEL
+  learningmodel <- MODEL()$DATALEARNINGMODEL$learningmodel
+  modeltype <- input$model
+  explain_lime(model, learningmodel, modeltype,
+               sample_indices = input$lime_sample_idx,
+               n_features = input$lime_n_features)
+})
+
+output$lime_plot <- renderPlot({
+  req(LIME_RESULT())
+  plot_lime_explanation(LIME_RESULT())
+})
+output$download_lime_plot <- downloadHandler(
+  filename = function() { paste('lime_explanation.', input$paramdownplot, sep='') },
+  content = function(file) {
+    ggsave(file, plot = plot_lime_explanation(LIME_RESULT()), device = input$paramdownplot)
+  })
+
+# ==========================================================================
+# ADVANCED VISUALIZATIONS: DATA SOURCE REACTIVE
+# ==========================================================================
+adv_viz_data <- reactive({
+  req(input$adv_viz_data_source)
+  
+  if(input$adv_viz_data_source == "transformed") {
+    data <- TRANSFORMDATA()$LEARNINGTRANSFORM   # données tranformées
+    if(is.null(data)) return(NULL)
+    y <- data[, 1]; X <- data[, -1, drop = FALSE]
+  } else if(input$adv_viz_data_source == "selected") {
+    if(input$test == "notest") return(NULL)
+    data <- TEST()$LEARNINGDIFF    # données issues de la selection de variables 
+    if(is.null(data)) return(NULL)
+    y <- data[, 1]; X <- data[, -1, drop = FALSE]
+  } else if(input$adv_viz_data_source == "model") {
+    if(input$model == "nomodel") return(NULL)
+    model_result <- MODEL()
+    if(is.null(model_result) || is.null(model_result$DATALEARNINGMODEL)) return(NULL)
+    data <- model_result$DATALEARNINGMODEL$learningmodel # learnig data
+    if(is.null(data)) return(NULL)
+    y <- data[, 1]; X <- data[, -1, drop = FALSE]
+  }
+  
+  if(ncol(X) < 2) return(NULL)
+  list(X = X, y = y)
+})
+
+# t-SNE
+output$tsne_plot <- renderPlotly({
+  data <- adv_viz_data()
+  req(data)
+  plot_tsne(data$X, data$y, perplexity = input$tsne_perplexity)
+})
+
+
+output$download_tsne <- downloadHandler(
+  filename = function() { paste('tsne_', Sys.Date(), '.html', sep='') },
+  content = function(file) {
+    data <- adv_viz_data(); req(data)
+    p <- plot_tsne(data$X, data$y, perplexity = input$tsne_perplexity)
+    htmlwidgets::saveWidget(as_widget(p), file)
+})
+
+# UMAP
+output$umap_plot <- renderPlotly({
+  data <- adv_viz_data()
+  req(data)
+  plot_umap(data$X, data$y, n_neighbors = input$umap_n_neighbors)
+})
+
+
+output$download_umap <- downloadHandler(
+  filename = function() { paste('umap_', Sys.Date(), '.html', sep='') },
+  content = function(file) {
+    data <- adv_viz_data(); req(data)
+    p <- plot_umap(data$X, data$y, n_neighbors = input$umap_n_neighbors)
+    htmlwidgets::saveWidget(as_widget(p), file)
+  })
+
+# CLUSTERED HEATMAP
+output$clustered_heatmap <- renderPlot({
+  data <- adv_viz_data()
+  req(data)
+  plot_clustered_heatmap(data$X, data$y, n_top = input$heatmap_n_top)
+  
+})
+
+
+output$download_heatmap <- downloadHandler(
+  filename = function() { paste('clustered_heatmap.', input$paramdownplot, sep='') },
+  content = function(file) {
+    data <- adv_viz_data(); req(data)
+    if(input$paramdownplot == "png") png(file, width = 1000, height = 800)
+    else if(input$paramdownplot == "pdf") pdf(file, width = 12, height = 10)
+    else jpeg(file, width = 1000, height = 800)
+    plot_clustered_heatmap(data$X, data$y, n_top = input$heatmap_n_top)
+    dev.off()
+})
+
+# CORRELATION NETWORK
+output$correlation_network <- renderPlot({
+  data <- adv_viz_data()
+  req(data)
+  tryCatch({
+    plot_correlation_network(data$X, cor_threshold = input$cor_threshold)
+  }, error = function(e) {
+    plot.new()
+    text(0.5, 0.5, paste("Error in correlation network: /nsome columns contain constant values value \n", e$message), col = "red", cex = 1.2)
+  })
+})
+
+output$download_cor_network <- downloadHandler(
+  filename = function() { paste('correlation_network.', input$paramdownplot, sep='') },
+  content = function(file) {
+    data <- adv_viz_data(); req(data)
+    ggsave(file, plot = plot_correlation_network(data$X, cor_threshold = input$cor_threshold),
+           device = input$paramdownplot, width = 10, height = 10)
+})
+
+# CALIBRATION PLOT
+output$calibration_plot <- renderPlot({
+  req(MODEL())
+  tryCatch({
+    actual <- MODEL()$DATALEARNINGMODEL$reslearningmodel$classlearning
+    scores <- MODEL()$DATALEARNINGMODEL$reslearningmodel$scorelearning
+    cat('on est dans la calibration plot \n')
+    print(ncol(as.matrix(scores)))
+    plot_calibration(actual, as.matrix(scores))
+  }, error = function(e) {
+    ggplot() + annotate("text", x = 0.5, y = 0.5,
+                        label = paste("Calibration error:", e$message), size = 5, color = "red") +
+      theme_void()
+  })
+})
+
+
+output$download_calibration <- downloadHandler(
+  filename = function() { paste('calibration_plot.', input$paramdownplot, sep='') },
+  content = function(file) {
+    req(MODEL())
+    actual <- MODEL()$DATALEARNINGMODEL$reslearningmodel$classlearning
+    scores <- MODEL()$DATALEARNINGMODEL$reslearningmodel$scorelearning
+    ggsave(file, plot = plot_calibration(actual, as.matrix(scores)), device = input$paramdownplot)
+})
+
+
+output$plotcompared_model = renderPlot({
+  req(reac_plotcompardModels() )
+  reac_plotcompardModels()
+})
+
+reac_plotcompardModels = reactive({
+  req(COMPARISON())
+  
+  pivot_model_comparison = pivot_longer(
+    data =  COMPARISON()$metrics, 
+    cols = c("Train_Accuracy" ,   "Train_Sensitivity", "Train_Specificity", "Train_AUC"  , 
+             "Val_Accuracy" ,     "Val_Sensitivity" ,  "Val_Specificity"  , "Val_AUC"   
+    )
+  )
+  
+  # Séparation de la colonne 'name' en partition (Train/Val) et métrique
+  plot_data <- pivot_model_comparison %>%
+    dplyr::mutate(
+      Partition = str_extract(name, "^(Train|Val)"),
+      Metric    = str_remove(name, "^(Train|Val)_"),
+      Partition = factor(Partition, levels = c("Train", "Val")),
+      Model     = factor(Model)
+    )
+  
+  # Palette discrète accessible
+  model_colors <- c(
+    "randomforest" = "#1D9E75",
+    "svm"          = "#534AB7",
+    "elasticnet"     = "#D85A30",
+    "xgboost"      = "#378ADD",
+    "knn"          = "#D4537E",
+    "naivebayes"  = "gray"
+  )
+  
+  # Graphique principal
+  ggplot(plot_data, aes(x = Metric, y = value,
+                        fill = Model, group = Model)) +
+    
+    # Barres groupées côte-à-côte
+    geom_col(position = position_dodge(width = 0.75),
+             width = 0.65, colour = "white", linewidth = 0.3) +
+    
+    # Valeurs au-dessus des barres
+    # geom_text(
+    #   aes(label = scales::percent(value, accuracy = 0.1)),
+    #   position = position_dodge(width = 0.75),
+    #   vjust = -0.4, size = 2.4, colour = "grey30"
+    # ) +
+    
+    # Facettes Train vs Val
+    facet_wrap(~ Partition, ncol = 2) +
+    
+    # Axe Y en pourcentage, zoom sur la zone utile
+    scale_y_continuous(
+      labels = scales::percent_format(accuracy = 1),
+      limits = c(0, 1.08),
+      expand = expansion(mult = c(0, 0))
+    ) +
+    
+    scale_fill_manual(values = model_colors) +
+    
+    labs(
+      title   = "Model comparison — Training vs Validation",
+      x       = NULL,
+      y       = "Score",
+      fill    = "Model",
+      caption = "Metrics : Accuracy, Sensitivity, Specificity, AUC"
+    ) +
+    
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.title        = element_text(face = "bold", size = 14#, margin = margin(b = 10)
+      ),
+      strip.text        = element_text(face = "bold", size = 11),
+      axis.text.x       = element_text(angle = 45, hjust = 1, size = 12 , face = "bold"),
+      axis.text.y       =  element_text(size = 12 , face = "bold"),
+      legend.position   = "bottom",
+      legend.title      = element_text(face = "bold"),
+      legend.text =  element_text(size = 13 , face =  'bold'),
+      strip.text.x.top = element_text(size = 15 , face = "bold", color = "#2c3e50"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor   = element_blank(),
+      plot.caption      = element_text(colour = "grey50", size = 9)
+    )
+  
+})
+
+output$downloadplotcompared_model = downloadHandler(
+  filename =  function(){ paste('plot model comparison.', input$paramdownplot,  sep ="")},
+  content = function(file) {
+    req(COMPARISON())
+    req(reac_plotcompardModels() )
+    png(file, width = 600, height = 600)
+    print(reac_plotcompardModels())
+    dev.off()
+  })
+
+
+# ==========================================================================
+# LEARNING CURVE
+# ==========================================================================
+
+LEARNING_CURVE_DATA <- eventReactive(input$run_learning_curve, {
+  req(MODEL())
+  learningmodel   <- MODEL()$DATALEARNINGMODEL$learningmodel
+  modelparameters <- MODEL()$modelparameters
+  req(learningmodel, modelparameters)
+  
+  train_sizes <- seq(
+    from = input$lc_size_min / 100,
+    to   = 1.0,
+    length.out = max(2, as.integer(input$lc_n_steps))
+  )
+  train_sizes <- pmin(pmax(train_sizes, 0.05), 1.0)
+  
+  cat("[LEARNING_CURVE] Computing for model type:", modelparameters$modeltype,
+      "| steps:", length(train_sizes), "\n")
+  
+  lc_data <- learning_curve_binary(
+    learningmodel   = learningmodel,
+    modelparameters = modelparameters,
+    train_sizes     = train_sizes,
+    n_folds         = 5
+  )
+  
+  cat("[LEARNING_CURVE] Done. Rows:", nrow(lc_data), "\n")
+  lc_data
+})
+
+output$plot_lc_auc <- renderPlot({
+  req(LEARNING_CURVE_DATA())
+  plot_learning_curve_binary(LEARNING_CURVE_DATA(), metric = "auc",
+                             title = "Learning Curve — AUC")
+})
+
+output$plot_lc_accuracy <- renderPlot({
+  req(LEARNING_CURVE_DATA())
+  plot_learning_curve_binary(LEARNING_CURVE_DATA(), metric = "accuracy",
+                             title = "Learning Curve — Accuracy")
+})
+
+output$table_lc <- DT::renderDataTable({
+  req(LEARNING_CURVE_DATA())
+  lc <- LEARNING_CURVE_DATA()
+  # Round numeric columns for display
+  lc[, sapply(lc, is.numeric)] <- round(lc[, sapply(lc, is.numeric)], 4)
+  DT::datatable(lc,
+                options = list(pageLength = 10, scrollX = TRUE),
+                rownames = FALSE)
+})
+
+output$download_lc_auc <- downloadHandler(
+  filename = function() paste0("learning_curve_auc.", input$paramdownplot),
+  content  = function(file) {
+    p <- plot_learning_curve_binary(LEARNING_CURVE_DATA(), metric = "auc",
+                                    title = "Learning Curve — AUC")
+    ggsave(file, plot = p, device = input$paramdownplot,
+           width = 8, height = 6, dpi = 150)
+  }
+)
+
+output$download_lc_accuracy <- downloadHandler(
+  filename = function() paste0("learning_curve_accuracy.", input$paramdownplot),
+  content  = function(file) {
+    p <- plot_learning_curve_binary(LEARNING_CURVE_DATA(), metric = "accuracy",
+                                    title = "Learning Curve — Accuracy")
+    ggsave(file, plot = p, device = input$paramdownplot,
+           width = 8, height = 6, dpi = 150)
+  }
+)
+
+output$download_lc_data <- downloadHandler(
+  filename = function() "learning_curve_data.csv",
+  content  = function(file) write.csv(LEARNING_CURVE_DATA(), file, row.names = FALSE)
+)
+
+# input_dir <- "C:/Users/babacar.sylla/Downloads/GitHub/omics-analysis"
+# 
+# .98
+# output_dir <- "C:/Users/babacar.sylla/Downloads/GitHub/omics-analysis"
+# 
+# # Ajouter le débogueur à chaque fichier principal
+# add_debugger_file("ui.R", input_dir, output_dir)
+# add_debugger_file("server.R", input_dir, output_dir)
+# add_debugger_file("global.R", input_dir, output_dir)
+
 
 
 }) 

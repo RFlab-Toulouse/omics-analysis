@@ -13,6 +13,8 @@ usePackage("missMDA")#imputepca
 usePackage("ggplot2")#Graphs
 usePackage("stats")
 usePackage("tidyr")
+usePackage("dplyr")
+usePackage("stringr")
 usePackage("e1071")#svm
 usePackage("pROC")#roccurve
 usePackage("devtools")
@@ -21,6 +23,7 @@ usePackage("superml")
 usePackage("shiny")
 usePackage("shinythemes")
 usePackage("bslib")
+usePackage("fmsb")#radarchart
 # if (!is.element("factoextra", installed.packages()[,1]))
 #   install_github("kassambara/factoextra")
 #usePackage("factoextra")#PCA graphs
@@ -40,6 +43,13 @@ usePackage("xgboost")#for xgboost gradient boosting
 usePackage("lightgbm")#for lightgbm gradient boosting
 usePackage("class") #for k-nearest neighbors
 usePackage("Boruta") #for Boruta variables selection
+usePackage("Rtsne")
+usePackage("umap")
+usePackage("ggraph")
+usePackage("pheatmap")
+usePackage("caret")
+usePackage("iml")
+usePackage("lime")
 
 
 ##########################
@@ -444,32 +454,76 @@ testNAstructure<-function(toto,threshold=0.05,maxvaluesgroupmin=100,minvaluesgro
   return(list("varNAstructure"=totopropselect,"restestNAstructure"=resp))
 }
 
-transformdatafunction<-function(learningselect,structuredfeatures,datastructuresfeatures,transformdataparameters){
-  learningtransform<-learningselect
+transformdatafunction <- function(learningselect, 
+                                  structuredfeatures, 
+                                  datastructuresfeatures, 
+                                  transformdataparameters) {
+  learningtransform <- learningselect
+  train_params <- list()
+  
+  # 1. NAstructure
   if(!is.null(structuredfeatures)){
     for(i in 1:ncol(structuredfeatures)){
-      learningtransform[which(is.na(structuredfeatures[,i])&learningselect[,1]==as.character(datastructuresfeatures[i,"lessgroup"])),as.character(datastructuresfeatures[i,"names"])]<-0
+      learningtransform[which(is.na(structuredfeatures[,i]) & learningselect[,1] == as.character(datastructuresfeatures[i,"lessgroup"])),
+                        as.character(datastructuresfeatures[i,"names"])] <- 0
     }
   }
-  if(transformdataparameters$log){ 
-    learningtransform[,-1]<-transformationlog(x = learningtransform[,-1]+1,
-                                              logtype=transformdataparameters$logtype)}
-  if(transformdataparameters$arcsin){
-    learningtransform[,-1]<-apply(X = learningtransform[,-1],MARGIN = 2,FUN = function(x){(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))})
-    learningtransform[,-1]<-asin(sqrt(learningtransform[,-1]))
-  }
-  if(transformdataparameters$standardization){
-    learningtransformsd<<-learningtransform
-    sdlearningtransform<-apply(X = learningtransform[-1],MARGIN = 2,FUN = sd,na.rm=T)
-    #print('sdlearningtransform')
-    #print(sdlearningtransform)
-    learningtransform[,-1]<-scale(learningtransform[,-1],center = F,scale=sdlearningtransform)
-    #learningtransform[,-1]<-scale(learningtransform[,-1], center = F, scale = TRUE)
-  }
-  learningtransform<-replaceNA(toto=learningtransform,rempNA=transformdataparameters$rempNA,pos=T,NAstructure = F)
   
-  return(learningtransform)
+  # 2. Log
+  if(transformdataparameters$log){
+    learningtransform[,-1] <- transformationlog(x = learningtransform[,-1] + 1, logtype = transformdataparameters$logtype)
+  }
+  
+  # 3. Arcsin
+  if(transformdataparameters$arcsin){
+    train_params$arcsin_min <- apply(learningtransform[,-1], 2, min, na.rm = TRUE)
+    train_params$arcsin_max <- apply(learningtransform[,-1], 2, max, na.rm = TRUE)
+    learningtransform[,-1] <- apply(X = learningtransform[,-1], MARGIN = 2,
+                                    FUN = function(x){ (x - min(x, na.rm=T)) / (max(x, na.rm=T) - min(x, na.rm=T)) })
+    learningtransform[,-1] <- asin(sqrt(pmax(0, pmin(1, as.matrix(learningtransform[,-1])))))  # ← pmax/pmin ajouté
+  }
+  
+  # 4. Imputation  ← remonté avant la standardisation
+  res_imputation <- replaceNA_fit(toto = learningtransform, rempNA = transformdataparameters$rempNA, pos = TRUE, NAstructure = FALSE)
+  learningtransform       <- res_imputation$toto
+  train_params$imputation <- res_imputation$imputation_params
+  
+  # 5. Standardisation  ← descend après l'imputation
+  if(transformdataparameters$standardization){
+    sdlearningtransform <- apply(X = learningtransform[,-1], MARGIN = 2, FUN = sd, na.rm = TRUE)
+    train_params$sd_scale <- sdlearningtransform
+    learningtransform[,-1] <- scale(learningtransform[,-1], center = FALSE, scale = sdlearningtransform)
+  }
+  
+  return(list(learningtransform = learningtransform, train_params = train_params))
 }
+
+# transformdatafunction<-function(learningselect,structuredfeatures,datastructuresfeatures,transformdataparameters){
+#   learningtransform<-learningselect
+#   if(!is.null(structuredfeatures)){
+#     for(i in 1:ncol(structuredfeatures)){
+#       learningtransform[which(is.na(structuredfeatures[,i])&learningselect[,1]==as.character(datastructuresfeatures[i,"lessgroup"])),as.character(datastructuresfeatures[i,"names"])]<-0
+#     }
+#   }
+#   if(transformdataparameters$log){ 
+#     learningtransform[,-1]<-transformationlog(x = learningtransform[,-1]+1,
+#                                               logtype=transformdataparameters$logtype)}
+#   if(transformdataparameters$arcsin){
+#     learningtransform[,-1]<-apply(X = learningtransform[,-1],MARGIN = 2,FUN = function(x){(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))})
+#     learningtransform[,-1]<-asin(sqrt(learningtransform[,-1]))
+#   }
+#   if(transformdataparameters$standardization){
+#     learningtransformsd<<-learningtransform
+#     sdlearningtransform<-apply(X = learningtransform[-1],MARGIN = 2,FUN = sd,na.rm=T)
+#     #print('sdlearningtransform')
+#     #print(sdlearningtransform)
+#     learningtransform[,-1]<-scale(learningtransform[,-1],center = F,scale=sdlearningtransform)
+#     #learningtransform[,-1]<-scale(learningtransform[,-1], center = F, scale = TRUE)
+#   }
+#   learningtransform<-replaceNA(toto=learningtransform,rempNA=transformdataparameters$rempNA,pos=T,NAstructure = F)
+#   
+#   return(learningtransform)
+# }
 
 transformationlog<-function(x,logtype){
   if(logtype=="log10"){x<-log10(x)}
@@ -756,7 +810,7 @@ diffexptest<-function(toto,test="Wtest"){
     
     FC1o2[i]<-mlev1[i]/mlev2[i]
     FC2o1[i]<-mlev2[i]/mlev1[i]
-    auc[i]<-auc(roc(group,toto[,i],quiet=TRUE))
+    auc[i]<-pROC::auc(pROC::roc(group,toto[,i],quiet=TRUE))
     resyounden[i,]<-younden(response = group,predictor = toto[,i])
     if( test=="Ttest"){pval[i]<-t.test(x = lev1,y = lev2)$p.value}
     else if( test=="Wtest"){pval[i]<-wilcox.test(lev1 ,lev2,exact = F)$p.value } 
@@ -775,7 +829,7 @@ diffexptest<-function(toto,test="Wtest"){
 }
 
 younden<-function(response,predictor){
-  res<-roc(response,predictor,quiet=T)
+  res<-pROC::roc(response,predictor,quiet=T)
   youndenscore<-res$sensitivities+res$specificities-1
   best<-which(youndenscore==max(youndenscore))[1] # Only the first best is kept
   youndenbest<-youndenscore[best]
@@ -811,11 +865,14 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
     # alpha is provided by user, default 0.5
   }
   
-  # Perform cross-validation to find optimal lambda if not provided
+  # Perform stratified cross-validation to find optimal lambda if not provided
   if(is.null(lambda)){
     set.seed(20011203)
+    mv_k <- min(5, nrow(toto)-1)
+    mv_folds <- create_stratified_folds(toto[,1], k = mv_k)
+    mv_foldid <- folds_to_foldid(mv_folds, nrow(toto))
     cvfit <- cv.glmnet(x, group, family="binomial", alpha=alpha, nlambda=nlambda,
-                       type.measure="auc", nfolds=min(5, nrow(toto)-1)
+                       type.measure="auc", foldid=mv_foldid
     )
     lambda <- cvfit$lambda.min  # lambda that gives minimum CV error
     lambda_1se <- cvfit$lambda.1se  # lambda within 1 SE of minimum
@@ -839,7 +896,7 @@ multivariateselection<-function(toto, method="lasso", lambda=NULL, alpha=0.5, nl
   if(length(selected_vars) > 0){
     # AUC for each selected variable
     auc_values <- sapply(selected_vars, function(var){
-      auc(roc(group, x[, var], quiet=TRUE))
+      pROC::auc(pROC::roc(group, x[, var], quiet=TRUE))
     })
     
     # Mean values by group
@@ -1076,7 +1133,7 @@ clustEnetSelection <- function(toto, n_clusters = 100, n_bootstrap = 500,
   
   # AUC for each selected variable
   auc_values <- sapply(selected_vars, function(var){
-    auc(roc(group, x[, var], quiet=TRUE))
+    pROC::auc(pROC::roc(group, x[, var], quiet=TRUE))
   })
   
   # Mean values by group
@@ -1160,7 +1217,7 @@ borutaSelection =  function(toto, maxRuns = 100, seed = 123) {
   if(length(selected_vars) > 0){
     # AUC for each selected variable
     auc_values <- sapply(selected_vars, function(var){
-      auc(roc(group, data[, var], quiet=TRUE))
+      pROC::auc(pROC::roc(group, data[, var], quiet=TRUE))
     })
     
     # Mean values by group
@@ -1380,336 +1437,298 @@ SFtest<-function(toto,shaptest=T,Ftest=T,threshold=0.05){
 
 ####
 
-#' GridSearchCV wrapper for Random Forest using superml
-#' @param X Feature matrix (data.frame or matrix)
-#' @param y Target vector
-#' @param param_grid List of parameters to tune (ntree, mtry, nodesize, maxnodes)
-#' @param n_folds Number of cross-validation folds
-#' @param scoring Scoring metric(s)
-#' @return List with best parameters and best score
-tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  # library(superml)
-  # library(randomForest)
-  if(!requireNamespace("superml", quietly = TRUE)) {
-    stop("Package 'superml' is required but not installed")
+# ── Stratified CV helper functions ─────────────────────────────────────────────
+
+#' Create stratified k-fold cross-validation indices
+#' Ensures each fold preserves the class distribution of the target variable
+#' @param y Target vector (factor or numeric)
+#' @param k Number of folds
+#' @param seed Random seed for reproducibility
+#' @return List of k integer vectors, each containing test indices for that fold
+create_stratified_folds <- function(y, k = 5, seed = 20011203) {
+  set.seed(seed)
+  if (is.factor(y)) {
+    classes <- levels(y)
+  } else {
+    classes <- unique(y)
   }
+  fold_ids <- rep(0L, length(y))
+  for (cl in classes) {
+    idx <- which(y == cl)
+    idx <- sample(idx)
+    fold_ids[idx] <- rep(1:k, length.out = length(idx))
+  }
+  folds <- lapply(1:k, function(i) which(fold_ids == i))
+  names(folds) <- paste0("Fold", 1:k)
+  return(folds)
+}
+
+#' Compute AUC using the Mann-Whitney U statistic (no external dependency)
+#' @param y_true True labels (factor or 0/1 numeric)
+#' @param scores Predicted probabilities for the positive class
+#' @param pos_level Which level is positive (default: first level of factor)
+#' @return AUC value between 0 and 1
+compute_auc_manual <- function(y_true, scores, pos_level = NULL) {
+  if (is.factor(y_true)) {
+    if (is.null(pos_level)) pos_level <- levels(y_true)[1]
+    true_bin <- as.integer(y_true == pos_level)
+  } else {
+    true_bin <- as.integer(y_true)
+  }
+  r     <- rank(scores)
+  n_pos <- sum(true_bin)
+  n_neg <- length(true_bin) - n_pos
+  if (n_pos == 0 || n_neg == 0) return(0.5)
+  (sum(r[true_bin == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+}
+
+#' Convert foldid vector from stratified folds (for cv.glmnet compatibility)
+#' @param folds List of fold test indices (output of create_stratified_folds)
+#' @param n Total number of observations
+#' @return Integer vector of fold assignments (1..k)
+folds_to_foldid <- function(folds, n) {
+  foldid <- rep(0L, n)
+  for (i in seq_along(folds)) foldid[folds[[i]]] <- i
+  return(foldid)
+}
+
+# ── Stratified Grid Search functions ───────────────────────────────────────────
+
+#' Stratified Grid Search for Random Forest
+#' @param X Feature matrix (data.frame or matrix)
+#' @param y Target vector (factor)
+#' @param param_grid List with n_estimators, max_features, min_samples_split
+#' @param n_folds Number of stratified CV folds
+#' @param scoring Scoring metric(s) - first element used for selection
+#' @return List with best_params and best_score
+tune_rf_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("auc", "accuracy")) {
+  folds <- create_stratified_folds(y, k = n_folds)
+  cat(sprintf("RF stratified grid search (%d-fold)...\n", n_folds))
   
-  # Default parameter grid if not provided
-  if(is.null(param_grid)) {
+  if (is.null(param_grid)) {
     param_grid <- list(
-      n_estimators = c(100,200,300,400, 500, 1000),  # ntree in randomForest
-      max_depth = c(5, 10, 15, 20, NULL),  # maxnodes (NULL = unlimited)
-      min_samples_split = c(2, 5, 10),  # nodesize
-      max_features = c("sqrt", "log2", floor(ncol(X)/3), floor(ncol(X)/2))  # mtry
+      n_estimators      = c(100, 500, 1000),
+      max_features      = c("sqrt", "log2"),
+      min_samples_split = c(1, 5, 10)
     )
   }
   
-  # Create trainer object
-  rf_trainer <- superml::RFTrainer$new()
+  p <- ncol(X)
+  mtry_values <- unique(sapply(param_grid$max_features, function(mf) {
+    if (is.character(mf) && mf == "sqrt")  return(max(1, floor(sqrt(p))))
+    if (is.character(mf) && mf == "log2")  return(max(1, floor(log2(p))))
+    return(as.numeric(mf))
+  }))
   
-  # Create GridSearchCV object
-  gst <-  superml::GridSearchCV$new(
-    trainer = rf_trainer,
-    parameters = param_grid,
-    n_folds = n_folds,
-    scoring = scoring
-  )
+  pos_level  <- levels(y)[1]
+  best_score <- -Inf
+  best_params <- NULL
   
-  # Fit the grid search
-  gst$fit(cbind(y = y, X), "y")
-  
-  # Get best iteration
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  return(list(
-    best_params = best_result,
-    grid_search = gst,
-    best_score = best_result$score
-  ))
+  for (nt in param_grid$n_estimators) {
+    for (mt in mtry_values) {
+      for (ns in param_grid$min_samples_split) {
+        fold_scores <- sapply(folds, function(test_idx) {
+          train_idx <- setdiff(1:nrow(X), test_idx)
+          tryCatch({
+            mdl   <- randomForest(x = X[train_idx, , drop = FALSE], y = y[train_idx],
+                                  ntree = nt, mtry = mt, nodesize = ns, importance = FALSE)
+            probs <- randomForest:::predict.randomForest(mdl, X[test_idx, , drop = FALSE], type = "prob")
+            compute_auc_manual(y[test_idx], probs[, pos_level], pos_level)
+          }, error = function(e) NA_real_)
+        })
+        sc <- mean(fold_scores, na.rm = TRUE)
+        if (!is.na(sc) && sc > best_score) {
+          best_score  <- sc
+          best_params <- list(n_estimators = nt, max_features = mt, min_samples_split = ns)
+        }
+      }
+    }
+  }
+  cat(sprintf("  Best: ntree=%d, mtry=%d, nodesize=%d, AUC=%.4f\n",
+              best_params$n_estimators, best_params$max_features, best_params$min_samples_split, best_score))
+  list(best_params = best_params, best_score = best_score)
 }
 
-#' GridSearchCV wrapper for XGBoost using superml
-#' @param X Feature matrix (data.frame or matrix)
-#' @param y Target vector
-#' @param param_grid List of parameters to tune
-#' @param n_folds Number of cross-validation folds
-#' @param scoring Scoring metric(s)
-#' @return List with best parameters and best score
-tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  # library(superml)
+#' Stratified Grid Search for XGBoost
+tune_xgb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("auc", "accuracy")) {
+  folds <- create_stratified_folds(y, k = n_folds)
+  cat(sprintf("XGBoost stratified grid search (%d-fold)...\n", n_folds))
   
-  # Default parameter grid if not provided
-  if(is.null(param_grid)) {
+  if (is.null(param_grid)) {
     param_grid <- list(
-      n_estimators = c(50, 100, 200),  
-      max_depth = c(3, 6, 9, 12),
-      learning_rate = c(0.01, 0.05, 0.1, 0.3), 
-      gamma = c(0, 0.1, 0.5),
-      subsample = c(0.6, 0.8, 1.0),
-      colsample_bytree = c(0.6, 0.8, 1.0),
-      min_child_weight = c(1, 3, 5),
-      alpha = c(0, 0.1, 0.5),  # L1 regularization
-      lambda = c(1, 1.5, 2)    # L2 regularization
+      n_estimators  = c(50, 100, 200),
+      max_depth     = c(3, 6, 9),
+      learning_rate = c(0.01, 0.1, 0.3),
+      gamma         = c(0, 0.1),
+      subsample     = c(0.8, 1.0)
     )
   }
   
-  # Create trainer object
-  xgb_trainer <- XGBTrainer$new()
+  if (is.factor(y)) {
+    pos_level <- levels(y)[1]
+    y_num     <- ifelse(y == pos_level, 1, 0)
+  } else {
+    y_num <- y
+  }
+  X_mat <- as.matrix(X)
   
-  # Create GridSearchCV object
-  gst <- GridSearchCV$new(
-    trainer = xgb_trainer,
-    parameters = param_grid,
-    n_folds = n_folds,
-    scoring = scoring
-  )
+  combos <- expand.grid(param_grid, stringsAsFactors = FALSE)
+  best_score  <- -Inf
+  best_params <- NULL
   
-  # Fit the grid search
-  gst$fit(cbind(y = y, X), "y")
-  
-  # Get best iteration
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  return(list(
-    best_params = best_result,
-    grid_search = gst,
-    best_score = best_result$score
-  ))
+  for (i in 1:nrow(combos)) {
+    row <- combos[i, ]
+    params <- list(objective = "binary:logistic", eval_metric = "auc",
+                   max_depth = row$max_depth, eta = row$learning_rate,
+                   gamma = row$gamma, subsample = row$subsample,
+                   min_child_weight = if ("min_child_weight" %in% names(row)) row$min_child_weight else 1)
+    nrounds <- row$n_estimators
+    
+    fold_scores <- sapply(folds, function(test_idx) {
+      train_idx <- setdiff(1:nrow(X_mat), test_idx)
+      tryCatch({
+        dtrain <- xgb.DMatrix(data = X_mat[train_idx, , drop = FALSE], label = y_num[train_idx])
+        dtest  <- xgb.DMatrix(data = X_mat[test_idx, , drop = FALSE],  label = y_num[test_idx])
+        mdl    <- xgb.train(params = params, data = dtrain, nrounds = nrounds, verbose = 0)
+        preds  <- predict(mdl, dtest)
+        compute_auc_manual(y_num[test_idx], preds)
+      }, error = function(e) NA_real_)
+    })
+    sc <- mean(fold_scores, na.rm = TRUE)
+    if (!is.na(sc) && sc > best_score) {
+      best_score  <- sc
+      best_params <- as.list(row)
+    }
+  }
+  cat(sprintf("  Best: nrounds=%d, max_depth=%d, eta=%.3f, AUC=%.4f\n",
+              best_params$n_estimators, best_params$max_depth, best_params$learning_rate, best_score))
+  list(best_params = best_params, best_score = best_score)
 }
 
-#' GridSearchCV wrapper for Naive Bayes using superml
-#' @param X Feature matrix (data.frame or matrix)
-#' @param y Target vector
-#' @param param_grid List of parameters to tune
-#' @param n_folds Number of cross-validation folds
-#' @param scoring Scoring metric(s)
-#' @return List with best parameters and best score
-tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  # library(superml)
+#' Stratified Grid Search for Naive Bayes
+tune_nb_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("auc", "accuracy")) {
+  folds <- create_stratified_folds(y, k = n_folds)
+  cat(sprintf("NaiveBayes stratified grid search (%d-fold)...\n", n_folds))
   
-  # Default parameter grid if not provided
-  if(is.null(param_grid)) {
-    param_grid <- list(
-      laplace = c(0, 0.5, 1, 2, 5)  # Smoothing parameter
-    )
+  if (is.null(param_grid)) {
+    param_grid <- list(laplace = c(0, 0.5, 1, 2, 5))
   }
   
-  # Create trainer object
-  nb_trainer <- NBTrainer$new()
+  pos_level   <- levels(y)[1]
+  best_score  <- -Inf
+  best_params <- NULL
   
-  # Create GridSearchCV object
-  gst <- GridSearchCV$new(
-    trainer = nb_trainer,
-    parameters = param_grid,
-    n_folds = n_folds,
-    scoring = scoring
-  )
-  
-  # Fit the grid search
-  gst$fit(cbind(y = y, X), "y")
-  
-  # Get best iteration
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  return(list(
-    best_params = best_result,
-    grid_search = gst,
-    best_score = best_result$score
-  ))
+  for (lap in param_grid$laplace) {
+    fold_scores <- sapply(folds, function(test_idx) {
+      train_idx <- setdiff(1:length(y), test_idx)
+      tryCatch({
+        mdl   <- e1071::naiveBayes(x = X[train_idx, , drop = FALSE], y = y[train_idx], laplace = lap)
+        probs <- e1071:::predict.naiveBayes(mdl, X[test_idx, , drop = FALSE], type = "raw")
+        compute_auc_manual(y[test_idx], probs[, pos_level], pos_level)
+      }, error = function(e) NA_real_)
+    })
+    sc <- mean(fold_scores, na.rm = TRUE)
+    if (!is.na(sc) && sc > best_score) {
+      best_score  <- sc
+      best_params <- list(laplace = lap)
+    }
+  }
+  cat(sprintf("  Best: laplace=%.2f, AUC=%.4f\n", best_params$laplace, best_score))
+  list(best_params = best_params, best_score = best_score)
 }
 
-#' GridSearchCV wrapper for KNN using superml
-#' @param X Feature matrix (data.frame or matrix)
-#' @param y Target vector
-#' @param param_grid List of parameters to tune
-#' @param n_folds Number of cross-validation folds
-#' @param scoring Scoring metric(s)
-#' @return List with best parameters and best score
-#' 
-# tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-#   # KNN n'est PAS supporté par superml::GridSearchCV
-#   # Utiliser uniquement la cross-validation manuelle
-#   
-#   # Default parameter grid if not provided
-#   if(is.null(param_grid)) {
-#     max_k <- min(floor(sqrt(length(y))), 30)
-#     param_grid <- list(
-#       n_neighbors = seq(3, max_k, by = 2)  # k parameter, odd numbers only
-#     )
-#   }
-#   
-#   # Utiliser la cross-validation manuelle traditionnelle
-#   k_values <- param_grid$n_neighbors
-#   best_k <- 3
-#   best_acc <- 0
-#   
-#   set.seed(20011203)
-#   for(k_test in k_values){
-#     n_folds_cv <- min(5, length(y))
-#     fold_size <- floor(length(y) / n_folds_cv)
-#     accuracies <- numeric(n_folds_cv)
-#     
-#     for(fold in 1:n_folds_cv){
-#       test_idx <- ((fold-1)*fold_size + 1):min(fold*fold_size, length(y))
-#       train_idx <- setdiff(1:length(y), test_idx)
-#       
-#       pred <- class::knn(train = X[train_idx, ],
-#                          test = X[test_idx, ],
-#                          cl = y[train_idx],
-#                          k = k_test)
-#       accuracies[fold] <- mean(pred == y[test_idx])
-#     }
-#     
-#     avg_acc <- mean(accuracies)
-#     if(avg_acc > best_acc){
-#       best_acc <- avg_acc
-#       best_k <- k_test
-#     }
-#   }
-#   
-#   return(list(
-#     best_params = list(n_neighbors = best_k),
-#     grid_search = NULL,
-#     best_score = best_acc
-#   ))
-# }
-
-tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  # library(superml)
+#' Stratified Grid Search for KNN
+tune_knn_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("auc", "accuracy")) {
+  folds <- create_stratified_folds(y, k = n_folds)
+  cat(sprintf("KNN stratified grid search (%d-fold)...\n", n_folds))
   
-  # Default parameter grid if not provided
-  if(is.null(param_grid)) {
+  if (is.null(param_grid)) {
     max_k <- min(floor(sqrt(length(y))), 30)
+    param_grid <- list(n_neighbors = seq(3, max_k, by = 2))
+  }
+  
+  pos_level   <- levels(y)[1]
+  best_score  <- -Inf
+  best_params <- NULL
+  
+  for (k_val in param_grid$n_neighbors) {
+    fold_scores <- sapply(folds, function(test_idx) {
+      train_idx <- setdiff(1:length(y), test_idx)
+      tryCatch({
+        pred      <- class::knn(train = X[train_idx, , drop = FALSE],
+                                test  = X[test_idx, , drop = FALSE],
+                                cl = y[train_idx], k = k_val, prob = TRUE)
+        prob_attr <- attr(pred, "prob")
+        probs     <- ifelse(pred == pos_level, prob_attr, 1 - prob_attr)
+        compute_auc_manual(y[test_idx], probs, pos_level)
+      }, error = function(e) NA_real_)
+    })
+    sc <- mean(fold_scores, na.rm = TRUE)
+    if (!is.na(sc) && sc > best_score) {
+      best_score  <- sc
+      best_params <- list(n_neighbors = k_val)
+    }
+  }
+  cat(sprintf("  Best: k=%d, AUC=%.4f\n", best_params$n_neighbors, best_score))
+  list(best_params = best_params, best_score = best_score)
+}
+
+#' Stratified Grid Search for ElasticNet
+tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("auc", "accuracy")) {
+  folds <- create_stratified_folds(y, k = n_folds)
+  cat(sprintf("ElasticNet stratified grid search (%d-fold)...\n", n_folds))
+  
+  if (is.null(param_grid)) {
     param_grid <- list(
-      n_neighbors = seq(3, max_k, by = 2),  # k parameter, odd numbers only
-      weights = c("uniform", "distance"),
-      algorithm = c("brute", "kd_tree")
+      alpha  = c(0, 0.25, 0.5, 0.75, 1.0),
+      lambda = c(0.001, 0.01, 0.1, 1.0)
     )
   }
   
-  # Create trainer object
-  knn_trainer <- superml::KNNTrainer$new(type = "class")
-  
-  # Create GridSearchCV object
-  gst <- superml::GridSearchCV$new(
-    trainer = knn_trainer,
-    parameters = param_grid,
-    n_folds = n_folds,
-    scoring = scoring
-  )
-  
-  # Fit the grid search
-  gst$fit(cbind(y = y, X), "y")
-  
-  # Get best iteration
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  return(list(
-    best_params = best_result,
-    grid_search = gst,
-    best_score = best_result$score
-  ))
-}
-
-#' GridSearchCV wrapper for Logistic Regression (ElasticNet) using superml
-#' @param X Feature matrix (data.frame or matrix)
-#' @param y Target vector
-#' @param param_grid List of parameters to tune
-#' @param n_folds Number of cross-validation folds
-#' @param scoring Scoring metric(s)
-#' @return List with best parameters and best score
-tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-  # library(superml)
-  
-  # Default parameter grid if not provided
-  if(is.null(param_grid)) {
-    param_grid <- list(
-      alpha = c(0, 0.25, 0.5, 0.75, 1.0),  # 0=Ridge, 1=Lasso, 0.5=ElasticNet
-      lambda = c(0.001, 0.01, 0.1, 1.0, 10),
-      penalty = c("elasticnet")
-    )
+  if (is.factor(y)) {
+    pos_level <- levels(y)[1]
+    y_num     <- ifelse(y == pos_level, 1, 0)
+  } else {
+    y_num <- y
   }
+  X_mat <- as.matrix(X)
   
-  # Create trainer object
-  lm_trainer <- LMTrainer$new(family = "binomial")
+  combos <- expand.grid(param_grid, stringsAsFactors = FALSE)
+  best_score  <- -Inf
+  best_params <- NULL
   
-  # Create GridSearchCV object
-  gst <- GridSearchCV$new(
-    trainer = lm_trainer,
-    parameters = param_grid,
-    n_folds = n_folds,
-    scoring = scoring
-  )
-  
-  # Fit the grid search
-  gst$fit(cbind(y = y, X), "y")
-  
-  # Get best iteration
-  best_result <- gst$best_iteration(metric = scoring[1])
-  
-  return(list(
-    best_params = best_result,
-    grid_search = gst,
-    best_score = best_result$score
-  ))
+  for (i in 1:nrow(combos)) {
+    a <- combos$alpha[i]
+    l <- combos$lambda[i]
+    fold_scores <- sapply(folds, function(test_idx) {
+      train_idx <- setdiff(1:nrow(X_mat), test_idx)
+      tryCatch({
+        fit   <- glmnet::glmnet(X_mat[train_idx, , drop = FALSE], y_num[train_idx],
+                                family = "binomial", alpha = a, lambda = l)
+        preds <- as.vector(glmnet:::predict.glmnet(fit, newx = X_mat[test_idx, , drop = FALSE], s = l, type = "response"))
+        compute_auc_manual(y_num[test_idx], preds)
+      }, error = function(e) NA_real_)
+    })
+    sc <- mean(fold_scores, na.rm = TRUE)
+    if (!is.na(sc) && sc > best_score) {
+      best_score  <- sc
+      best_params <- list(alpha = a, lambda = l)
+    }
+  }
+  cat(sprintf("  Best: alpha=%.3f, lambda=%.4f, AUC=%.4f\n", best_params$alpha, best_params$lambda, best_score))
+  list(best_params = best_params, best_score = best_score)
 }
-
-
-# tune_elasticnet_gridsearch <- function(X, y, param_grid = NULL, n_folds = 5, scoring = c("accuracy", "auc")) {
-#   
-#   # Default parameter grid if not provided
-#   if(is.null(param_grid)) {
-#     param_grid <- list(
-#       alpha = c(0, 0.25, 0.5, 0.75, 1.0),
-#       lambda = NULL  # cv.glmnet trouvera le meilleur lambda
-#     )
-#   }
-#   
-#   # Encoder y comme 0/1 si c'est un facteur
-#   if(is.factor(y)) {
-#     y_numeric <- as.numeric(y) - 1
-#   } else {
-#     y_numeric <- y
-#   }
-#   
-#   best_alpha <- param_grid$alpha[1]
-#   best_lambda <- NULL
-#   best_auc <- 0
-#   
-#   set.seed(20011203)
-#   for(alpha_test in param_grid$alpha){
-#     cvfit <- glmnet::cv.glmnet(as.matrix(X), y_numeric, 
-#                                family="binomial", 
-#                                alpha=alpha_test,
-#                                type.measure="auc", 
-#                                nfolds=min(10, length(y)-1))
-#     
-#     # Obtenir le meilleur AUC pour cet alpha
-#     auc_max <- max(cvfit$cvm)
-#     
-#     if(auc_max > best_auc){
-#       best_auc <- auc_max
-#       best_alpha <- alpha_test
-#       best_lambda <- cvfit$lambda.min
-#     }
-#   }
-#   
-#   return(list(
-#     best_params = list(alpha = best_alpha, lambda = best_lambda),
-#     grid_search = NULL,
-#     best_score = best_auc
-#   ))
-# }
 
 ####
-
 
 tune_svm_stratified <- function(data, gamma_range = 10^(-5:2),
                                 cost_range   = 10^(-3:2),
                                 kernel       = "radial",
                                 n_folds      = 5,
+                                scoring      = "accuracy",
                                 seed         = 20011203) {
   set.seed(seed)
+  scoring <- match.arg(scoring, c("auc", "accuracy"))
   
   # Folds stratifiés (équilibre les classes dans chaque fold)
   folds <- caret::createFolds(data$group, k = n_folds,
@@ -1717,11 +1736,11 @@ tune_svm_stratified <- function(data, gamma_range = 10^(-5:2),
   
   grid <- expand.grid(gamma = gamma_range, cost = cost_range)
   
-  grid$mean_auc <- sapply(seq_len(nrow(grid)), function(i) {
+  grid$mean_score <- sapply(seq_len(nrow(grid)), function(i) {
     g <- grid$gamma[i]
     c <- grid$cost[i]
     
-    fold_aucs <- sapply(folds, function(train_idx) {
+    fold_scores <- sapply(folds, function(train_idx) {
       train <- data[ train_idx, ]
       test  <- data[-train_idx, ]
       
@@ -1730,36 +1749,39 @@ tune_svm_stratified <- function(data, gamma_range = 10^(-5:2),
             kernel      = kernel,
             gamma       = g,
             cost        = c,
-            type        = "C-classification",
-            probability = TRUE),
+            type        = "C-classification"),
         error = function(e) NULL
       )
       if (is.null(model)) return(NA)
       
-      probs <- attr(predict(model, test, probability = TRUE), "probabilities")
-      lev   <- levels(data$group)
-      
-      # AUC via wilcoxon/Mann-Whitney
-      scores  <- probs[, lev[2]]
-      true_bin <- as.integer(test$group == lev[2])
-      r        <- rank(scores)
-      n_pos    <- sum(true_bin)
-      n_neg    <- length(true_bin) - n_pos
-      if (n_pos == 0 || n_neg == 0) return(NA)
-      (sum(r[true_bin == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+      if (scoring == "accuracy") {
+        preds <- e1071:::predict.svm(model, test)
+        mean(preds == test$group)
+      } else {
+        dv <- attr(e1071:::predict.svm(model, test, decision.values = TRUE), "decision.values")
+        lev   <- levels(data$group)
+        scores  <- as.vector(dv)
+        true_bin <- as.integer(test$group == lev[1])
+        r        <- rank(scores)
+        n_pos    <- sum(true_bin)
+        n_neg    <- length(true_bin) - n_pos
+        if (n_pos == 0 || n_neg == 0) return(NA)
+        (sum(r[true_bin == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+      }
     })
-    mean(fold_aucs, na.rm = TRUE)
+    mean(fold_scores, na.rm = TRUE)
   })
   
-  best_idx <- which.max(grid$mean_auc)
-  cat("Best SVM params → gamma:", grid$gamma[best_idx],
-      "| cost:", grid$cost[best_idx],
-      "| AUC:", round(grid$mean_auc[best_idx], 4), "\n")
+  best_idx <- which.max(grid$mean_score)
+  cat(sprintf("Best SVM params → gamma: %g | cost: %g | %s: %.4f\n",
+              grid$gamma[best_idx], grid$cost[best_idx],
+              scoring, grid$mean_score[best_idx]))
   
   list(
     best.parameters = list(gamma = grid$gamma[best_idx],
                            cost  = grid$cost[best_idx]),
-    best.auc        = grid$mean_auc[best_idx],
+    best.score      = grid$mean_score[best_idx],
+    scoring         = scoring,
     all.results     = grid
   )
 }
@@ -1815,18 +1837,25 @@ modelfunction_V2 <- function(learningmodel,
       learningmodel <- as.data.frame(learningmodel[sort(rownames(learningmodel)), ])
       x <- as.data.frame(learningmodel[, -1])
       colnames(x) <- colnames(learningmodel)[-1]
-      x <- as.data.frame(x[, sort(colnames(x))])
+      #x <- as.data.frame(x[, sort(colnames(x))])
       set.seed(20011203)
       ntree_param <- ifelse(is.null(modelparameters$ntree), 1000, modelparameters$ntree)
       
+      # Default values for all RF hyperparameters
+      nodesize_param  <- 1
+      maxnodes_param  <- NULL
+      sampsize_param  <- NULL
+      replace_param   <- if (!is.null(modelparameters$replace)) modelparameters$replace else TRUE
+      sampsize_frac   <- if (!is.null(modelparameters$sampsize_frac)) modelparameters$sampsize_frac else 1.0
+      
       if (is.null(modelparameters$autotunerf) || modelparameters$autotunerf) {
         if (!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch) {
+          # ── GridSearchCV tuning ──
           cat("Using GridSearchCV for Random Forest hyperparameter tuning...\n")
           param_grid <- list(
-            max_depth =  if (!is.null(modelparameters$rf_grid_maxnodes)) modelparameters$rf_grid_maxnodes else c(5, 10, 15, 20, NULL),
             n_estimators    = if (!is.null(modelparameters$rf_grid_ntree))    modelparameters$rf_grid_ntree    else c(100, 500, 1000),
             max_features    = if (!is.null(modelparameters$rf_grid_mtry))     modelparameters$rf_grid_mtry     else c("sqrt", "log2"),
-            min_samples_split = if (!is.null(modelparameters$rf_grid_nodesize)) modelparameters$rf_grid_nodesize else c(2, 5, 10)
+            min_samples_split = if (!is.null(modelparameters$rf_grid_nodesize)) modelparameters$rf_grid_nodesize else c(1, 5, 10)
           )
           grid_result <- tryCatch({
             tune_rf_gridsearch(X = x, y = learningmodel[, 1],
@@ -1842,36 +1871,133 @@ modelfunction_V2 <- function(learningmodel,
               else if (best_params$max_features == "log2") floor(log2(ncol(x)))
               else as.numeric(best_params$max_features)
             } else floor(sqrt(ncol(x)))
-            ntree_param    <- if (!is.null(best_params$n_estimators))    best_params$n_estimators    else ntree_param
+            ntree_param    <- if (!is.null(best_params$n_estimators))      best_params$n_estimators      else ntree_param
             nodesize_param <- if (!is.null(best_params$min_samples_split)) best_params$min_samples_split else 1
-            max_depth_param <- if (!is.null(best_params$max_depth)) best_params$max_depth else NULL
             cat(sprintf("GridSearchCV best params: ntree=%d, mtry=%d, nodesize=%d, score=%.4f\n",
                         ntree_param, optimal_mtry, nodesize_param, grid_result$best_score))
           } else {
-            tuneRF_result <- tuneRF(x = x, y = learningmodel[, 1], doBest = FALSE,
-                                    ntreeTry = ntree_param, stepFactor = 1.5,
-                                    improve = 0.01, trace = FALSE, plot = FALSE)
-            optimal_mtry   <- tuneRF_result[which.min(tuneRF_result[, 2]), 1]
+            cat("GridSearchCV failed, falling back to stratified CV for mtry...\n")
+            p <- ncol(x)
+            mtry_candidates <- unique(c(max(1, floor(sqrt(p))), max(1, floor(log2(p))), max(1, floor(p/3))))
+            fb_folds <- create_stratified_folds(learningmodel[, 1], k = min(5, nrow(x) - 1))
+            pos_lev  <- levels(learningmodel[, 1])[1]
+            best_fb  <- -Inf
+            for (mt in mtry_candidates) {
+              sc <- mean(sapply(fb_folds, function(ti) {
+                tri <- setdiff(1:nrow(x), ti)
+                tryCatch({
+                  mdl <- randomForest(x = x[tri,,drop=FALSE], y = learningmodel[tri,1],
+                                      ntree = ntree_param, mtry = mt, importance = FALSE)
+                  prbs <- randomForest:::predict.randomForest(mdl, x[ti,,drop=FALSE], type = "prob")
+                  compute_auc_manual(learningmodel[ti,1], prbs[, pos_lev], pos_lev)
+                }, error = function(e) NA_real_)
+              }), na.rm = TRUE)
+              if (!is.na(sc) && sc > best_fb) { best_fb <- sc; optimal_mtry <- mt }
+            }
             nodesize_param <- 1
           }
+          # maxnodes tuning: pick best from grid via OOB after fixing ntree/mtry/nodesize
+          maxnodes_candidates <- if (!is.null(modelparameters$rf_grid_maxnodes)) modelparameters$rf_grid_maxnodes else c(0)
+          maxnodes_candidates <- as.numeric(maxnodes_candidates)
+          if (length(maxnodes_candidates) > 1 || any(maxnodes_candidates != 0)) {
+            best_oob <- Inf
+            best_maxnodes <- NULL
+            n_train <- nrow(x)
+            samp_sz <- if (sampsize_frac < 1.0) round(n_train * sampsize_frac) else n_train
+            for (mn in maxnodes_candidates) {
+              mn_val <- if (mn == 0) NULL else mn
+              tmp_model <- randomForest(x = x, y = learningmodel[, 1],
+                                        ntree = ntree_param, mtry = optimal_mtry,
+                                        nodesize = nodesize_param, maxnodes = mn_val,
+                                        sampsize = if (sampsize_frac < 1.0) samp_sz else nrow(x),
+                                        replace = replace_param, importance = FALSE)
+              oob_err <- mean(tmp_model$err.rate[, "OOB"])
+              cat(sprintf("  maxnodes=%s -> OOB=%.4f\n", ifelse(is.null(mn_val), "NULL", as.character(mn_val)), oob_err))
+              if (oob_err < best_oob) { best_oob <- oob_err; best_maxnodes <- mn_val }
+            }
+            maxnodes_param <- best_maxnodes
+            cat(sprintf("Best maxnodes: %s\n", ifelse(is.null(maxnodes_param), "NULL (unlimited)", as.character(maxnodes_param))))
+          }
+          # sampsize tuning: pick best fraction from grid
+          sampsize_candidates <- if (!is.null(modelparameters$rf_grid_sampsize)) as.numeric(modelparameters$rf_grid_sampsize) else c(1.0)
+          if (length(sampsize_candidates) > 1) {
+            best_oob <- Inf
+            best_frac <- 1.0
+            for (sf in sampsize_candidates) {
+              samp_sz <- round(nrow(x) * sf)
+              tmp_model <- randomForest(x = x, y = learningmodel[, 1],
+                                        ntree = ntree_param, mtry = optimal_mtry,
+                                        nodesize = nodesize_param, maxnodes = maxnodes_param,
+                                        sampsize = samp_sz, replace = replace_param, importance = FALSE)
+              oob_err <- mean(tmp_model$err.rate[, "OOB"])
+              cat(sprintf("  sampsize_frac=%.3f -> OOB=%.4f\n", sf, oob_err))
+              if (oob_err < best_oob) { best_oob <- oob_err; best_frac <- sf }
+            }
+            sampsize_frac <- best_frac
+            cat(sprintf("Best sampsize fraction: %.3f\n", sampsize_frac))
+          }
         } else {
-          tuneRF_result <- tuneRF(x = x, y = learningmodel[, 1], doBest = FALSE,
-                                  ntreeTry = ntree_param, stepFactor = 1.5,
-                                  improve = 0.01, trace = FALSE, plot = FALSE)
-          optimal_mtry   <- tuneRF_result[which.min(tuneRF_result[, 2]), 1]
-          nodesize_param <- 1
+          # ── Traditional mode: stratified CV over ntree, mtry, nodesize ──
+          ntree_values    <- if (!is.null(modelparameters$rf_ntree_range)) modelparameters$rf_ntree_range else c(500, 1000)
+          nodesize_values <- if (!is.null(modelparameters$rf_nodesize_range)) modelparameters$rf_nodesize_range else c(1)
+          p <- ncol(x)
+          mtry_values <- unique(c(max(1, floor(sqrt(p))), max(1, floor(log2(p))), max(1, floor(p / 3))))
+          
+          folds_rf   <- create_stratified_folds(learningmodel[, 1], k = min(5, nrow(x) - 1))
+          pos_level  <- levels(learningmodel[, 1])[1]
+          best_score <- -Inf
+          optimal_mtry <- floor(sqrt(p))
+          
+          cat("Traditional stratified CV: searching over ntree, mtry and nodesize...\n")
+          for (nt in ntree_values) {
+            for (ns in nodesize_values) {
+              for (mt in mtry_values) {
+                fold_scores <- sapply(folds_rf, function(test_idx) {
+                  train_idx <- setdiff(1:nrow(x), test_idx)
+                  tryCatch({
+                    mdl   <- randomForest(x = x[train_idx, , drop = FALSE], y = learningmodel[train_idx, 1],
+                                          ntree = nt, mtry = mt, nodesize = ns, importance = FALSE)
+                    probs <- randomForest:::predict.randomForest(mdl, x[test_idx, , drop = FALSE], type = "prob")
+                    compute_auc_manual(learningmodel[test_idx, 1], probs[, pos_level], pos_level)
+                  }, error = function(e) NA_real_)
+                })
+                sc <- mean(fold_scores, na.rm = TRUE)
+                cat(sprintf("  ntree=%d, mtry=%d, nodesize=%d -> AUC=%.4f\n", nt, mt, ns, sc))
+                if (!is.na(sc) && sc > best_score) {
+                  best_score     <- sc
+                  ntree_param    <- nt
+                  optimal_mtry   <- mt
+                  nodesize_param <- ns
+                }
+              }
+            }
+          }
+          cat(sprintf("Best stratified CV params: ntree=%d, mtry=%d, nodesize=%d, AUC=%.4f\n",
+                      ntree_param, optimal_mtry, nodesize_param, best_score))
         }
       } else {
+        # ── Manual mode ──
         optimal_mtry   <- ifelse(is.null(modelparameters$mtry), floor(sqrt(ncol(x))), modelparameters$mtry)
-        nodesize_param <- 1
+        nodesize_param <- if (!is.null(modelparameters$nodesize)) modelparameters$nodesize else 1
+        maxnodes_param <- if (!is.null(modelparameters$maxnodes)) modelparameters$maxnodes else NULL
+        sampsize_frac  <- if (!is.null(modelparameters$sampsize_frac)) modelparameters$sampsize_frac else 1.0
+        replace_param  <- if (!is.null(modelparameters$replace)) modelparameters$replace else TRUE
       }
       
+      # Compute actual sampsize from fraction
+      sampsize_param <- if (!is.null(sampsize_frac) && sampsize_frac < 1.0) round(nrow(x) * sampsize_frac) else nrow(x)
+      
       model <- randomForest(x = x, y = learningmodel[, 1],
-                            ntree = ntree_param, mtry = optimal_mtry,max_dpth = max_depth_param,
-                            nodesize = nodesize_param, importance = TRUE)
-      model$optimal_mtry   <- optimal_mtry
-      model$ntree_used     <- ntree_param
-      model$nodesize_used  <- nodesize_param
+                            ntree = ntree_param, mtry = optimal_mtry,
+                            nodesize = nodesize_param, maxnodes = maxnodes_param,
+                            sampsize = sampsize_param, replace = replace_param,
+                            importance = TRUE)
+      model$optimal_mtry    <- optimal_mtry
+      model$ntree_used      <- ntree_param
+      model$nodesize_used   <- nodesize_param
+      model$maxnodes_used   <- maxnodes_param
+      model$sampsize_used   <- sampsize_param
+      model$replace_used    <- replace_param
       
       if (modelparameters$fs) {
         featureselect  <- selectedfeature(model = model, modeltype = "randomforest",
@@ -1889,29 +2015,20 @@ modelfunction_V2 <- function(learningmodel,
     # ── SVM ────────────────────────────────────────────────────────────────────
     if (modelparameters$modeltype == "svm") {
       if (is.null(modelparameters$autotunesvm) || modelparameters$autotunesvm) {
-        # set.seed(20011203)
-        # tune_result <- tune.svm(group ~ ., data = learningmodel,
-        #                         gamma = 10^(-5:2), cost = 10^(-3:2),
-        #                   
-        #                         degree = c(2,4,3),
-        #                         cross = min(dim(learningmodel)[1] - 2, 10),
-        #                         tunecontrol = tune.control(sampling = "cross"))
-        tune_result <- tune.svm(group ~ ., data = learningmodel,
-                                gamma       = 10^(-5:2),
-                                cost        = 10^(-3:2),
-                                probability = TRUE,
-                                cross       = min(dim(learningmodel)[1] - 2, 10),
-                                tunecontrol = tune.control(
-                                  sampling  = "cross",
-                                  cross     = 5,
-                                  # error.fun = auc_error_fun  
-                                  error.fun = accuracy_error_fun
-                                ))
-        cat("tunning results :  \n"); print(tune_result)
+        kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
+        svm_scoring <- if (!is.null(modelparameters$svm_scoring)) modelparameters$svm_scoring else "auc"
+        svm_gamma_range <- if (!is.null(modelparameters$svm_gamma_range)) modelparameters$svm_gamma_range else 10^(-5:2)
+        svm_cost_range  <- if (!is.null(modelparameters$svm_cost_range))  modelparameters$svm_cost_range  else 10^(-3:2)
+        tune_result <- tune_svm_stratified(data = learningmodel,
+                                           gamma_range = svm_gamma_range,
+                                           cost_range  = svm_cost_range,
+                                           kernel      = kernel_param,
+                                           n_folds     = min(5, nrow(learningmodel) - 1),
+                                           scoring     = svm_scoring,
+                                           seed        = 123)
+        cat("Stratified SVM tuning results:\n"); print(tune_result$best.parameters)
         cost_param   <- tune_result$best.parameters$cost
         gamma_param  <- tune_result$best.parameters$gamma
-        kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
-        # epsilon_param <- tune_result$best.parameters$epsilon
       } else {
         cat("define svm parameters manually \n")
         cost_param   <- ifelse(is.null(modelparameters$cost),   1,       modelparameters$cost)
@@ -1955,8 +2072,9 @@ modelfunction_V2 <- function(learningmodel,
                             num_leaves = 31, learning_rate = 0.05,
                             feature_fraction = 0.9, bagging_fraction = 0.8,
                             bagging_freq = 5, verbose = -1)
+        lgb_folds <- create_stratified_folds(learningmodel[, 1], k = min(5, nrow(learningmodel) - 1))
         cv_results <- lgb.cv(params = best_params, data = dtrain, nrounds = 200,
-                             nfold = min(5, nrow(learningmodel) - 1),
+                             folds = lgb_folds,
                              early_stopping_rounds = 10, verbose = -1)
         optimal_nrounds <- cv_results$best_iter
         model <- lgb.train(params = best_params, data = dtrain,
@@ -2042,16 +2160,14 @@ modelfunction_V2 <- function(learningmodel,
             max_k    <- min(floor(sqrt(nrow(learningmodel))), 20)
             k_values <- seq(3, max_k, by = 2)
             best_k   <- 3; best_acc <- 0
+            knn_folds <- create_stratified_folds(learningmodel[, 1], k = min(5, nrow(learningmodel) - 1))
             for (k_test in k_values) {
-              n_folds   <- min(5, nrow(learningmodel)); fold_size <- floor(nrow(learningmodel) / n_folds)
-              accuracies <- numeric(n_folds)
-              for (fold in 1:n_folds) {
-                test_idx  <- ((fold - 1) * fold_size + 1):min(fold * fold_size, nrow(learningmodel))
+              accuracies <- sapply(knn_folds, function(test_idx) {
                 train_idx <- setdiff(1:nrow(learningmodel), test_idx)
-                pred      <- knn(train = learningmodel[train_idx, -1], test = learningmodel[test_idx, -1],
-                                 cl = learningmodel[train_idx, 1], k = k_test)
-                accuracies[fold] <- mean(pred == learningmodel[test_idx, 1])
-              }
+                pred <- knn(train = learningmodel[train_idx, -1], test = learningmodel[test_idx, -1],
+                            cl = learningmodel[train_idx, 1], k = k_test)
+                mean(pred == learningmodel[test_idx, 1])
+              })
               avg_acc <- mean(accuracies)
               if (avg_acc > best_acc) { best_acc <- avg_acc; best_k <- k_test }
             }
@@ -2062,16 +2178,14 @@ modelfunction_V2 <- function(learningmodel,
           max_k    <- min(floor(sqrt(nrow(learningmodel))), 20)
           k_values <- seq(3, max_k, by = 2)
           best_k   <- 3; best_acc <- 0
+          knn_folds <- create_stratified_folds(learningmodel[, 1], k = min(5, nrow(learningmodel) - 1))
           for (k_test in k_values) {
-            n_folds   <- min(5, nrow(learningmodel)); fold_size <- floor(nrow(learningmodel) / n_folds)
-            accuracies <- numeric(n_folds)
-            for (fold in 1:n_folds) {
-              test_idx  <- ((fold - 1) * fold_size + 1):min(fold * fold_size, nrow(learningmodel))
+            accuracies <- sapply(knn_folds, function(test_idx) {
               train_idx <- setdiff(1:nrow(learningmodel), test_idx)
-              pred      <- knn(train = learningmodel[train_idx, -1], test = learningmodel[test_idx, -1],
-                               cl = learningmodel[train_idx, 1], k = k_test)
-              accuracies[fold] <- mean(pred == learningmodel[test_idx, 1])
-            }
+              pred <- class::knn(train = learningmodel[train_idx, -1], test = learningmodel[test_idx, -1],
+                          cl = learningmodel[train_idx, 1], k = k_test)
+              mean(pred == learningmodel[test_idx, 1])
+            })
             avg_acc <- mean(accuracies)
             if (avg_acc > best_acc) { best_acc <- avg_acc; best_k <- k_test }
           }
@@ -2128,23 +2242,32 @@ modelfunction_V2 <- function(learningmodel,
           cat(sprintf("GridSearchCV best params: alpha=%.3f, lambda=%.4f, score=%.4f\n",
                       alpha_param, lambda_param, grid_result$best_score))
           set.seed(20011203)
+          en_k     <- min(5, nrow(learningmodel) - 1)
+          en_folds <- create_stratified_folds(learningmodel[, 1], k = en_k)
+          en_foldid <- folds_to_foldid(en_folds, nrow(learningmodel))
           cvfit        <- cv.glmnet(x, y, family = "binomial", alpha = alpha_param,
-                                    type.measure = "auc", nfolds = min(10, nrow(learningmodel) - 1))
+                                    type.measure = "auc", foldid = en_foldid)
           lambda_param <- cvfit$lambda.min
           model        <- list(glmnet_model = cvfit, lambda = lambda_param, alpha = alpha_param,
                                cvfit = cvfit, optimal_lambda = lambda_param, lambda_1se = cvfit$lambda.1se)
         } else {
           set.seed(20011203)
+          en_k     <- min(10, nrow(learningmodel) - 1)
+          en_folds <- create_stratified_folds(learningmodel[, 1], k = en_k)
+          en_foldid <- folds_to_foldid(en_folds, nrow(learningmodel))
           cvfit        <- cv.glmnet(x, y, family = "binomial", alpha = alpha_param,
-                                    type.measure = "auc", nfolds = min(10, nrow(learningmodel) - 1))
+                                    type.measure = "auc", foldid = en_foldid)
           lambda_param <- cvfit$lambda.min
           model        <- list(glmnet_model = cvfit, lambda = lambda_param, alpha = alpha_param,
                                cvfit = cvfit, optimal_lambda = lambda_param, lambda_1se = cvfit$lambda.1se)
         }
       } else if (is.null(lambda_param)) {
         set.seed(20011203)
+        en_k     <- min(10, nrow(learningmodel) - 1)
+        en_folds <- create_stratified_folds(learningmodel[, 1], k = en_k)
+        en_foldid <- folds_to_foldid(en_folds, nrow(learningmodel))
         cvfit        <- cv.glmnet(x, y, family = "binomial", alpha = alpha_param,
-                                  type.measure = "auc", nfolds = min(10, nrow(learningmodel) - 1))
+                                  type.measure = "auc", foldid = en_foldid)
         lambda_param <- cvfit$lambda.min
         model        <- list(glmnet_model = cvfit, lambda = lambda_param, alpha = alpha_param,
                              cvfit = cvfit, optimal_lambda = lambda_param, lambda_1se = cvfit$lambda.1se)
@@ -2164,8 +2287,11 @@ modelfunction_V2 <- function(learningmodel,
           learningmodel <- learningmodel[, c("group", selected_features)]
           x             <- as.matrix(learningmodel[, -1])
           if (is.null(modelparameters$lambda)) {
+            fs_k <- min(10, nrow(learningmodel) - 1)
+            fs_folds <- create_stratified_folds(learningmodel[, 1], k = fs_k)
+            fs_foldid <- folds_to_foldid(fs_folds, nrow(learningmodel))
             cvfit        <- cv.glmnet(x, y, family = "binomial", alpha = alpha_param,
-                                      type.measure = "auc", nfolds = min(10, nrow(learningmodel) - 1))
+                                      type.measure = "auc", foldid = fs_foldid)
             lambda_param <- cvfit$lambda.min
             fit          <- glmnet(x, y, family = "binomial", alpha = alpha_param, lambda = lambda_param)
             cat("class of fitted model : ", class(fit))
@@ -2198,6 +2324,9 @@ modelfunction_V2 <- function(learningmodel,
       if (is.null(modelparameters$autotunexgb) || modelparameters$autotunexgb) {
         if (!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch) {
           cat("Using GridSearchCV for XGBoost hyperparameter tuning...\n")
+          
+          alpha_param <- ifelse(is.null(modelparameters$alpha_xgb), 0, modelparameters$alpha_xgb)
+          lambda_param <- ifelse(is.null(modelparameters$lambda_xgb), 0, modelparameters$lambda_xgb)
           param_grid <- list(
             n_estimators = if (!is.null(modelparameters$xgb_grid_nrounds))   modelparameters$xgb_grid_nrounds   else c(50, 100, 200),
             max_depth    = if (!is.null(modelparameters$xgb_grid_maxdepth))  modelparameters$xgb_grid_maxdepth  else c(3, 6, 9),
@@ -2238,12 +2367,19 @@ modelfunction_V2 <- function(learningmodel,
             model$optimal_subsample        <- optimal_subsample
             model$optimal_min_child_weight <- optimal_min_child_weight
           } else {
+            alpha_param   <- ifelse(is.null(modelparameters$alpha_xgb),   0, modelparameters$alpha_xgb)
+            lambda_param  <- ifelse(is.null(modelparameters$lambda_xgb),  0, modelparameters$lambda_xgb)
+            gamma_param   <- ifelse(is.null(modelparameters$gamma_xgb),   0, modelparameters$gamma_xgb)
+            subsample_param <- ifelse(is.null(modelparameters$subsample_xgb), 1.0, modelparameters$subsample_xgb)
             set.seed(20011203)
             best_params <- list(objective = "binary:logistic", eval_metric = "auc",
+                                alpha = alpha_param, lambda = lambda_param,
+                                gamma = gamma_param, subsample = subsample_param,
                                 max_depth = 6, eta = 0.3, min_child_weight = 1)
+            xgb_folds <- create_stratified_folds(learningmodel[, 1], k = min(5, nrow(learningmodel) - 1))
             tryCatch({
               cv_results      <- xgb.cv(params = best_params, data = dtrain, nrounds = 200,
-                                        nfold = min(5, nrow(learningmodel) - 1),
+                                        folds = xgb_folds,
                                         early_stopping_rounds = 10, verbose = 0)
               optimal_nrounds <- cv_results$best_iteration
             }, error = function(e) { optimal_nrounds <<- 20 })
@@ -2257,10 +2393,17 @@ modelfunction_V2 <- function(learningmodel,
           }
         } else {
           set.seed(20011203)
+          alpha_param   <- ifelse(is.null(modelparameters$alpha_xgb),   0, modelparameters$alpha_xgb)
+          lambda_param  <- ifelse(is.null(modelparameters$lambda_xgb),  0, modelparameters$lambda_xgb)
+          gamma_param   <- ifelse(is.null(modelparameters$gamma_xgb),   0, modelparameters$gamma_xgb)
+          subsample_param <- ifelse(is.null(modelparameters$subsample_xgb), 1.0, modelparameters$subsample_xgb)
           best_params <- list(objective = "binary:logistic", eval_metric = "auc",
+                              alpha = alpha_param, lambda = lambda_param,
+                              gamma = gamma_param, subsample = subsample_param,
                               max_depth = 6, eta = 0.3, min_child_weight = 1)
+          xgb_folds <- create_stratified_folds(learningmodel[, 1], k = min(5, nrow(learningmodel) - 1))
           cv_results      <- xgb.cv(params = best_params, data = dtrain, nrounds = 200,
-                                    nfold = min(5, nrow(learningmodel) - 1),
+                                    folds = xgb_folds,
                                     early_stopping_rounds = 10, verbose = 0)
           optimal_nrounds <- cv_results$best_iteration
           cat("best parameters\n"); print(best_params)
@@ -2270,6 +2413,8 @@ modelfunction_V2 <- function(learningmodel,
           model$optimal_max_depth        <- best_params$max_depth
           model$optimal_eta              <- best_params$eta
           model$optimal_min_child_weight <- best_params$min_child_weight
+          model$optimal_gamma            <- best_params$gamma
+          model$optimal_subsample        <- best_params$subsample
         }
       } else {
         
@@ -2281,9 +2426,13 @@ modelfunction_V2 <- function(learningmodel,
         gamma_param <- ifelse(is.null(modelparameters$gamma_xgb), 0, modelparameters$gamma_xgb)
         subsample_param <- ifelse(is.null(modelparameters$subsample_xgb), 1.0, modelparameters$subsample_xgb)
         min_child_weight_param <- ifelse(is.null(modelparameters$min_child_weight), 1, modelparameters$min_child_weight)
+        alpha_param <- ifelse(is.null(modelparameters$alpha_xgb), 0, modelparameters$alpha_xgb)
+        lambda_param <- ifelse(is.null(modelparameters$lambda_xgb), 0, modelparameters$lambda_xgb)
         
         
         params <- list(objective = "binary:logistic", eval_metric = "auc",
+                       alpha = alpha_param, lambda = lambda_param, subsample = subsample_param,
+                       gamma =  gamma_param,min_child_weight = min_child_weight_param,
                        max_depth = max_depth_param, eta = eta_param, min_child_weight = 1)
         model <- xgb.train(params = params, data = dtrain, nrounds = nrounds_param, verbose = 0)
         model$optimal_nrounds          <- nrounds_param
@@ -2293,6 +2442,13 @@ modelfunction_V2 <- function(learningmodel,
         model$optimal_min_child_weight <- min_child_weight_param
         model$optimal_gamma <- gamma_param
         model$optimal_subsample <- subsample_param
+        model$optimal_alpha <- alpha_param
+        model$optimal_lambda <- lambda_param
+        cat("optimal_nrounds :  ", nrounds_param, "\n")
+        cat("optimal_max_depth :  ", max_depth_param, "\n")
+        cat("optimal_eta :  ", eta_param, "\n")
+        cat("optimal alpha : ", alpha_param, "\n")
+        cat("optimal lambda : ", lambda_param, "\n")
         cat("optimal_subsample :  ", subsample_param, "\n")
         cat("optimal_gamma :  ", gamma_param, "\n")
       }
@@ -2336,9 +2492,11 @@ modelfunction_V2 <- function(learningmodel,
       }
       if (transformdataparameters$standardization) {
         learningselectval <<- learningselect2
-        sdselect <- apply(learningselect2[, which(colnames(learningselect2) %in% colnames(validationdiff))], 2, sd, na.rm = TRUE)
+        # Calculer sdselect uniquement sur les colonnes de features (excluant "group")
+        feat_cols_learning <- colnames(learningselect2)[colnames(learningselect2) %in% colnames(validationdiff) & colnames(learningselect2) != "group"]
+        sdselect <- apply(learningselect2[, feat_cols_learning, drop = FALSE], 2, sd, na.rm = TRUE)
         print("sdselect"); print(sdselect)
-        # Align sdselect to the feature columns of validationdiff (col 1 is the group/ID column)
+        # Aligner avec les colonnes de features de validationdiff (col 1 est "group")
         feat_cols       <- colnames(validationdiff)[-1]
         sdselect_aligned <- sdselect[feat_cols]
         if (length(sdselect_aligned) != length(feat_cols) || any(is.na(sdselect_aligned))) {
@@ -2368,6 +2526,8 @@ modelfunction_V2 <- function(learningmodel,
         if (!is.null(model)) {
           scoreval <- attr(e1071:::predict.svm(model, newdata = validationmodel,
                                                decision.values = TRUE), "decision.values")
+          cat("score val dans model function :  \n")
+          print(scoreval)
           if (sum(lev == (strsplit(colnames(scoreval), split = "/")[[1]])) == 0) {
             scoreval <- scoreval * (-1)
           }
@@ -2421,7 +2581,7 @@ modelfunction_V2 <- function(learningmodel,
       colnames(resvalidationmodel) <- c("classval", "scoreval")
       
       # AUC ne dépend pas du seuil → calculé ici une seule fois
-      auc_val <- auc(roc(as.vector(classval), as.vector(scoreval), quiet = TRUE))
+      auc_val <- pROC::auc(pROC::roc(as.vector(classval), as.vector(scoreval), quiet = TRUE))
       
       datavalidationmodel <- list("validationdiff"      = validationdiff,
                                   "validationmodel"     = validationmodel,
@@ -2468,94 +2628,156 @@ modelfunction <- function(learningmodel,
       set.seed(20011203)
       ntree_param <- ifelse(is.null(modelparameters$ntree), 1000, modelparameters$ntree)
       
-      # Determine mtry parameter
+      # Default values for all RF hyperparameters
+      nodesize_param  <- 1
+      maxnodes_param  <- NULL
+      sampsize_param  <- NULL
+      replace_param   <- if (!is.null(modelparameters$replace)) modelparameters$replace else TRUE
+      sampsize_frac   <- if (!is.null(modelparameters$sampsize_frac)) modelparameters$sampsize_frac else 1.0
+      
       if(is.null(modelparameters$autotunerf) || modelparameters$autotunerf){
-        # Check if GridSearchCV should be used
         if(!is.null(modelparameters$use_gridsearch) && modelparameters$use_gridsearch){
-          # Use GridSearchCV from superml for comprehensive hyperparameter tuning
+          # ── GridSearchCV tuning ──
           cat("Using GridSearchCV for Random Forest hyperparameter tuning...\n")
-          
-          # Prepare parameter grid
           param_grid <- list(
-            n_estimators = if(!is.null(modelparameters$rf_grid_ntree)) modelparameters$rf_grid_ntree else c(100, 500, 1000),
-            max_features = if(!is.null(modelparameters$rf_grid_mtry)) modelparameters$rf_grid_mtry else c("sqrt", "log2"),
-            min_samples_split = if(!is.null(modelparameters$rf_grid_nodesize)) modelparameters$rf_grid_nodesize else c(2, 5, 10)
+            n_estimators    = if(!is.null(modelparameters$rf_grid_ntree))    modelparameters$rf_grid_ntree    else c(100, 500, 1000),
+            max_features    = if(!is.null(modelparameters$rf_grid_mtry))     modelparameters$rf_grid_mtry     else c("sqrt", "log2"),
+            min_samples_split = if(!is.null(modelparameters$rf_grid_nodesize)) modelparameters$rf_grid_nodesize else c(1, 5, 10)
           )
-          
-          # Run GridSearchCV
           grid_result <- tryCatch({
             tune_rf_gridsearch(X = x, y = learningmodel[,1],
-                               param_grid = param_grid,
-                               n_folds = 5,
+                               param_grid = param_grid, n_folds = 5,
                                scoring = c("auc", "accuracy"))
           }, error = function(e) {
-            cat("GridSearchCV failed, falling back to tuneRF:", e$message, "\n")
-            NULL
+            cat("GridSearchCV failed, falling back to tuneRF:", e$message, "\n"); NULL
           })
-          
           if(!is.null(grid_result)) {
-            # Extract best parameters from GridSearchCV
             best_params <- grid_result$best_params
-            
-            # Convert superml parameters to randomForest parameters
             optimal_mtry <- if(!is.null(best_params$max_features)) {
               if(best_params$max_features == "sqrt") floor(sqrt(ncol(x)))
               else if(best_params$max_features == "log2") floor(log2(ncol(x)))
               else as.numeric(best_params$max_features)
             } else floor(sqrt(ncol(x)))
-            
-            ntree_param <- if(!is.null(best_params$n_estimators)) best_params$n_estimators else ntree_param
+            ntree_param    <- if(!is.null(best_params$n_estimators))      best_params$n_estimators      else ntree_param
             nodesize_param <- if(!is.null(best_params$min_samples_split)) best_params$min_samples_split else 1
-            
             cat(sprintf("GridSearchCV best params: ntree=%d, mtry=%d, nodesize=%d, score=%.4f\n",
                         ntree_param, optimal_mtry, nodesize_param, grid_result$best_score))
           } else {
-            # Fallback to tuneRF if GridSearchCV fails
-            tuneRF_result <- tuneRF(x = x, y = learningmodel[,1],
-                                    doBest = FALSE,
-                                    ntreeTry = ntree_param,
-                                    stepFactor = 1.5,
-                                    improve = 0.01,
-                                    trace = FALSE,
-                                    plot = FALSE)
-            optimal_mtry <- tuneRF_result[which.min(tuneRF_result[,2]), 1]
+            cat("GridSearchCV failed, falling back to stratified CV for mtry...\n")
+            p <- ncol(x)
+            mtry_candidates <- unique(c(max(1, floor(sqrt(p))), max(1, floor(log2(p))), max(1, floor(p/3))))
+            fb_folds <- create_stratified_folds(learningmodel[,1], k = min(5, nrow(x) - 1))
+            pos_lev  <- levels(learningmodel[,1])[1]
+            best_fb  <- -Inf
+            for (mt in mtry_candidates) {
+              sc <- mean(sapply(fb_folds, function(ti) {
+                tri <- setdiff(1:nrow(x), ti)
+                tryCatch({
+                  mdl <- randomForest(x = x[tri,,drop=FALSE], y = learningmodel[tri,1],
+                                      ntree = ntree_param, mtry = mt, importance = FALSE)
+                  prbs <- randomForest:::predict.randomForest(mdl, x[ti,,drop=FALSE], type = "prob")
+                  compute_auc_manual(learningmodel[ti,1], prbs[, pos_lev], pos_lev)
+                }, error = function(e) NA_real_)
+              }), na.rm = TRUE)
+              if (!is.na(sc) && sc > best_fb) { best_fb <- sc; optimal_mtry <- mt }
+            }
             nodesize_param <- 1
           }
+          # maxnodes tuning: pick best from grid via OOB
+          maxnodes_candidates <- if (!is.null(modelparameters$rf_grid_maxnodes)) modelparameters$rf_grid_maxnodes else c(0)
+          maxnodes_candidates <- as.numeric(maxnodes_candidates)
+          if (length(maxnodes_candidates) > 1 || any(maxnodes_candidates != 0)) {
+            best_oob <- Inf; best_maxnodes <- NULL
+            samp_sz <- if (sampsize_frac < 1.0) round(nrow(x) * sampsize_frac) else nrow(x)
+            for (mn in maxnodes_candidates) {
+              mn_val <- if (mn == 0) NULL else mn
+              tmp_model <- randomForest(x = x, y = learningmodel[,1],
+                                        ntree = ntree_param, mtry = optimal_mtry,
+                                        nodesize = nodesize_param, maxnodes = mn_val,
+                                        sampsize = samp_sz, replace = replace_param, importance = FALSE)
+              oob_err <- mean(tmp_model$err.rate[, "OOB"])
+              cat(sprintf("  maxnodes=%s -> OOB=%.4f\n", ifelse(is.null(mn_val), "NULL", as.character(mn_val)), oob_err))
+              if (oob_err < best_oob) { best_oob <- oob_err; best_maxnodes <- mn_val }
+            }
+            maxnodes_param <- best_maxnodes
+          }
+          # sampsize tuning: pick best fraction from grid
+          sampsize_candidates <- if (!is.null(modelparameters$rf_grid_sampsize)) as.numeric(modelparameters$rf_grid_sampsize) else c(1.0)
+          if (length(sampsize_candidates) > 1) {
+            best_oob <- Inf; best_frac <- 1.0
+            for (sf in sampsize_candidates) {
+              samp_sz <- round(nrow(x) * sf)
+              tmp_model <- randomForest(x = x, y = learningmodel[,1],
+                                        ntree = ntree_param, mtry = optimal_mtry,
+                                        nodesize = nodesize_param, maxnodes = maxnodes_param,
+                                        sampsize = samp_sz, replace = replace_param, importance = FALSE)
+              oob_err <- mean(tmp_model$err.rate[, "OOB"])
+              if (oob_err < best_oob) { best_oob <- oob_err; best_frac <- sf }
+            }
+            sampsize_frac <- best_frac
+          }
         } else {
-          # Use traditional tuneRF to find optimal mtry parameter
-          tuneRF_result <- tuneRF(x = x, y = learningmodel[,1],
-                                  doBest = FALSE,
-                                  ntreeTry = ntree_param,
-                                  stepFactor = 1.5,
-                                  improve = 0.01,
-                                  trace = FALSE,
-                                  plot = FALSE)
-          # Extract optimal mtry (the one with minimum OOB error)
-          optimal_mtry <- tuneRF_result[which.min(tuneRF_result[,2]), 1]
-          nodesize_param <- 1
+          # ── Traditional mode: stratified CV over ntree, mtry, nodesize ──
+          ntree_values    <- if (!is.null(modelparameters$rf_ntree_range)) modelparameters$rf_ntree_range else c(500, 1000)
+          nodesize_values <- if (!is.null(modelparameters$rf_nodesize_range)) modelparameters$rf_nodesize_range else c(1)
+          p <- ncol(x)
+          mtry_values <- unique(c(max(1, floor(sqrt(p))), max(1, floor(log2(p))), max(1, floor(p / 3))))
+          
+          folds_rf   <- create_stratified_folds(learningmodel[,1], k = min(5, nrow(x) - 1))
+          pos_level  <- levels(learningmodel[,1])[1]
+          best_score <- -Inf
+          optimal_mtry <- floor(sqrt(p))
+          
+          cat("Traditional stratified CV: searching over ntree, mtry and nodesize...\n")
+          for (nt in ntree_values) {
+            for (ns in nodesize_values) {
+              for (mt in mtry_values) {
+                fold_scores <- sapply(folds_rf, function(test_idx) {
+                  train_idx <- setdiff(1:nrow(x), test_idx)
+                  tryCatch({
+                    mdl   <- randomForest(x = x[train_idx, , drop = FALSE], y = learningmodel[train_idx, 1],
+                                          ntree = nt, mtry = mt, nodesize = ns, importance = FALSE)
+                    probs <- randomForest:::predict.randomForest(mdl, x[test_idx, , drop = FALSE], type = "prob")
+                    compute_auc_manual(learningmodel[test_idx, 1], probs[, pos_level], pos_level)
+                  }, error = function(e) NA_real_)
+                })
+                sc <- mean(fold_scores, na.rm = TRUE)
+                cat(sprintf("  ntree=%d, mtry=%d, nodesize=%d -> AUC=%.4f\n", nt, mt, ns, sc))
+                if (!is.na(sc) && sc > best_score) {
+                  best_score     <- sc
+                  ntree_param    <- nt
+                  optimal_mtry   <- mt
+                  nodesize_param <- ns
+                }
+              }
+            }
+          }
+          cat(sprintf("Best stratified CV params: ntree=%d, mtry=%d, nodesize=%d, AUC=%.4f\n",
+                      ntree_param, optimal_mtry, nodesize_param, best_score))
         }
       } else {
-        
-        # Use manual mtry parameter
-        optimal_mtry <- ifelse(is.null(modelparameters$mtry), floor(sqrt(ncol(x))), modelparameters$mtry)
-        nodesize_param <- 1
+        # ── Manual mode ──
+        optimal_mtry   <- ifelse(is.null(modelparameters$mtry), floor(sqrt(ncol(x))), modelparameters$mtry)
+        nodesize_param <- if (!is.null(modelparameters$nodesize)) modelparameters$nodesize else 1
+        maxnodes_param <- if (!is.null(modelparameters$maxnodes)) modelparameters$maxnodes else NULL
+        sampsize_frac  <- if (!is.null(modelparameters$sampsize_frac)) modelparameters$sampsize_frac else 1.0
+        replace_param  <- if (!is.null(modelparameters$replace)) modelparameters$replace else TRUE
       }
       
-      # Build final model with optimal or manual parameters
+      # Compute actual sampsize from fraction
+      sampsize_param <- if (!is.null(sampsize_frac) && sampsize_frac < 1.0) round(nrow(x) * sampsize_frac) else nrow(x)
+      
       model <- randomForest(x = x, y = learningmodel[,1],
-                            ntree = ntree_param,
-                            mtry = optimal_mtry,
-                            nodesize = nodesize_param,
+                            ntree = ntree_param, mtry = optimal_mtry,
+                            nodesize = nodesize_param, maxnodes = maxnodes_param,
+                            sampsize = sampsize_param, replace = replace_param,
                             importance = TRUE)
-      
-      
-      
-      # Store optimal parameters in model object
-      
-      model$optimal_mtry <- optimal_mtry
-      
-      model$ntree_used <- ntree_param
-      model$nodesize_used <- nodesize_param
+      model$optimal_mtry    <- optimal_mtry
+      model$ntree_used      <- ntree_param
+      model$nodesize_used   <- nodesize_param
+      model$maxnodes_used   <- maxnodes_param
+      model$sampsize_used   <- sampsize_param
+      model$replace_used    <- replace_param
       if(modelparameters$fs){
         featureselect<-selectedfeature(model=model,modeltype = "randomforest",tab=learningmodel,
                                        criterionimportance = "fscore",criterionmodel = "auc")
@@ -2575,28 +2797,19 @@ modelfunction <- function(learningmodel,
     if(modelparameters$modeltype=="svm"){
       # Determine hyperparameters
       if(is.null(modelparameters$autotunesvm) || modelparameters$autotunesvm){
-        #set.seed(20011203)
-        # Perform hyperparameter tuning using tune.svm
-        tune_result <- tune.svm(group ~ ., data = learningmodel,
-                                gamma       = 10^(-5:2),
-                                cost        = 10^(-3:2),
-                                probability = TRUE,
-                                cross       = min(dim(learningmodel)[1] - 2, 10),
-                                tunecontrol = tune.control(
-                                  sampling  = "cross",
-                                  cross     = 5,
-                                  error.fun = auc_error_fun
-                                ))
-        # Extract best model and parameters
-        # model <- tune_result$best.model
-        # model$cost <- tune_result$best.parameters$cost
-        # model$gamma <- tune_result$best.parameters$gamma
-        cat('tunning results :  \n')
+        kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
+        svm_scoring <- if (!is.null(modelparameters$svm_scoring)) modelparameters$svm_scoring else "auc"
+        tune_result <- tune_svm_stratified(data = learningmodel,
+                                           gamma_range = 10^(-5:2),
+                                           cost_range  = 10^(-3:2),
+                                           kernel      = kernel_param,
+                                           n_folds     = min(5, nrow(learningmodel) - 1),
+                                           scoring     = svm_scoring,
+                                           seed        = 20011203)
+        cat('Stratified SVM tuning results:\n')
         print(tune_result$best.parameters)
-        # epsilon_param <- tune_result$best.parameters$epsilon
         cost_param <- tune_result$best.parameters$cost
         gamma_param <- tune_result$best.parameters$gamma
-        kernel_param <- ifelse(is.null(modelparameters$kernel), "radial", modelparameters$kernel)
         
       } else {
         # Use manual hyperparameters
@@ -2678,12 +2891,13 @@ modelfunction <- function(learningmodel,
           verbose = -1
         )
         
-        # Cross-validation to find optimal nrounds
+        # Stratified cross-validation to find optimal nrounds
+        lgb_folds <- create_stratified_folds(learningmodel[,1], k = min(5, nrow(learningmodel)-1))
         cv_results <- lgb.cv(
           params = best_params,
           data = dtrain,
           nrounds = 200,
-          nfold = min(5, nrow(learningmodel)-1),
+          folds = lgb_folds,
           early_stopping_rounds = 10,
           verbose = -1
         )
@@ -2828,73 +3042,41 @@ modelfunction <- function(learningmodel,
             cat(sprintf("GridSearchCV best params: k=%d, score=%.4f\n",
                         optimal_k, grid_result$best_score))
           } else {
-            # Fallback to traditional CV if GridSearchCV fails
-            # Automatic tuning: try different k values via cross-validation
             set.seed(20011203)
-            # Test k values from 3 to min(sqrt(n), 20)
             max_k <- min(floor(sqrt(nrow(learningmodel))), 20)
-            k_values <- seq(3, max_k, by=2) # odd numbers only
-            
-            # Cross-validation to find best k
-            best_k <- 3
-            best_acc <- 0
+            k_values <- seq(3, max_k, by=2)
+            best_k <- 3; best_acc <- 0
+            knn_folds <- create_stratified_folds(learningmodel[,1], k = min(5, nrow(learningmodel) - 1))
             for(k_test in k_values){
-              # Simple leave-one-out or 5-fold CV
-              n_folds <- min(5, nrow(learningmodel))
-              fold_size <- floor(nrow(learningmodel) / n_folds)
-              accuracies <- numeric(n_folds)
-              for(fold in 1:n_folds){
-                test_idx <- ((fold-1)*fold_size + 1):min(fold*fold_size, nrow(learningmodel))
+              accuracies <- sapply(knn_folds, function(test_idx) {
                 train_idx <- setdiff(1:nrow(learningmodel), test_idx)
                 pred <- knn(train = learningmodel[train_idx, -1],
                             test = learningmodel[test_idx, -1],
-                            cl = learningmodel[train_idx, 1],
-                            k = k_test)
-                accuracies[fold] <- mean(pred == learningmodel[test_idx, 1])
-              }
-              
+                            cl = learningmodel[train_idx, 1], k = k_test)
+                mean(pred == learningmodel[test_idx, 1])
+              })
               avg_acc <- mean(accuracies)
-              if(avg_acc > best_acc){
-                best_acc <- avg_acc
-                best_k <- k_test
-              }
+              if(avg_acc > best_acc){ best_acc <- avg_acc; best_k <- k_test }
             }
-            
             optimal_k <- best_k
           }
         } else {
-          # Use traditional CV for hyperparameter tuning
-          # Automatic tuning: try different k values via cross-validation
           set.seed(20011203)
-          # Test k values from 3 to min(sqrt(n), 20)
           max_k <- min(floor(sqrt(nrow(learningmodel))), 20)
-          k_values <- seq(3, max_k, by=2) # odd numbers only
-          
-          # Cross-validation to find best k
-          best_k <- 3
-          best_acc <- 0
+          k_values <- seq(3, max_k, by=2)
+          best_k <- 3; best_acc <- 0
+          knn_folds <- create_stratified_folds(learningmodel[,1], k = min(5, nrow(learningmodel) - 1))
           for(k_test in k_values){
-            # Simple leave-one-out or 5-fold CV
-            n_folds <- min(5, nrow(learningmodel))
-            fold_size <- floor(nrow(learningmodel) / n_folds)
-            accuracies <- numeric(n_folds)
-            for(fold in 1:n_folds){
-              test_idx <- ((fold-1)*fold_size + 1):min(fold*fold_size, nrow(learningmodel))
+            accuracies <- sapply(knn_folds, function(test_idx) {
               train_idx <- setdiff(1:nrow(learningmodel), test_idx)
               pred <- knn(train = learningmodel[train_idx, -1],
                           test = learningmodel[test_idx, -1],
-                          cl = learningmodel[train_idx, 1],
-                          k = k_test)
-              accuracies[fold] <- mean(pred == learningmodel[test_idx, 1])
-            }
-            
+                          cl = learningmodel[train_idx, 1], k = k_test)
+              mean(pred == learningmodel[test_idx, 1])
+            })
             avg_acc <- mean(accuracies)
-            if(avg_acc > best_acc){
-              best_acc <- avg_acc
-              best_k <- k_test
-            }
+            if(avg_acc > best_acc){ best_acc <- avg_acc; best_k <- k_test }
           }
-          
           optimal_k <- best_k
         }
         
@@ -2993,26 +3175,34 @@ modelfunction <- function(learningmodel,
           
           # Use the best parameters to fit with cv.glmnet for consistency
           set.seed(20011203)
+          en_k <- min(10, nrow(learningmodel)-1)
+          en_folds <- create_stratified_folds(learningmodel[,1], k = en_k)
+          en_foldid <- folds_to_foldid(en_folds, nrow(learningmodel))
           cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                             type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                             type.measure="auc", foldid=en_foldid)
           lambda_param <- cvfit$lambda.min
           model <- list(glmnet_model=cvfit, lambda=lambda_param, alpha=alpha_param,
                         cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
         } else {
           # Fallback to traditional cv.glmnet if GridSearchCV fails
           set.seed(20011203)
+          en_k <- min(10, nrow(learningmodel)-1)
+          en_folds <- create_stratified_folds(learningmodel[,1], k = en_k)
+          en_foldid <- folds_to_foldid(en_folds, nrow(learningmodel))
           cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                             type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                             type.measure="auc", foldid=en_foldid)
           lambda_param <- cvfit$lambda.min
           model <- list(glmnet_model=cvfit, lambda=lambda_param, alpha=alpha_param,
                         cvfit=cvfit, optimal_lambda=lambda_param, lambda_1se=cvfit$lambda.1se)
         }
       } else if(is.null(lambda_param)){
-        # Perform cross-validation to find optimal lambda if not provided
-        #cat("on est dans le if du is.null(lambda_param) \n")
+        # Perform stratified cross-validation to find optimal lambda if not provided
         set.seed(20011203)
+        en_k <- min(10, nrow(learningmodel)-1)
+        en_folds <- create_stratified_folds(learningmodel[,1], k = en_k)
+        en_foldid <- folds_to_foldid(en_folds, nrow(learningmodel))
         cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                           type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                           type.measure="auc", foldid=en_foldid)
         lambda_param <- cvfit$lambda.min
         # if(!is.null(cvfit$glmnet.fit)){
         #   fit <- cvfit$glmnet.fit
@@ -3040,8 +3230,11 @@ modelfunction <- function(learningmodel,
           x <- as.matrix(learningmodel[,-1])
           # Refit model with selected features
           if(is.null(modelparameters$lambda)){
+            fs_k <- min(10, nrow(learningmodel)-1)
+            fs_folds <- create_stratified_folds(learningmodel[,1], k = fs_k)
+            fs_foldid <- folds_to_foldid(fs_folds, nrow(learningmodel))
             cvfit <- cv.glmnet(x, y, family="binomial", alpha=alpha_param,
-                               type.measure="auc", nfolds=min(10, nrow(learningmodel)-1))
+                               type.measure="auc", foldid=fs_foldid)
             lambda_param <- cvfit$lambda.min
             # Refit model with optimal lambda to ensure we have a valid glmnet object
             fit <- glmnet(x, y, family="binomial", alpha=alpha_param, lambda=lambda_param)
@@ -3073,13 +3266,9 @@ modelfunction <- function(learningmodel,
     }
     
     if(modelparameters$modeltype=="xgboost"){
-      # XGBoost gradient boosting
       x <- as.matrix(learningmodel[,-1])
-      # IMPORTANT: Encode y so that 1 = lev["positif"] (first level), 0 = lev["negatif"] (second level)
-      # This ensures that predict returns P(lev["positif"])
       y <- ifelse(learningmodel[,1] == lev["positif"], 1, 0)
       
-      # Create DMatrix for XGBoost
       dtrain <- xgb.DMatrix(data = x, label = y)
       
       # Determine hyperparameters
@@ -3157,24 +3346,32 @@ modelfunction <- function(learningmodel,
             # Perform hyperparameter tuning using cross-validation
             set.seed(20011203)
             
+            alpha_param   <- ifelse(is.null(modelparameters$alpha_xgb),   0, modelparameters$alpha_xgb)
+            lambda_param  <- ifelse(is.null(modelparameters$lambda_xgb),  0, modelparameters$lambda_xgb)
+            gamma_param   <- ifelse(is.null(modelparameters$gamma_xgb),   0, modelparameters$gamma_xgb)
+            subsample_param <- ifelse(is.null(modelparameters$subsample_xgb), 1.0, modelparameters$subsample_xgb)
+            
             # Parameter grid search
             best_params <- list(
               objective = "binary:logistic",
               eval_metric = "auc",
+              alpha = alpha_param,
+              lambda = lambda_param,
+              gamma = gamma_param,
+              subsample = subsample_param,
               max_depth = 6,
               eta = 0.3,
-              min_child_weight = 1,
-              alpha = 0.5,
-              lambda = 0.5
+              min_child_weight = 1
             )
             
-            # Cross-validation to find optimal nround
+            # Stratified cross-validation to find optimal nround
+            xgb_folds <- create_stratified_folds(learningmodel[,1], k = min(5, nrow(learningmodel)-1))
             tryCatch({
               cv_results <- xgb.cv(
                 params = best_params,
                 data = dtrain,
                 nrounds = 200,
-                nfold = min(5, nrow(learningmodel)-1),
+                folds = xgb_folds,
                 early_stopping_rounds = 10,
                 verbose = 0
               )
@@ -3213,6 +3410,9 @@ modelfunction <- function(learningmodel,
           # Perform hyperparameter tuning using cross-validation
           set.seed(20011203)
           
+          gamma_param   <- ifelse(is.null(modelparameters$gamma_xgb),   0, modelparameters$gamma_xgb)
+          subsample_param <- ifelse(is.null(modelparameters$subsample_xgb), 1.0, modelparameters$subsample_xgb)
+          
           # Parameter grid search
           best_params <- list(
             objective = "binary:logistic",
@@ -3220,16 +3420,17 @@ modelfunction <- function(learningmodel,
             max_depth = 6,
             eta = 0.3,
             min_child_weight = 1,
-            gamma = 0,
-            subsample = 1.0
+            gamma = gamma_param,
+            subsample = subsample_param
           )
           
-          # Cross-validation to find optimal nrounds
+          # Stratified cross-validation to find optimal nrounds
+          xgb_folds <- create_stratified_folds(learningmodel[,1], k = min(5, nrow(learningmodel)-1))
           cv_results <- xgb.cv(
             params = best_params,
             data = dtrain,
             nrounds = 200,
-            nfold = min(5, nrow(learningmodel)-1),
+            folds = xgb_folds,
             early_stopping_rounds = 10,
             verbose = 0
           )
@@ -3352,10 +3553,15 @@ modelfunction <- function(learningmodel,
       }
       if(transformdataparameters$standardization){
         learningselectval<<-learningselect2
-        sdselect<-apply(learningselect2[,which(colnames(learningselect2)%in%colnames(validationdiff))], 2, sd,na.rm=T)
+        # Calculer sdselect uniquement sur les colonnes de features (excluant "group")
+        feat_cols_learning <- colnames(learningselect2)[colnames(learningselect2) %in% colnames(validationdiff) & colnames(learningselect2) != "group"]
+        sdselect<-apply(learningselect2[, feat_cols_learning, drop = FALSE], 2, sd,na.rm=T)
         print('sdselect')
         print(sdselect)
-        validationdiff[,-1]<-scale(as.matrix(validationdiff[,-1]),center=F,scale=sdselect[-1])
+        # Aligner avec les colonnes de features de validationdiff
+        feat_cols <- colnames(validationdiff)[-1]
+        sdselect_aligned <- sdselect[feat_cols]
+        validationdiff[,-1]<-scale(as.matrix(validationdiff[,-1]),center=F,scale=sdselect_aligned)
       }
       
       #NAstructure if NA ->0
@@ -3366,6 +3572,8 @@ modelfunction <- function(learningmodel,
       validationmodel<<- replaceNAvalidation(as.data.frame(validationdiff[,-1]),toto=as.data.frame(learningmodel[,-1]),rempNA=transformdataparameters$rempNA)
       colnames(validationmodel)<-colnames(validationdiff)[-1]
       rownames(validationmodel)<-rownames(validationdiff)
+      
+      #prediction a partir du model
       
       #prediction a partir du model
       if(modelparameters$modeltype=="randomforest"){
@@ -3380,12 +3588,22 @@ modelfunction <- function(learningmodel,
       if(modelparameters$modeltype=="svm"){
         if(!is.null(model)){
           # SVM validation predictions
-          # print("On est dans le SVM pour la validation")
-          # print(str(model))
-          # print(str(validationmodel))
+          cat("=== [modelfunction OLD] SVM VALIDATION DIAGNOSTIC ===\n")
+          cat("colnames(learningmodel):", paste(colnames(learningmodel), collapse=", "), "\n")
+          cat("colnames(validationmodel):", paste(colnames(validationmodel), collapse=", "), "\n")
+          cat("dim(learningmodel):", dim(learningmodel), "\n")
+          cat("dim(validationmodel):", dim(validationmodel), "\n")
+          cat("column types of validationmodel:\n"); print(sapply(validationmodel, class))
+          missing_from_val <- setdiff(colnames(learningmodel)[-1], colnames(validationmodel))
+          extra_in_val     <- setdiff(colnames(validationmodel), colnames(learningmodel)[-1])
+          cat("Missing in validationmodel:", paste(missing_from_val, collapse=", "), "\n")
+          cat("Extra in validationmodel:", paste(extra_in_val, collapse=", "), "\n")
+          print(e1071:::predict.svm(model,newdata =  validationmodel,decision.values=T))
           
           #calculate decision values for the validation set
           scoreval =attr(e1071:::predict.svm(model,newdata =  validationmodel,decision.values=T),"decision.values")
+          cat("scoreval :  \n")
+          print(scoreval)
           if(sum(lev==(strsplit(colnames(scoreval),split = "/")[[1]]))==0){scoreval<-scoreval*(-1)}
           
           # Utiliser les probabilités pour la validation
@@ -3483,12 +3701,25 @@ modelfunction <- function(learningmodel,
       levels(predictclassval)<-paste("test ",lev,sep="")
       resvalidationmodel<-data.frame(classval,scoreval,predictclassval)
       colnames(resvalidationmodel) <-c("classval","scoreval","predictclassval")
-      auc<-auc(roc(as.vector(classval), as.vector(scoreval),quiet=T))
-      datavalidationmodel<-list("validationdiff"=validationdiff,"validationmodel"=validationmodel,"resvalidationmodel"=resvalidationmodel,"auc"=auc)
+      auc <- tryCatch(
+        pROC::auc(pROC::roc(as.vector(classval), as.vector(scoreval), quiet=T)),
+        error = function(e) {
+          cat("[modelfunction OLD] pROC::roc failed:", e$message, "\n")
+          cat("  sum(is.na(scoreval)):", sum(is.na(as.vector(scoreval))), "/ length:", length(as.vector(scoreval)), "\n")
+          NA
+        }
+      )
+      datavalidationmodel<-list("validationdiff"=validationdiff,
+                                "validationmodel"=validationmodel,
+                                "resvalidationmodel"=resvalidationmodel,"auc"=auc)
       
     }
     else{datavalidationmodel<-list()}
-    res<-list("datalearningmodel"=datalearningmodel,"model"=model,"datavalidationmodel"=datavalidationmodel,"groups"=lev,"parameters"=modelparameters)
+    res<-list("datalearningmodel"= datalearningmodel,
+              "model"= model,
+              "datavalidationmodel"= datavalidationmodel,
+              "groups"= lev,
+              "parameters" = modelparameters)
   }
 }
 
@@ -3507,7 +3738,8 @@ replaceNAoneline<-function(lineNA,toto,rempNA){
   alldata<-rbind(lineNA,toto)
   if(rempNA=="moygr"){ 
     #print("impossible de remplacer les NA par la moyenne par group pour la validation")
-    linessNA<-replaceNA(toto = cbind(rep(0,nrow(alldata)),alldata),rempNA ="moy")[1,-1]        }
+    linessNA<-replaceNA(toto = cbind(rep(0,nrow(alldata)),alldata),rempNA ="moy")[1,-1]       
+     }
   
   else{linessNA<-replaceNA(toto = cbind(rep(0,nrow(alldata)),alldata),rempNA =rempNA)[1,-1]}
   
@@ -3515,19 +3747,20 @@ replaceNAoneline<-function(lineNA,toto,rempNA){
 }
 
 ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplot=T){
+  
   validation<-factor(validation,levels = rev(levels(validation)),ordered = TRUE)
   
   #argument : validation, vector of appartenance,
   #            decisionvalues, vector of scores
   #fulldata<-rocdata(grp = validation, pred = as.vector(decisionvalues))
-  data<-roc(validation,decisionvalues)
+  data<-pROC::roc(validation,decisionvalues)
   if(!graph){return(data.frame("sensitivity"=data$sensitivities,"specificity"=data$specificities,"thresholds"=data$thresholds))}
   if(!ggplot){plot(data)}
   if(ggplot){
     y<-rev(data$sensitivities)
     x<-rev(data$specificities)
     roc<-data.frame(x,y)
-    auc<-as.numeric(auc(data))
+    auc<-as.numeric(pROC::auc(data))
     
     col<-gg_color_hue(3)
     roccol<-col[1]
@@ -3581,7 +3814,7 @@ boxplotggplot<-function(class,score,names,threshold,maintitle="Score representat
   if(!graph){return(data)}
   p<-ggplot(data, aes(x=class, y=score)) +
     scale_fill_manual( values = c("#00BFC4","#F8766D") ) +
-    geom_boxplot(aes(fill=class)) +
+    geom_boxplot(aes(fill=class),  outlier.colour = "gray") +
     geom_hline(yintercept = threshold, color='red', alpha=0.6) +
     ggtitle(maintitle) + 
     theme(plot.title=element_text( size=15), 
@@ -3696,11 +3929,15 @@ selectedfeature<-function(model,modeltype,tab,validation,criterionimportance,cri
     print(paste(i,"eliminates features"))
     tabdiff2<-tabdiff2[,-rmvar]
     if(modeltype=="svm"){
-      #set.seed(20011203)
-      tune_result <- tune.svm(x=tabdiff2[,-1], y=tabdiff2[,1],
-                              gamma = 10^(-5:2), cost = 10^(-3:2),
-                              cross=min(dim(tabdiff2)[1]-2,10))
-      model <- tune_result$best.model
+      colnames(tabdiff2)[1] <- "group"
+      tune_result <- tune_svm_stratified(data = tabdiff2,
+                                         gamma_range = 10^(-5:2), cost_range = 10^(-3:2),
+                                         kernel = "radial",
+                                         n_folds = min(5, nrow(tabdiff2) - 1))
+      model <- svm(group ~ ., data = tabdiff2, kernel = "radial",
+                   cost = tune_result$best.parameters$cost,
+                   gamma = tune_result$best.parameters$gamma,
+                   type = "C-classification")
       model$cost <- tune_result$best.parameters$cost
       model$gamma <- tune_result$best.parameters$gamma
     }
@@ -3727,7 +3964,7 @@ testmodel<-function(model,modeltype,tab,validation,criterionimportance,criterion
   if(modeltype=="svm"){
     if(criterionmodel=="BER"){bermod<-BER(class = tab[,1],classpredict = model$fitted)}
     if(criterionmodel=="auc"){
-      if (fstype=='learn'){aucmod<-auc(roc(tab[,1], as.vector(model$decision.values),quiet=T))}
+      if (fstype=='learn'){aucmod <- pROC::auc(pROC::roc(tab[,1], as.vector(model$decision.values),quiet=T))}
       if (fstype=='val'){
         print("")
         #predict sur la validation
@@ -3735,21 +3972,25 @@ testmodel<-function(model,modeltype,tab,validation,criterionimportance,criterion
       }}
     for(i in 1:length(lessimportantevar)){
       tabdiff2<-tab[,-lessimportantevar[i]]
-      tune_result_diff <- tune.svm(x=tabdiff2[,-1], y=tabdiff2[,1],
-                                   gamma = 10^(-5:2), cost = 10^(-3:2),
-                                   cross=min(dim(tabdiff2)[1]-2,10))
-      
-      resmodeldiff <- tune_result_diff$best.model
+      colnames(tabdiff2)[1] <- "group"
+      tune_result_diff <- tune_svm_stratified(data = tabdiff2,
+                                              gamma_range = 10^(-5:2), cost_range = 10^(-3:2),
+                                              kernel = "radial",
+                                              n_folds = min(5, nrow(tabdiff2) - 1))
+      resmodeldiff <- svm(group ~ ., data = tabdiff2, kernel = "radial",
+                          cost = tune_result_diff$best.parameters$cost,
+                          gamma = tune_result_diff$best.parameters$gamma,
+                          type = "C-classification")
       if(criterionmodel=="accuracy"){test[i]<-resmodeldiff$tot.accuracy-model$tot.accuracy}
       if(criterionmodel=="BER"){
         #print(paste("Ber test :",BER(class = tabdiff2[,1],classpredict = resmodeldiff$fitted) ))
         test[i]<-bermod-BER(class = tabdiff2[,1],classpredict = resmodeldiff$fitted)}
       if(criterionmodel=="auc"){
-        test[i]<-auc(roc(tabdiff2[,1], as.vector(resmodeldiff$decision.values),quiet=T))-aucmod}
+        test[i]<-pROC::auc(pROC::roc(tabdiff2[,1], as.vector(resmodeldiff$decision.values),quiet=T))-aucmod}
     }}
   if(modeltype=="randomforest"){
     if(criterionmodel=="BER"){bermod<-BER(class = tab[,1],classpredict = model$predicted)}
-    if(criterionmodel=="auc"){aucmod<-auc(roc(tab[,1], as.vector(model$votes[,1]),quiet=T))}
+    if(criterionmodel=="auc"){aucmod<-pROC::auc(pROC::roc(tab[,1], as.vector(model$votes[,1]),quiet=T))}
     for(i in 1:length(lessimportantevar)){
       tabdiff2<-tab[,-lessimportantevar[i]]
       tabdiff2<-as.data.frame(tabdiff2[,c(colnames(tabdiff2)[1],sort(colnames(tabdiff2[,-1])))])
@@ -3761,7 +4002,7 @@ testmodel<-function(model,modeltype,tab,validation,criterionimportance,criterion
       if(criterionmodel=="BER"){
         test[i]<-bermod-BER(class = tabdiff2[,1],classpredict = resmodeldiff$predicted)}
       if(criterionmodel=="auc"){
-        test[i]<-auc(roc(tabdiff2[,1], as.vector(resmodeldiff$votes[,1]),quiet=T))-aucmod}
+        test[i]<- pROC::auc(pROC::roc(tabdiff2[,1], as.vector(resmodeldiff$votes[,1]),quiet=T))-aucmod}
     }
   }
   #print(paste("test :",max(test)))
@@ -3963,7 +4204,7 @@ testparametersfunction<-function(learning,validation,tabparameters){
             scorelearning <- resmodel$datalearningmodel$reslearningmodel$scorelearning
             
             # Create ROC object
-            roc_obj <- roc(classlearning, scorelearning, quiet=TRUE)
+            roc_obj <- pROC::roc(classlearning, scorelearning, quiet=TRUE)
             
             # Find optimal threshold based on selected method
             if(parameters$threshold_method == "youden"){
@@ -4094,14 +4335,14 @@ testparametersfunction<-function(learning,validation,tabparameters){
       #thresholdused (NEW: index 7)
       results[i,7]<-round(parameters$thresholdmodel, digits = 4)
       #auclearning
-      results[i,4]<-round(as.numeric(auc(roc(resmodel$datalearningmodel$reslearningmodel$classlearning,resmodel$datalearningmodel$reslearningmodel$scorelearning,quiet=T))),digits = 3)
+      results[i,4]<-round(as.numeric(pROC::auc(pROC::roc(resmodel$datalearningmodel$reslearningmodel$classlearning,resmodel$datalearningmodel$reslearningmodel$scorelearning,quiet=T))),digits = 3)
       #sensibilitylearning
       results[i,5]<-sensibility(resmodel$datalearningmodel$reslearningmodel$predictclasslearning,resmodel$datalearningmodel$reslearningmodel$classlearning)
       #specificitylearning
       results[i,6]<-specificity(resmodel$datalearningmodel$reslearningmodel$predictclasslearning,resmodel$datalearningmodel$reslearningmodel$classlearning)
       if(!is.null(validation)){
         #aucvalidation
-        results[i,1]<-round(as.numeric(auc(roc(resmodel$datavalidationmodel$resvalidationmodel$classval,resmodel$datavalidationmodel$resvalidationmodel$scoreval,quiet=T))),digits = 3)
+        results[i,1]<-round(as.numeric(pROC::auc(pROC::roc(resmodel$datavalidationmodel$resvalidationmodel$classval,resmodel$datavalidationmodel$resvalidationmodel$scoreval,quiet=T))),digits = 3)
         #sensibilityvalidation
         results[i,2]<-sensibility(resmodel$datavalidationmodel$resvalidationmodel$predictclassval,resmodel$datavalidationmodel$resvalidationmodel$classval)
         #specificityvalidation
@@ -4569,7 +4810,9 @@ cv_model <- function(learningmodel, trained_model, modelparameters, threshold = 
         x_test_mat <- as.matrix(X_test)
         y_bin  <- ifelse(y_train == lev["positif"], 1, 0)
         if (is.null(en_lambda)) {
-          cv_fit <- cv.glmnet(x_mat, y_bin, alpha = en_alpha, family = "binomial", nfolds = 3)
+          inner_folds <- create_stratified_folds(y_train, k = min(3, length(y_train) - 1))
+          inner_foldid <- folds_to_foldid(inner_folds, length(y_train))
+          cv_fit <- cv.glmnet(x_mat, y_bin, alpha = en_alpha, family = "binomial", foldid = inner_foldid)
           lam <- cv_fit$lambda.min
         } else { lam <- en_lambda }
         mod <- glmnet(x_mat, y_bin, alpha = en_alpha, lambda = lam, family = "binomial")
@@ -4616,7 +4859,7 @@ cv_model <- function(learningmodel, trained_model, modelparameters, threshold = 
         df_train <- cbind(group = y_train, X_train)
         df_test  <- X_test
         mod <- glm(group ~ ., data = df_train, family = binomial())
-        predict(mod, newdata = df_test, type = "response")
+        stats::predict.glm(mod, newdata = df_test, type = "response")
         
       } else { rep(NA_real_, nrow(X_test)) }
       
@@ -4627,7 +4870,7 @@ cv_model <- function(learningmodel, trained_model, modelparameters, threshold = 
     
     # ── Métriques du fold ──────────────────────────────────────────────────────
     auc_val <- tryCatch(
-      as.numeric(auc(roc(as.vector(y_test), as.vector(score), quiet = TRUE))),
+      as.numeric(pROC::auc(pROC::roc(as.vector(y_test), as.vector(score), quiet = TRUE))),
       error = function(e) NA_real_
     )
     
@@ -4690,3 +4933,1432 @@ cv_model <- function(learningmodel, trained_model, modelparameters, threshold = 
   
   rbind(res_df, mean_row, sd_row)
 }
+
+
+# ==========================================================================
+# t-SNE AND UMAP VISUALIZATION
+# ==========================================================================
+plot_tsne <- function(data, y, perplexity = 30, title = "t-SNE Visualization") {
+  set.seed(20011203)
+  X <- as.matrix(data)
+  
+  perplexity <- min(perplexity, floor((nrow(X) - 1) / 3))
+  if(perplexity < 1) perplexity <- 1
+  
+  tsne_result <- Rtsne(X, dims = 2, perplexity = perplexity, 
+                       verbose = FALSE, max_iter = 1000, check_duplicates = FALSE)
+  
+  tsne_data <- data.frame(
+    Dim1 = tsne_result$Y[, 1],
+    Dim2 = tsne_result$Y[, 2],
+    Group = as.factor(y),
+    Sample = rownames(data)
+  )
+  
+  plot_ly(tsne_data, x = ~Dim1, y = ~Dim2, color = ~Group,
+          colors = c("#F8766D", "#00BFC4"),
+          type = 'scatter', mode = 'markers',
+          marker = list(size = 10, opacity = 0.7),
+          text = ~paste("Sample:", Sample, "<br>Group:", Group),
+          hoverinfo = 'text') %>%
+    layout(
+      title = list(text = title, font = list(size = 16)),
+      xaxis = list(title = "t-SNE 1"),
+      yaxis = list(title = "t-SNE 2"),
+      legend = list(title = list(text = "Group"))
+    )
+}
+
+plot_umap <- function(data, y, n_neighbors = 15, title = "UMAP Visualization") {
+  set.seed(20011203)
+  X <- as.matrix(data)
+  
+  n_neighbors <- min(n_neighbors, nrow(X) - 1)
+  if(n_neighbors < 2) n_neighbors <- 2
+  
+  umap_config <- umap.defaults
+  umap_config$n_neighbors <- n_neighbors
+  umap_config$random_state <- 20011203
+  
+  umap_result <- umap(X, config = umap_config)
+  
+  umap_data <- data.frame(
+    Dim1 = umap_result$layout[, 1],
+    Dim2 = umap_result$layout[, 2],
+    Group = as.factor(y),
+    Sample = rownames(data)
+  )
+  
+  plot_ly(umap_data, x = ~Dim1, y = ~Dim2, color = ~Group,
+          colors = c("#F8766D", "#00BFC4"),
+          type = 'scatter', mode = 'markers',
+          marker = list(size = 10, opacity = 0.7),
+          text = ~paste("Sample:", Sample, "<br>Group:", Group),
+          hoverinfo = 'text') %>%
+    layout(
+      title = list(text = title, font = list(size = 16)),
+      xaxis = list(title = "UMAP 1"),
+      yaxis = list(title = "UMAP 2"),
+      legend = list(title = list(text = "Group"))
+    )
+}
+
+# ==========================================================================
+# CLUSTERED HEATMAP OF TOP FEATURES
+# ==========================================================================
+library(grid)
+plot_clustered_heatmap <- function(data, y, n_top = 30, title = "Clustered Heatmap - Top Features") {
+  X <- as.matrix(data)
+  grid.newpage()
+  
+  if(ncol(X) > n_top) {
+    var_importance <- apply(X, 2, function(col) {
+      tryCatch({
+        kruskal.test(col ~ as.factor(y))$p.value
+      }, error = function(e) 1)
+    })
+    top_idx <- order(var_importance)[1:n_top]
+    X <- X[, top_idx]
+  }
+  
+  X_scaled <- scale(X)
+  
+  annotation_row <- data.frame(Group = as.factor(y))
+  rownames(annotation_row) <- rownames(data)[1:nrow(X)]
+  
+  n_groups <- length(unique(y))
+  group_colors <- setNames(
+    # c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#999999")[1:n_groups],
+    c("#F8766D", "#00BFC4"),
+    levels(as.factor(y))
+  )
+  ann_colors <- list(Group = group_colors)
+  
+  tryCatch({
+    p =  pheatmap(t(X_scaled),
+             annotation_col = annotation_row,
+             annotation_colors = ann_colors,
+             clustering_method = "ward.D2",
+             show_colnames = FALSE,
+             main = title,
+             fontsize_row = 10,
+             width = 12,
+             height = 8,
+             fontweight_row = "bold",
+             color = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100))
+    
+    gt <- p$gtable
+    
+    library(gridExtra)
+    for (i in seq_along(gt$grobs)) {
+      if ("row_names" %in% gt$grobs[[i]]$name) {
+        gt$grobs[[i]]$gp <- gpar(fontface = "bold", fontsize = 10)
+      }
+    }
+    
+    # print(grid.draw(gt))
+    # print(gt)
+    print(p)
+    
+  }, error = function(e) {
+    plot.new()
+    text(0.5, 0.5, paste("Heatmap error:", e$message), cex = 1.2, col = "red")
+  })
+}
+
+# ==========================================================================
+# CORRELATION NETWORK
+# ==========================================================================
+# plot_correlation_network <- function(data, cor_threshold = 0.6, title = "Correlation Network") {
+#   X <- data
+#   if(ncol(X) < 2) {
+#     return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "Need at least 2 variables", size = 6) + theme_void())
+#   }
+#   
+#   cor_matrix <- cor(X, use = "pairwise.complete.obs")
+#   diag(cor_matrix) <- 0
+#   
+#   cor_matrix[abs(cor_matrix) < cor_threshold] <- 0
+#   
+#   if(sum(cor_matrix != 0) == 0) {
+#     return(ggplot() + annotate("text", x = 0.5, y = 0.5, 
+#                                label = paste("No correlations above threshold", cor_threshold), size = 5) + theme_void())
+#   }
+#   
+#   graph <- graph_from_adjacency_matrix(abs(cor_matrix), 
+#                                        mode = "undirected", 
+#                                        weighted = TRUE, 
+#                                        diag = FALSE)
+#   graph <- delete_vertices(graph, which(degree(graph) == 0))
+#   
+#   if(vcount(graph) == 0) {
+#     return(ggplot() + annotate("text", x = 0.5, y = 0.5, 
+#                                label = "No connected variables", size = 5) + theme_void())
+#   }
+#   
+#   tg <- as_tbl_graph(graph)
+#   
+#   p <- ggraph(tg, layout = "fr") +
+#     geom_edge_link(aes(width = weight, alpha = weight), color = "steelblue") +
+#     geom_node_point(size = 5, color = "#E74C3C") +
+#     geom_node_text(aes(label = name), repel = TRUE, size = 3, fontface = "bold") +
+#     scale_edge_width(range = c(0.5, 3)) +
+#     scale_edge_alpha(range = c(0.3, 1)) +
+#     labs(title = title, subtitle = paste("Correlation threshold:", cor_threshold)) +
+#     theme_void() +
+#     theme(
+#       plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+#       plot.subtitle = element_text(size = 11, hjust = 0.5),
+#       legend.position = "none"
+#     )
+#   
+#   return(p)
+# }
+
+
+plot_correlation_network <- function(data, cor_threshold = 0.6, title = "Correlation Network") {
+  X <- data
+  if(ncol(X) < 2) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "Need at least 2 variables", size = 6) + theme_void())
+  }
+  
+  cor_matrix <- cor(X, use = "pairwise.complete.obs")
+  diag(cor_matrix) <- 0
+  cor_matrix[abs(cor_matrix) < cor_threshold] <- 0
+  
+  if(sum(cor_matrix != 0) == 0) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, 
+                               label = paste("No correlations above threshold", cor_threshold), size = 5) + theme_void())
+  }
+  
+  graph <- igraph::graph_from_adjacency_matrix(
+    abs(cor_matrix), mode = "undirected", weighted = TRUE, diag = FALSE
+  )
+  
+  # Qualification explicite pour éviter le conflit de namespace
+  isolated <- which(igraph::degree(graph) == 0)
+  if(length(isolated) > 0) {
+    graph <- igraph::delete_vertices(graph, isolated)
+  }
+  
+  if(igraph::vcount(graph) == 0) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, 
+                               label = "No connected variables", size = 5) + theme_void())
+  }
+  
+  tg <- tidygraph::as_tbl_graph(graph)
+  
+  p <- ggraph(tg, layout = "fr") +
+    geom_edge_link(aes(width = weight, alpha = weight), color = "steelblue") +
+    geom_node_point(size = 5, color = "#E74C3C") +
+    geom_node_text(aes(label = name), repel = TRUE, size = 5, fontface = "bold") +
+    scale_edge_width(range = c(0.5, 3)) +
+    scale_edge_alpha(range = c(0.3, 1)) +
+    labs(title = title, subtitle = paste("Correlation threshold:", cor_threshold)) +
+    theme_void() +
+    theme(
+      plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(size = 11, hjust = 0.5),
+      legend.position = "none"
+    )
+  
+  return(p)
+}
+# ==========================================================================
+# CALIBRATION PLOT
+# ==========================================================================
+
+plot_calibration <- function(actual, predicted_probs, n_bins = 10, title = "Calibration Plot") {
+  if(is.matrix(predicted_probs) || is.data.frame(predicted_probs)) {
+    n_classes <- ncol(predicted_probs)
+    class_names <- if(!is.null(colnames(predicted_probs))) colnames(predicted_probs) else paste("Class", 1:n_classes)
+    
+    all_data <- data.frame()
+    for(i in 1:n_classes) {
+      binary_actual <- as.numeric(actual == levels(actual)[i])
+      probs <- predicted_probs[, i]
+      
+      bins <- cut(probs, breaks = seq(0, 1, length.out = n_bins + 1), include.lowest = TRUE)
+      bin_data <- data.frame(probs = probs, actual = binary_actual, bin = bins)
+      
+      bin_summary <- bin_data %>%
+        group_by(bin) %>%
+        summarise(
+          mean_predicted = mean(probs, na.rm = TRUE),
+          mean_actual = mean(actual, na.rm = TRUE),
+          count = n(),
+          .groups = 'drop'
+        ) %>%
+        mutate(Class = class_names[i])
+      
+      all_data <- rbind(all_data, bin_summary)
+    }
+    
+    p <- ggplot(all_data, aes(x = mean_predicted, y = mean_actual, color = Class)) +
+      geom_point(aes(size = count), alpha = 0.7) +
+      geom_line() +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray50") +
+      scale_size_continuous(range = c(2, 8)) +
+      labs(title = title, x = "Mean Predicted Probability", y = "Observed Proportion",
+           size = "N samples") +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 15, face = "bold"),
+        axis.text = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10, face = "bold")
+      ) +
+      coord_fixed()
+    
+  } else {
+    binary_actual <- as.numeric(actual == levels(actual)[1])
+    probs <- predicted_probs
+    bins <- cut(probs, breaks = seq(0, 1, length.out = n_bins + 1), include.lowest = TRUE)
+    bin_data <- data.frame(probs = probs, actual = binary_actual, bin = bins)
+    
+    bin_summary <- bin_data %>%
+      group_by(bin) %>%
+      summarise(
+        mean_predicted = mean(probs, na.rm = TRUE),
+        mean_actual = mean(actual, na.rm = TRUE),
+        count = n(),
+        .groups = 'drop'
+      )
+    
+    p <- ggplot(bin_summary, aes(x = mean_predicted, y = mean_actual)) +
+      geom_point(aes(size = count), color = "#3498DB", alpha = 0.7) +
+      geom_line(color = "#3498DB") +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray50") +
+      scale_size_continuous(range = c(2, 8)) +
+      labs(title = title, x = "Mean Predicted Probability", y = "Observed Proportion",
+           size = "N samples") +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 15, face = "bold"),
+        axis.text = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 14, face = "bold")
+      ) +
+      coord_fixed()
+  }
+  
+  return(p)
+}
+
+# -----------------------------
+# BINAIRE
+# -----------------------------
+plot_calibration_binary <- function(actual, predicted_probs,
+                             n_bins = 10,
+                             title = "Calibration Plot") {
+  
+  binary_actual <- as.numeric(actual == levels(actual)[1])
+  
+  probs <- predicted_probs
+  
+  bins <- cut(
+    probs,
+    breaks = seq(0, 1, length.out = n_bins + 1),
+    include.lowest = TRUE
+  )
+  
+  bin_data <- data.frame(
+    probs = probs,
+    actual = binary_actual,
+    bin = bins
+  )
+  
+  bin_summary <- bin_data %>%
+    group_by(bin) %>%
+    summarise(
+      mean_predicted = mean(probs, na.rm = TRUE),
+      mean_actual = mean(actual, na.rm = TRUE),
+      count = n(),
+      .groups = "drop"
+    )
+  
+  p <- ggplot(
+    bin_summary,
+    aes(x = mean_predicted, y = mean_actual)
+  ) +
+    geom_point(
+      aes(size = count),
+      color = "#3498DB",
+      alpha = 0.7
+    ) +
+    geom_line(color = "#3498DB") +
+    geom_abline(
+      slope = 1,
+      intercept = 0,
+      linetype = "dashed",
+      color = "gray50"
+    ) +
+    scale_size_continuous(range = c(2, 8)) +
+    labs(
+      title = title,
+      x = "Mean Predicted Probability",
+      y = "Observed Proportion",
+      size = "N samples"
+    ) +
+    theme_minimal() +
+    coord_fixed() +
+    xlim(0, 1) +
+    ylim(0, 1)
+  
+  
+  return(p)
+}
+
+# ==========================================================================
+# MODEL COMPARISON: RUN ALL MODELS
+# --------------------------------------------------------------------------
+# Entraîne chaque modèle sélectionné via modelfunction_V2 (CV stratifiée)
+# puis applique apply_threshold pour obtenir les classes prédites.
+# Les métriques sont calculées avec les fonctions existantes de l'application
+# (sensibility, specificity, pROC::roc) pour le cas binaire, et par
+# macro-moyenne one-vs-rest pour le cas multi-classes.
+# ==========================================================================
+run_all_models <- function(learningmodel, validation, transformdataparameters,
+                           datastructuresfeatures, learningselect,
+                           models_to_run = NULL, threshold = 0.5) {
+  
+  if (is.null(models_to_run)) {
+    models_to_run <- c("randomforest", "svm", "elasticnet",
+                       "xgboost", "naivebayes", "knn")
+  }
+  
+  results_list    <- list()
+  metrics_summary <- data.frame()
+  n_classes       <- length(levels(as.factor(learningmodel[, 1])))
+  
+  for (model_type in models_to_run) {
+    cat(sprintf("\n=== Training: %s ===\n", model_type))
+    
+    # ── Réinitialisation de la graine avant chaque modèle ──────────────────
+    set.seed(20011203)
+    
+    # ── Paramètres par défaut alignés sur l'interface (ui.R) ───────────────
+    
+    if (model_type == "randomforest") {
+      modelparameters <- list(
+        modeltype         = "randomforest",
+        invers            = FALSE,
+        thresholdmodel    = threshold,
+        fs                = FALSE,
+        adjustval         = !is.null(validation),
+        use_gridsearch    = FALSE,
+        autotunerf        = TRUE,          
+        ntree             = 1000,          
+        rf_ntree_range    = c(100, 500, 1000),
+        rf_nodesize_range = c(1, 5, 10),
+        sampsize_frac     = 1.0,
+        replace           = TRUE,
+        # paramètres manuels non utilisés (autotunerf = TRUE)
+        mtry              = NULL,
+        nodesize          = NULL,
+        maxnodes          = NULL
+      )
+      
+    } else if (model_type == "svm") {
+      modelparameters <- list(
+        modeltype      = "svm",
+        invers         = FALSE,
+        thresholdmodel = threshold,
+        fs             = FALSE,
+        adjustval      = !is.null(validation),
+        autotunesvm    = TRUE,
+        svm_scoring    = "accuracy",           
+        svm_gamma_range = 10^(-5:2),       
+        svm_cost_range  = 10^(-3:2),       
+        # paramètres manuels non utilisés (autotunesvm = TRUE)
+        cost           = NULL,
+        gamma          = NULL,
+        kernel         = "radial"
+      )
+      
+    } else if (model_type == "elasticnet") {
+      
+      modelparameters <- list(
+        modeltype      = "elasticnet",
+        invers         = FALSE,
+        thresholdmodel = threshold,
+        fs             = FALSE,
+        adjustval      = !is.null(validation),
+        use_gridsearch = FALSE,            
+        alpha          = 0.5,             
+        lambda         = NULL             
+      )
+      
+    } else if (model_type == "xgboost") {
+      modelparameters <- list(
+        modeltype      = "xgboost",
+        invers         = FALSE,
+        thresholdmodel = threshold,
+        fs             = FALSE,
+        adjustval      = !is.null(validation),
+        use_gridsearch = FALSE,
+        autotunexgb    = TRUE,            
+        gamma_xgb      = 0,
+        subsample_xgb  = 1.0,
+        lambda_xgb     = 0,
+        alpha_xgb      = 0,
+        nrounds        = NULL,
+        max_depth      = NULL,
+        eta            = NULL
+      )
+      
+    } else if (model_type == "lightgbm") {
+      modelparameters <- list(
+        modeltype      = "lightgbm",
+        invers         = FALSE,
+        thresholdmodel = threshold,
+        fs             = FALSE,
+        adjustval      = !is.null(validation),
+        autotunelgb    = TRUE,
+        nrounds_lgb    = NULL,
+        num_leaves     = NULL,
+        learning_rate_lgb = NULL
+      )
+      
+    } else if (model_type == "naivebayes") {
+      modelparameters <- list(
+        modeltype      = "naivebayes",
+        invers         = FALSE,
+        thresholdmodel = threshold,
+        fs             = FALSE,
+        adjustval      = !is.null(validation),
+        use_gridsearch = TRUE,            
+        nb_grid_laplace = c(0, 0.5, 1, 2, 5)
+      )
+      
+    } else if (model_type == "knn") {
+      modelparameters <- list(
+        modeltype      = "knn",
+        invers         = FALSE,
+        thresholdmodel = threshold,
+        fs             = FALSE,
+        adjustval      = !is.null(validation),
+        use_gridsearch = FALSE,
+        autotuneknn    = TRUE,            
+        k_neighbors    = NULL
+      )
+      
+    } else {
+      cat(sprintf("  ✗ Unknown model type: %s — skipping\n", model_type))
+      next
+    }
+    
+    # ── 1. Entraînement ─────────────────────────────────────────────────────
+    raw <- tryCatch(
+      modelfunction_V2(
+        learningmodel           = learningmodel,
+        validation              = validation,
+        modelparameters         = modelparameters,
+        transformdataparameters = transformdataparameters,
+        datastructuresfeatures  = datastructuresfeatures,
+        learningselect          = learningselect
+      ),
+      error = function(e) {
+        cat(sprintf("  ✗ Error training %s: %s\n", model_type, e$message))
+        return(NULL)
+      }
+    )
+    if (is.null(raw)) next
+    
+    # ── 2. Application du seuil ─────────────────────────────────────────────
+    out <- tryCatch(
+      apply_threshold(raw, new_threshold = threshold),
+      error = function(e) {
+        cat(sprintf("  ✗ apply_threshold error for %s: %s\n",
+                    model_type, e$message))
+        return(NULL)
+      }
+    )
+    if (is.null(out)) next
+    
+    results_list[[model_type]] <- out
+    
+    # ── 3. Métriques Training ────────────────────────────────────────────────
+    res_lrn  <- out$datalearningmodel$reslearningmodel
+    row_data <- extract_metrics(
+      res_lrn$predictclasslearning,
+      res_lrn$classlearning,
+      res_lrn$scorelearning,
+      n_classes, prefix = "Train"
+    )
+    row_data$Model <- model_type
+    
+    # ── 4. Métriques Validation ─────────────────────────────────────────────
+    if (!is.null(validation) &&
+        length(out$datavalidationmodel) > 0 &&
+        !is.null(out$datavalidationmodel$resvalidationmodel)) {
+      res_val  <- out$datavalidationmodel$resvalidationmodel
+      val_data <- extract_metrics(
+        res_val$predictclassval,
+        res_val$classval,
+        res_val$scoreval,
+        n_classes, prefix = "Val"
+      )
+      row_data <- cbind(row_data, val_data)
+    }
+    
+    metrics_summary <- rbind(metrics_summary, row_data)
+  }
+  
+  if (nrow(metrics_summary) > 0) {
+    metrics_summary <- metrics_summary[,
+                                       c("Model", setdiff(names(metrics_summary), "Model"))]
+  }
+  
+  return(list(
+    results = results_list,
+    metrics = metrics_summary
+  ))
+}
+# run_all_models <- function(learningmodel, validation, transformdataparameters,
+#                            datastructuresfeatures, learningselect,
+#                            models_to_run = NULL, threshold = 0.5) {
+#   
+#   if(is.null(models_to_run)) {
+#     models_to_run <- c("randomforest", "svm", "elasticnet", "xgboost", "naivebayes", "knn")
+#   }
+#   
+#   results_list    <- list()
+#   metrics_summary <- data.frame()
+#   n_classes       <- length(levels(as.factor(learningmodel[, 1])))
+#   
+#   for(model_type in models_to_run) {
+#     cat(sprintf("\n=== Training: %s ===\n", model_type))
+#     
+#     modelparameters <- list(
+#       modeltype      = model_type,
+#       invers         = FALSE,
+#       thresholdmodel = threshold,
+#       fs             = FALSE,
+#       adjustval      = !is.null(validation),
+#       
+#       # ── Activation du GridSearchCV pour tous les modèles qui le supportent ──
+#       use_gridsearch = TRUE,
+#       
+#       # ── Random Forest ────────────────────────────────────────────────────────
+#       autotunerf       = TRUE,
+#       rf_grid_ntree    = c(100, 300, 500, 1000),
+#       rf_grid_mtry     = c("sqrt", "log2"),
+#       rf_grid_nodesize = c(1, 3, 5),
+#       ntree            = 500,
+#       
+#       # ── SVM ──────────────────────────────────────────────────────────────────
+#       autotunesvm     = TRUE,
+#       svm_scoring     = "accuracy",
+#       svm_gamma_range = 10^seq(-6, 2, by = 1),
+#       svm_cost_range  = 10^seq(-3, 3, by = 1),
+#       
+#       # ── XGBoost ──────────────────────────────────────────────────────────────
+#       autotunexgb          = TRUE,
+#       # use_gridsearch       = FALSE,
+#       xgb_grid_nrounds     = c(50, 100, 200, 300),
+#       xgb_grid_maxdepth    = c(3, 6, 9),
+#       xgb_grid_eta         = c(0.01, 0.05, 0.1, 0.3),
+#       xgb_grid_gamma       = c(0, 0.1, 0.5),
+#       xgb_grid_subsample   = c(0.8, 1.0),
+#       
+#       # ── LightGBM ─────────────────────────────────────────────────────────────
+#       autotunelgb = TRUE,
+#       
+#       # ── KNN ──────────────────────────────────────────────────────────────────
+#       autotuneknn = TRUE,
+#       k_neighbors = 5,
+#       
+#       # ── Naive Bayes ──────────────────────────────────────────────────────────
+#       nb_grid_laplace = c(0, 0.5, 1, 2, 5)
+#     )
+#     
+#     # ── 1. Entraînement (modelfunction_V2 = version avec CV stratifiée) ──────
+#     raw <- tryCatch(
+#       modelfunction_V2(learningmodel       = learningmodel,
+#                        validation           = validation,
+#                        modelparameters      = modelparameters,
+#                        transformdataparameters = transformdataparameters,
+#                        datastructuresfeatures = datastructuresfeatures,
+#                        learningselect       = learningselect),
+#       error = function(e) {
+#         cat(sprintf("  ✗ Error training %s: %s\n", model_type, e$message))
+#         return(NULL)
+#       }
+#     )
+#     if(is.null(raw)) next
+#     
+#     # ── 2. Application du seuil → obtient predictclasslearning / predictclassval
+#     out <- tryCatch(
+#       apply_threshold(raw, new_threshold = threshold),
+#       error = function(e) {
+#         cat(sprintf("  ✗ apply_threshold error for %s: %s\n", model_type, e$message))
+#         return(NULL)
+#       }
+#     )
+#     if(is.null(out)) next
+#     
+#     results_list[[model_type]] <- out
+#     
+#     # ── 3. Métriques Training ────────────────────────────────────────────────
+#     res_lrn   <- out$datalearningmodel$reslearningmodel
+#     row_data  <- extract_metrics(res_lrn$predictclasslearning,
+#                                  res_lrn$classlearning,
+#                                  res_lrn$scorelearning,
+#                                  n_classes, prefix = "Train")
+#     row_data$Model <- model_type
+#     
+#     # ── 4. Métriques Validation (si disponible) ──────────────────────────────
+#     if(!is.null(validation) && length(out$datavalidationmodel) > 0 &&
+#        !is.null(out$datavalidationmodel$resvalidationmodel)) {
+#       res_val  <- out$datavalidationmodel$resvalidationmodel
+#       val_data <- extract_metrics(res_val$predictclassval,
+#                                   res_val$classval,
+#                                   res_val$scoreval,
+#                                   n_classes, prefix = "Val")
+#       row_data <- cbind(row_data, val_data)
+#     }
+#     
+#     metrics_summary <- rbind(metrics_summary, row_data)
+#   }
+#   
+#   # Remettre Model en première colonne
+#   if(nrow(metrics_summary) > 0) {
+#     metrics_summary <- metrics_summary[, c("Model", setdiff(names(metrics_summary), "Model"))]
+#   }
+#   
+#   return(list(
+#     results = results_list,
+#     metrics = metrics_summary
+#   ))
+# }
+
+# --------------------------------------------------------------------------
+# extract_metrics : calcule Accuracy, Sensitivity, Specificity, AUC
+#   - Binaire  : utilise sensibility() / specificity() existantes + pROC::roc
+#   - Multi-cl.: macro-moyenne one-vs-rest + pROC::multiclass.roc
+# --------------------------------------------------------------------------
+extract_metrics <- function(predicted, actual, scores, n_classes, prefix = "Train") {
+  
+  # Retirer le préfixe "test " ajouté par apply_threshold pour l'accuracy
+  pred_clean <- sub("^test *", "", as.character(predicted))
+  
+  # ── Accuracy ─────────────────────────────────────────────────────────────
+  acc <- tryCatch(
+    round(mean(pred_clean == as.character(actual), na.rm = TRUE), 3),
+    error = function(e) NA
+  )
+  
+  # ── Sensitivity / Specificity ────────────────────────────────────────────
+  if(n_classes == 2) {
+    # Binaire → fonctions existantes de l'application
+    sen <- tryCatch(sensibility(predicted, actual), error = function(e) NA)
+    spe <- tryCatch(specificity(predicted, actual), error = function(e) NA)
+  } else {
+    # Multi-classes → macro-moyenne one-vs-rest
+    pred_factor <- factor(pred_clean, levels = levels(actual))
+    cm <- table(Predicted = pred_factor, Actual = actual)
+    classes <- levels(actual)
+    
+    sens_per_class <- sapply(classes, function(cls) {
+      tp <- if(cls %in% rownames(cm)) cm[cls, cls] else 0
+      fn <- sum(cm[, cls]) - tp
+      if((tp + fn) == 0) return(NA)
+      tp / (tp + fn)
+    })
+    spec_per_class <- sapply(classes, function(cls) {
+      tp <- if(cls %in% rownames(cm)) cm[cls, cls] else 0
+      fp <- if(cls %in% rownames(cm)) sum(cm[cls, ]) - tp else 0
+      tn <- sum(cm) - sum(cm[, cls]) - fp
+      if((tn + fp) == 0) return(NA)
+      tn / (tn + fp)
+    })
+    
+    sen <- round(mean(sens_per_class, na.rm = TRUE), 3)
+    spe <- round(mean(spec_per_class, na.rm = TRUE), 3)
+  }
+  
+  # ── AUC ──────────────────────────────────────────────────────────────────
+  auc_val <- tryCatch({
+    if(n_classes == 2) {
+      round(as.numeric(pROC::auc(pROC::roc(actual, scores, quiet = TRUE))), digits = 3)
+    } else {
+      round(as.numeric(pROC::multiclass.roc(actual, scores, quiet = TRUE)$auc), digits = 3)
+    }
+  }, error = function(e) NA)
+  
+  result <- data.frame(
+    x_Accuracy    = acc,
+    x_Sensitivity = sen,
+    x_Specificity = spe,
+    x_AUC         = auc_val,
+    stringsAsFactors = FALSE
+  )
+  colnames(result) <- paste0(prefix, "_", c("Accuracy", "Sensitivity", "Specificity", "AUC"))
+  result
+}
+
+# ==========================================================================
+# DELONG TEST FOR AUC COMPARISON
+# ==========================================================================
+delong_compare_models <- function(comparison_results) {
+  models   <- names(comparison_results$results)
+  n_models <- length(models)
+  
+  if(n_models < 2) {
+    return(data.frame(message = "Need at least 2 models to compare"))
+  }
+  
+  pval_matrix <- matrix(NA, nrow = n_models, ncol = n_models)
+  rownames(pval_matrix) <- models
+  colnames(pval_matrix) <- models
+  
+  # Préférer la validation si disponible, sinon utiliser les données d'apprentissage
+  use_val <- all(sapply(models, function(m) {
+    res <- comparison_results$results[[m]]
+    !is.null(res$datavalidationmodel) && length(res$datavalidationmodel) > 0 &&
+      !is.null(res$datavalidationmodel$resvalidationmodel)
+  }))
+  
+  for(i in 1:(n_models - 1)) {
+    for(j in (i + 1):n_models) {
+      tryCatch({
+        res_i <- comparison_results$results[[models[i]]]
+        res_j <- comparison_results$results[[models[j]]]
+        
+        if(use_val) {
+          actual   <- res_i$datavalidationmodel$resvalidationmodel$classval
+          scores_i <- res_i$datavalidationmodel$resvalidationmodel$scoreval
+          scores_j <- res_j$datavalidationmodel$resvalidationmodel$scoreval
+        } else {
+          actual   <- res_i$datalearningmodel$reslearningmodel$classlearning
+          scores_i <- res_i$datalearningmodel$reslearningmodel$scorelearning
+          scores_j <- res_j$datalearningmodel$reslearningmodel$scorelearning
+        }
+        
+        if(is.null(actual) || is.null(scores_i) || is.null(scores_j)) next
+        scores_i <- as.numeric(scores_i)
+        scores_j <- as.numeric(scores_j)
+        
+        roc_i <- pROC::roc(actual, scores_i, quiet = TRUE)
+        roc_j <- pROC::roc(actual, scores_j, quiet = TRUE)
+        test_result <- pROC::roc.test(roc_i, roc_j, method = "delong")
+        pval_matrix[i, j] <- round(test_result$p.value, 4)
+        pval_matrix[j, i] <- round(test_result$p.value, 4)
+        
+      }, error = function(e) {
+        cat(sprintf("DeLong test error (%s vs %s): %s\n", models[i], models[j], e$message))
+      })
+    }
+  }
+  
+  result_df <- as.data.frame(pval_matrix)
+  for(k in 1:n_models) result_df[k, k] <- "-"
+  return(result_df)
+}
+
+# ==========================================================================
+# RADAR/SPIDER PLOT FOR MODEL COMPARISON
+# ==========================================================================
+plot_radar_comparison <- function(metrics_summary, type = "validation") {
+  if(nrow(metrics_summary) < 1) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No models to compare", size = 6) + theme_void())
+  }
+  
+  if(type == "validation" && "Val_AUC" %in% colnames(metrics_summary)) {
+    radar_data <- metrics_summary %>%
+      select(Model, Val_Accuracy, Val_Sensitivity, Val_Specificity, Val_AUC) %>%
+      rename(Accuracy = Val_Accuracy, Sensitivity = Val_Sensitivity,
+             Specificity = Val_Specificity, AUC = Val_AUC)
+  } else {
+    radar_data <- metrics_summary %>%
+      select(Model, Train_Accuracy, Train_Sensitivity, Train_Specificity, Train_AUC) %>%
+      rename(Accuracy = Train_Accuracy, Sensitivity = Train_Sensitivity,
+             Specificity = Train_Specificity, AUC = Train_AUC)
+  }
+  
+  models <- radar_data$Model
+  radar_values <- radar_data[, -1]
+  radar_values[is.na(radar_values)] <- 0
+  
+  radar_df <- rbind(rep(1, ncol(radar_values)), rep(0, ncol(radar_values)), radar_values)
+  rownames(radar_df) <- c("Max", "Min", models)
+  
+  n_models <- length(models)
+  colors_fill <- c("#E74C3C44", "#3498DB44", "#2ECC7144", "#F39C1244", "#9B59B644", "#1ABC9C44")[1:n_models]
+  colors_line <- c("#E74C3C", "#3498DB", "#2ECC71", "#F39C12", "#9B59B6", "#1ABC9C")[1:n_models]
+  
+  par(mar = c(1, 1, 2, 1))
+  radarchart(radar_df,
+             axistype = 1,
+             pcol = colors_line,
+             pfcol = adjustcolor(topo.colors(n_models), 0.15),
+             #colors_fill,
+             plwd = 2,
+             plty = 1,
+             cglcol = "grey",
+             cglty = 1,
+             axislabcol = "grey40",
+             vlcex = 1.1,
+             palcex = 1.1,
+             title = paste("Model Comparison -", tools::toTitleCase(type)))
+  
+  legend("topright", legend = models, col = colors_line, 
+         lty = 1, lwd = 2, bty = "n", cex = 1.5)
+}
+
+# ==========================================================================
+# SHAP VALUES (via iml package)
+# ==========================================================================
+compute_shap_values <- function(model, learningmodel, modeltype, n_samples = 50) {
+  X <- learningmodel[, -1]
+  y <- learningmodel[, 1]
+  
+  predict_fn <- function(model, newdata) {
+    newdata <- as.data.frame(newdata)
+    
+    # iml peut passer newdata avec des noms de colonnes entiers ("1","2",...) au lieu
+    # des noms de features → renommer si le nombre de colonnes correspond
+    if(ncol(newdata) == ncol(X)) colnames(newdata) <- colnames(X)
+    
+    for(i in seq_len(ncol(newdata))) {
+      newdata[, i] <- suppressWarnings(as.numeric(as.character(newdata[, i])))
+    }
+    
+    tryCatch({
+      if(modeltype == "randomforest") {
+        preds <- randomForest:::predict.randomForest(model, newdata, type = "prob")
+        return(as.data.frame(preds))
+      } else if(modeltype == "svm") {
+        dv <- attr(e1071:::predict.svm(model, newdata, decision.values = TRUE), "decision.values")
+        return(data.frame(score = as.numeric(dv)))
+      } else if(modeltype == "elasticnet") {
+        newdata_matrix <- as.matrix(newdata)
+        if(inherits(model$glmnet_model, "cv.glmnet")) {
+          preds <- glmnet:::predict.cv.glmnet(model$glmnet_model, newdata_matrix, s = model$lambda, type = "response")
+        } else {
+          preds <- glmnet::predict.glmnet(model$glmnet_model, newdata_matrix, s = model$lambda, type = "response")
+        }
+        if(length(dim(preds)) == 3) preds <- preds[, , 1]
+        return(as.data.frame(preds))
+      } else if(modeltype == "xgboost") {
+        dmat <- xgb.DMatrix(data = as.matrix(newdata))
+        preds <- xgboost:::predict.xgb.Booster(model, dmat, reshape = TRUE)
+        return(as.data.frame(preds))
+      } else if(modeltype == "naivebayes") {
+        preds <- e1071:::predict.naiveBayes(model, newdata, type = "raw")
+        return(as.data.frame(preds))
+      } else if(modeltype == "knn") {
+        return(data.frame(pred = rep(0.5, nrow(newdata))))
+      }
+    }, error = function(e) {
+      data.frame(pred = rep(NA_real_, nrow(newdata)))
+    })
+  }
+  
+  predictor <- Predictor$new(
+    model = model,
+    data = X,
+    y = y,
+    predict.function = function(model, newdata) predict_fn(model, newdata)
+  )
+  
+  sample_idx <- sample(1:nrow(X), min(n_samples, nrow(X)))
+  
+  shapley_results <- list()
+  for(idx in sample_idx) {
+    tryCatch({
+      shap <- Shapley$new(predictor, x.interest = X[idx, , drop = FALSE])
+      shapley_results[[as.character(idx)]] <- shap$results
+    }, error = function(e) {
+      cat(sprintf("SHAP error for sample %d: %s\n", idx, e$message))
+    })
+  }
+  
+  if(length(shapley_results) == 0) return(NULL)
+  
+  all_shap <- do.call(rbind, shapley_results)
+  
+  shap_importance <- all_shap %>%
+    group_by(feature) %>%
+    summarise(mean_abs_shap = mean(abs(phi), na.rm = TRUE), .groups = 'drop') %>%
+    arrange(desc(mean_abs_shap))
+  
+  return(list(
+    shap_details = all_shap,
+    shap_importance = shap_importance,
+    predictor = predictor
+  ))
+}
+
+plot_shap_importance <- function(shap_result, n_top = 20, title = "SHAP Feature Importance") {
+  if(is.null(shap_result)) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "SHAP computation failed", size = 6) + theme_void())
+  }
+  
+  df <- head(shap_result$shap_importance, n_top)
+  df$feature <- factor(df$feature, levels = rev(df$feature))
+  
+  p <- ggplot(df, aes(x = feature, y = mean_abs_shap, fill = mean_abs_shap)) +
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    scale_fill_gradient(low = "#3498DB", high = "#E74C3C") +
+    labs(title = title, x = "", y = "Mean |SHAP value|") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 15, face = "bold"),
+      axis.text = element_text(size = 10, face = "bold"),
+      axis.title = element_text(size = 12, face = "bold"),
+      legend.position = "none"
+    )
+  
+  return(p)
+}
+
+# ==========================================================================
+# PARTIAL DEPENDENCE PLOTS (PDP)
+# ==========================================================================
+plot_pdp <- function(model, learningmodel, modeltype, feature_name, title = NULL) {
+  X <- learningmodel[, -1, drop = FALSE]
+  y <- learningmodel[, 1]
+  
+  if(!(feature_name %in% colnames(X))) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+                               label = paste("Feature not found:", feature_name), size = 5) + theme_void())
+  }
+  
+  # Guard: need ≥2 unique non-NA values to build any grid at all
+  feat_vals <- X[[feature_name]]
+  n_unique   <- length(unique(na.omit(feat_vals)))
+  if(n_unique < 2) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+                               label = paste("Feature has no variance:", feature_name), size = 5) + theme_void())
+  }
+  
+  # Use a small grid capped to actual unique values — this is what fixes
+  # the approxfun 'x and y lengths differ' crash for low-variance features.
+  # iml's approxfun is called with length = grid.size, so the prediction
+  # vector MUST also have exactly that many rows × nrow(X) entries.
+  grid_size <- min(20L, n_unique)
+  
+  # Pre-compute column medians once, used as NA-safe fallback in predict_fn
+  col_medians <- sapply(seq_len(ncol(X)), function(i) {
+    v <- suppressWarnings(as.numeric(as.character(X[, i])))
+    m <- median(v, na.rm = TRUE)
+    if(is.na(m)) 0 else m
+  })
+  names(col_medians) <- colnames(X)
+  
+  predict_fn <- function(model, newdata) {
+    newdata      <- as.data.frame(newdata)
+    expected_n   <- nrow(newdata)
+    
+    # iml sometimes passes integer column names → restore original names
+    if(ncol(newdata) == ncol(X)) colnames(newdata) <- colnames(X)
+    
+    # Coerce to numeric and impute NAs with column median (never leave NAs —
+    # models like randomForest silently drop NA rows, breaking vector length)
+    for(i in seq_len(ncol(newdata))) {
+      col     <- suppressWarnings(as.numeric(as.character(newdata[, i])))
+      na_idx  <- is.na(col)
+      if(any(na_idx)) col[na_idx] <- col_medians[colnames(newdata)[i]]
+      newdata[, i] <- col
+    }
+    
+    preds <- tryCatch({
+      raw <- if(modeltype == "randomforest") {
+        p <- randomForest:::predict.randomForest(model, newdata, type = "prob")
+        as.numeric(p[, 1])
+      } else if(modeltype == "svm") {
+        dv <- attr(e1071:::predict.svm(model, newdata, decision.values = TRUE),
+                   "decision.values")
+        as.numeric(dv)
+      } else if(modeltype == "xgboost") {
+        dmat <- xgb.DMatrix(data = as.matrix(newdata))
+        as.numeric(xgboost:::predict.xgb.Booster(model, dmat))
+      } else if(modeltype == "naivebayes") {
+        p <- e1071:::predict.naiveBayes(model, newdata, type = "raw")
+        as.numeric(p[, 1])
+      } else {
+        rep(0.5, expected_n)
+      }
+      raw
+    }, error = function(e) {
+      rep(0.5, expected_n)
+    })
+    
+    # Hard length guarantee — this is the direct fix for approxfun's crash
+    if(length(preds) != expected_n) preds <- rep(0.5, expected_n)
+    
+    # iml's predict.function contract requires a data.frame, not a vector
+    data.frame(score = preds)
+  }
+  
+  predictor <- Predictor$new(
+    model            = model,
+    data             = X,
+    y                = y,
+    predict.function = function(model, newdata) predict_fn(model, newdata)
+  )
+  
+  pdp_result <- tryCatch(
+    suppressWarnings(
+      FeatureEffect$new(predictor, feature = feature_name,
+                        method = "pdp", grid.size = grid_size)
+    ),
+    error = function(e) {
+      cat(sprintf("[PDP] FeatureEffect failed for '%s': %s\n", feature_name, e$message))
+      NULL
+    }
+  )
+  
+  if(is.null(pdp_result)) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+                               label = paste("PDP could not be computed for:", feature_name), size = 5) + theme_void())
+  }
+  
+  if(is.null(title)) title <- paste("Partial Dependence Plot -", feature_name)
+  
+  plot(pdp_result) +
+    labs(title = title) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 15, face = "bold"),
+      axis.text  = element_text(size = 12, face = "bold"),
+      axis.title = element_text(size = 14, face = "bold")
+    )
+}
+
+# ==========================================================================
+# LIME LOCAL EXPLANATIONS
+# ==========================================================================
+
+# Wrapper class for LIME compatibility
+model_type.lime_wrapper <- function(x, ...) "classification"
+
+predict_model.lime_wrapper <- function(x, newdata, type = "raw", ...) {
+  newdata <- as.data.frame(newdata)
+  for(i in 1:ncol(newdata)) {
+    newdata[, i] <- as.numeric(as.character(newdata[, i]))
+  }
+  
+  mt <- x$modeltype
+  m  <- x$raw_model
+  yt <- x$y_levels
+  
+  if(mt == "randomforest") {
+    preds <- randomForest:::predict.randomForest(m, newdata, type = "prob")
+    return(as.data.frame(preds))
+  } else if(mt == "svm") {
+    preds <- e1071:::predict.svm(m, newdata, probability = TRUE)
+    probs <- attr(preds, "probabilities")
+    if(!is.null(probs)) {
+      probs <- as.data.frame(probs)
+      probs <- probs[, yt, drop = FALSE]
+      return(probs)
+    }
+    return(data.frame(pred = as.numeric(preds)))
+  } else if(mt == "elasticnet") {
+    x_mat <- as.matrix(newdata)
+    if(inherits(m$glmnet_model, "cv.glmnet")) {
+      preds <- glmnet:::predict.cv.glmnet(m$glmnet_model, newx = x_mat,
+                                          s = m$lambda, type = "response")
+    } else {
+      preds <- glmnet::predict.glmnet(m$glmnet_model, newx = x_mat,
+                                      s = m$lambda, type = "response")
+    }
+    if(length(dim(preds)) == 3) preds <- preds[, , 1]
+    preds <- as.data.frame(preds)
+    if(ncol(preds) == 1) {
+      preds <- data.frame(p1 = 1 - preds[, 1], p2 = preds[, 1])
+      colnames(preds) <- yt
+    }
+    return(preds)
+  } else if(mt == "xgboost") {
+    dmat <- xgb.DMatrix(data = as.matrix(newdata))
+    preds <- xgboost:::predict.xgb.Booster(m, dmat, reshape = TRUE)
+    preds_df <- as.data.frame(preds)
+    if(ncol(preds_df) == length(yt)) colnames(preds_df) <- yt
+    return(preds_df)
+  } else if(mt == "naivebayes") {
+    preds <- e1071:::predict.naiveBayes(m, newdata, type = "raw")
+    return(as.data.frame(preds))
+  } else {
+    n_classes <- length(yt)
+    return(as.data.frame(matrix(1/n_classes, nrow = nrow(newdata), ncol = n_classes,
+                                dimnames = list(NULL, yt))))
+  }
+}
+
+# lime function 
+explain_lime <- function(model, learningmodel, modeltype, sample_indices = 1:3, n_features = 10) {
+  X_train <- learningmodel[, -1]
+  y_train <- learningmodel[, 1]
+  
+  for(i in 1:ncol(X_train)) {
+    X_train[, i] <- as.numeric(as.character(X_train[, i]))
+  }
+  
+  # Create wrapper with lime_wrapper class
+  wrapper <- list(raw_model = model, modeltype = modeltype, y_levels = levels(y_train))
+  class(wrapper) <- "lime_wrapper"
+  
+  explainer <- tryCatch({
+    lime::lime(X_train, wrapper, bin_continuous = TRUE)
+  }, error = function(e) {
+    cat(sprintf("LIME explainer error: %s\n", e$message))
+    return(NULL)
+  })
+  
+  if(is.null(explainer)) return(NULL)
+  
+  sample_idx <- sample_indices[sample_indices <= nrow(X_train)]
+  if(length(sample_idx) == 0) sample_idx <- 1
+  
+  explanations <- tryCatch({
+    lime::explain(X_train[sample_idx, , drop = FALSE], explainer, 
+                  n_labels = min(length(levels(y_train)), 3),
+                  n_features = n_features,
+                  n_permutations = 1000)
+  }, error = function(e) {
+    cat(sprintf("LIME explanation error: %s\n", e$message))
+    return(NULL)
+  })
+  
+  return(explanations)
+}
+
+plot_lime_explanation <- function(lime_result, title = "LIME Explanation") {
+  if(is.null(lime_result)) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, 
+                               label = "LIME explanation not available", size = 6) + theme_void())
+  }
+  
+  p <- plot_features(lime_result) +
+    labs(title = title) +
+    theme(
+      plot.title = element_text(size = 15, face = "bold"),
+      axis.title = element_text(size = 15 , face =  "bold"),
+      axis.text.y = element_text(size = 15 , face = "bold"),
+      axis.text.x  = element_text(size = 12, face = "bold"),
+      legend.title = element_text(size  = 15 , face = "bold"),
+      legend.text = element_text(size  = 15 , face = "bold")
+    )
+  
+  return(p)
+}
+
+# ==========================================================================
+# LEARNING CURVE (binary classification)
+# ==========================================================================
+
+learning_curve_binary <- function(learningmodel,
+                                  modelparameters,
+                                  train_sizes = seq(0.1, 1.0, by = 0.1),
+                                  n_folds     = 5) {
+  
+  colnames(learningmodel)[1] <- "group"
+  y   <- learningmodel[, 1]
+  X   <- learningmodel[, -1, drop = FALSE]
+  lev <- levels(y)               # c(positif, negatif) — same convention as modelfunction_V2
+  n   <- nrow(learningmodel)
+  
+  # Helper: train one model on X_tr / y_tr, return prob score on X_te
+  train_predict <- function(X_tr, y_tr, X_te) {
+    mt  <- modelparameters$modeltype
+    dat <- cbind(group = y_tr, X_tr)
+    
+    tryCatch({
+      if (mt == "randomforest") {
+        ntree_p    <- if (!is.null(modelparameters$ntree))    modelparameters$ntree    else 500
+        mtry_p     <- if (!is.null(modelparameters$mtry))     modelparameters$mtry     else floor(sqrt(ncol(X_tr)))
+        nodesize_p <- if (!is.null(modelparameters$nodesize)) modelparameters$nodesize else 1
+        m <- randomForest::randomForest(
+          x        = X_tr,
+          y        = y_tr,
+          ntree    = ntree_p,
+          mtry     = mtry_p,
+          nodesize = nodesize_p
+        )
+        as.numeric(randomForest:::predict.randomForest(m, X_te, type = "prob")[, lev[1]])
+        
+      } else if (mt == "svm") {
+        cost_p   <- if (!is.null(modelparameters$cost))   modelparameters$cost   else 1
+        gamma_p  <- if (!is.null(modelparameters$gamma))  modelparameters$gamma  else 1 / ncol(X_tr)
+        kernel_p <- if (!is.null(modelparameters$kernel)) modelparameters$kernel else "radial"
+        m <- e1071::svm(
+          x               = X_tr,
+          y               = y_tr,
+          cost            = cost_p,
+          gamma           = gamma_p,
+          kernel          = kernel_p,
+          decision.values = TRUE,
+          probability     = FALSE
+        )
+        dv <- attr(e1071:::predict.svm(m, X_te, decision.values = TRUE), "decision.values")
+        score <- as.numeric(dv)
+        # Flip sign if positive class is in wrong position
+        if (!is.null(colnames(dv)) &&
+            strsplit(colnames(dv)[1], "/")[[1]][1] != lev[1]) score <- -score
+        score
+        
+      } else if (mt == "xgboost") {
+        y_bin  <- as.numeric(y_tr == lev[1])
+        dtr    <- xgb.DMatrix(data = as.matrix(X_tr), label = y_bin)
+        dte    <- xgb.DMatrix(data = as.matrix(X_te))
+        nrounds_p   <- if (!is.null(modelparameters$nrounds))    modelparameters$nrounds    else 100
+        max_depth_p <- if (!is.null(modelparameters$max_depth))  modelparameters$max_depth  else 6
+        eta_p       <- if (!is.null(modelparameters$eta))        modelparameters$eta        else 0.3
+        m <- xgboost::xgboost(
+          data      = dtr,
+          nrounds   = nrounds_p,
+          max_depth = max_depth_p,
+          eta       = eta_p,
+          objective = "binary:logistic",
+          verbose   = 0
+        )
+        as.numeric(xgboost:::predict.xgb.Booster(m, dte))
+        
+      } else if (mt == "naivebayes") {
+        m <- e1071::naiveBayes(group ~ ., data = dat,
+                               laplace = if (!is.null(modelparameters$laplace)) modelparameters$laplace else 0)
+        as.numeric(e1071:::predict.naiveBayes(m, X_te, type = "raw")[, lev[1]])
+        
+      } else if (mt == "elasticnet") {
+        alpha_p  <- if (!is.null(modelparameters$alpha))  modelparameters$alpha  else 0.5
+        m <- glmnet::cv.glmnet(as.matrix(X_tr), y_tr, family = "binomial", alpha = alpha_p, nfolds = 5)
+        as.numeric(glmnet:::predict.cv.glmnet(m, as.matrix(X_te), s = "lambda.min", type = "response"))
+        
+      } else if (mt == "knn") {
+        k_p <- if (!is.null(modelparameters$k_neighbors)) modelparameters$k_neighbors else 5
+        sapply(seq_len(nrow(X_te)), function(i) {
+          dists <- apply(X_tr, 1, function(row) sqrt(sum((as.numeric(X_te[i, ]) - as.numeric(row))^2)))
+          idx   <- order(dists)[seq_len(k_p)]
+          mean(y_tr[idx] == lev[1])
+        })
+        
+      } else {
+        rep(0.5, nrow(X_te))
+      }
+    }, error = function(e) {
+      cat(sprintf("[LC] train_predict error (%s): %s\n", mt, e$message))
+      rep(NA_real_, nrow(X_te))
+    })
+  }
+  
+  # ── Cross-validated learning curve ─────────────────────────────────────────
+  # Build stratified folds once
+  set.seed(42)
+  fold_ids <- numeric(n)
+  for (cls in lev) {
+    idx      <- which(y == cls)
+    shuffled <- sample(idx)
+    fold_ids[shuffled] <- (seq_along(shuffled) - 1) %% n_folds + 1
+  }
+  
+  results <- list()
+  for (size in train_sizes) {
+    for (fold in seq_len(n_folds)) {
+      test_idx  <- which(fold_ids == fold)
+      train_all <- which(fold_ids != fold)
+      
+      # Sub-sample train_all to match the requested size fraction
+      n_take <- max(2 * length(lev),            # at least one of each class
+                    round(length(train_all) * size))
+      n_take <- min(n_take, length(train_all))
+      
+      # Stratified sub-sampling within the training fold
+      sub_idx <- unlist(lapply(lev, function(cls) {
+        cls_idx <- train_all[y[train_all] == cls]
+        k       <- max(1, round(length(cls_idx) * size))
+        sample(cls_idx, min(k, length(cls_idx)))
+      }))
+      
+      X_tr <- X[sub_idx,  , drop = FALSE]
+      y_tr <- y[sub_idx]
+      X_te <- X[test_idx, , drop = FALSE]
+      y_te <- y[test_idx]
+      
+      score_te <- train_predict(X_tr, y_tr, X_te)
+      score_tr <- train_predict(X_tr, y_tr, X_tr)   # training score (bias diagnostic)
+      
+      safe_auc <- function(truth, score) {
+        tryCatch(
+          as.numeric(pROC::auc(pROC::roc(as.vector(truth), as.vector(score), quiet = TRUE))),
+          error = function(e) NA_real_
+        )
+      }
+      safe_acc <- function(truth, score) {
+        pred <- ifelse(score >= 0.5, lev[1], lev[2])
+        mean(pred == as.character(truth), na.rm = TRUE)
+      }
+      
+      results[[length(results) + 1]] <- data.frame(
+        train_size    = size,
+        n_train       = length(sub_idx),
+        fold          = fold,
+        train_auc     = safe_auc(y_tr, score_tr),
+        cv_auc        = safe_auc(y_te, score_te),
+        train_acc     = safe_acc(y_tr, score_tr),
+        cv_acc        = safe_acc(y_te, score_te)
+      )
+    }
+  }
+  
+  do.call(rbind, results)
+}
+
+
+plot_learning_curve_binary <- function(lc_data, metric = "auc", title = NULL) {
+  
+  stopifnot(metric %in% c("auc", "accuracy"))
+  
+  train_col <- if (metric == "auc") "train_auc" else "train_acc"
+  cv_col    <- if (metric == "auc") "cv_auc"    else "cv_acc"
+  y_label   <- if (metric == "auc") "AUC"       else "Accuracy"
+  if (is.null(title)) title <- paste("Learning Curve —", y_label)
+  
+  # Agréger par train_size uniquement (pas n_train)
+  # → un seul point par taille, moyenne sur les folds
+  agg <- lc_data %>%
+    dplyr::group_by(train_size) %>%
+    dplyr::summarise(
+      mean_train = mean(.data[[train_col]], na.rm = TRUE),
+      sd_train   = sd(.data[[train_col]],   na.rm = TRUE),
+      mean_cv    = mean(.data[[cv_col]],    na.rm = TRUE),
+      sd_cv      = sd(.data[[cv_col]],      na.rm = TRUE),
+      .groups    = "drop"
+    ) %>%
+    dplyr::mutate(
+      # Convertir train_size (0.1 → 1.0) en pourcentage lisible sur l'axe
+      size_pct = paste0(round(train_size * 100), "%")
+    )
+  
+  # Fixer l'ordre des labels % sur l'axe X
+  agg$size_pct <- factor(agg$size_pct, levels = agg$size_pct)
+  
+  ggplot(agg, aes(x = size_pct)) +
+    geom_ribbon(aes(ymin = mean_train - sd_train, ymax = mean_train + sd_train,
+                    group = 1),
+                fill = "#2980B9", alpha = 0.15) +
+    geom_ribbon(aes(ymin = mean_cv - sd_cv, ymax = mean_cv + sd_cv,
+                    group = 1),
+                fill = "#E74C3C", alpha = 0.15) +
+    geom_line(aes(y = mean_train, colour = "Training",  group = 1), linewidth = 1.1) +
+    geom_point(aes(y = mean_train, colour = "Training"), size = 2.5) +
+    geom_line(aes(y = mean_cv,    colour = "Cross-val", group = 1), linewidth = 1.1) +
+    geom_point(aes(y = mean_cv,   colour = "Cross-val"), size = 2.5) +
+    scale_colour_manual(values = c("Training" = "#2980B9", "Cross-val" = "#E74C3C")) +
+    labs(title = title,
+         x     = "Training set size",
+         y     = y_label,
+         colour = NULL) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title      = element_text(size = 15, face = "bold"),
+      axis.text       = element_text(size = 11, face = "bold"),
+      axis.text.x     = element_text(angle = 0),
+      axis.title      = element_text(size = 13, face = "bold"),
+      legend.position = "top"
+    )
+}
+
