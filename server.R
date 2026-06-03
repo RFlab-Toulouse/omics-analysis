@@ -432,10 +432,20 @@ TRANSFORMDATA<-reactive({
   if(transformdataparameters$rempNA%in%c("pca","missforest")){
     shiny::validate(need(min(apply(X = learningselect,MARGIN = 2,FUN = function(x){sum(!is.na(x))}))>1,"not enough data for pca estimation"))
   } 
-  learningtransform<-transformdatafunction(learningselect = learningselect,structuredfeatures = structuredfeatures,
-                                      datastructuresfeatures =   datastructuresfeatures,transformdataparameters = transformdataparameters)
+  res_transform<-transformdatafunctionBinairy(learningselect = learningselect,
+                                                  structuredfeatures = structuredfeatures,
+                                      datastructuresfeatures = datastructuresfeatures,
+                                      transformdataparameters = transformdataparameters)
 
-  list(LEARNINGTRANSFORM=learningtransform,transformdataparameters=transformdataparameters)
+  # list(LEARNINGTRANSFORM=learningtransform,
+  #      transformdataparameters=transformdataparameters)
+  
+  learningtransform <- res_transform$learningtransform
+  train_params      <- res_transform$train_params
+  
+  list(LEARNINGTRANSFORM=learningtransform,
+       transformdataparameters=transformdataparameters,
+       TRAIN_PARAMS=train_params)
 })
 
 ##
@@ -2649,33 +2659,16 @@ COMPARISON <- eventReactive(input$run_comparison, {
   req(MODEL())
   req(input$models_to_compare)
   
-  # ── 1. Données d'apprentissage ────────────────────────────────────────────
-  # Données déjà sélectionnées + transformées, issues du modèle courant.
-  # C'est la même entrée que MODEL_TRAIN() utilisait → cohérence garantie.
+
   learningmodel <- MODEL()$DATALEARNINGMODEL$learningmodel
-  
-  # ── 2. Données de validation BRUTES ──────────────────────────────────────
-  # modelfunction_V2() applique elle-même les transformations sur la validation
-  # (log, arcsin, standardisation via sdselect, remplacement NA).
-  # On doit donc passer les données ORIGINALES, pas les données transformées.
   validation <- if (!is.null(DATA()$VALIDATION)) DATA()$VALIDATION else NULL
-  
-  # ── 3. Paramètres de transformation — source réactive, pas variable globale
-  # TRANSFORMDATA() garantit la valeur courante, synchronisée avec l'interface.
+
   transform_params <- TRANSFORMDATA()$transformdataparameters
   
-  # ── 4. Données sélectionnées (avant transformation) — source réactive ─────
-  # Nécessaire pour recalculer sdselect lors de la standardisation
-  # de la validation dans modelfunction_V2().
   learning_select <- SELECTDATA()$LEARNINGSELECT
   
-  # ── 5. Features structurées NA — source réactive ─────────────────────────
   data_struct_features <- SELECTDATA()$DATASTRUCTUREDFEATURES
   
-  # ── 6. Vérification de cohérence des colonnes ─────────────────────────────
-  # learningmodel est déjà filtré sur les variables sélectionnées + différentielles.
-  # On s'assure que learning_select couvre bien ces colonnes pour que
-  # sdselect dans modelfunction_V2() soit calculé sur le bon sous-ensemble.
   if (!is.null(validation)) {
     common_cols <- intersect(colnames(learningmodel)[-1],
                              colnames(validation)[-1])
@@ -2696,9 +2689,9 @@ COMPARISON <- eventReactive(input$run_comparison, {
     result <- run_all_models(
       learningmodel           = learningmodel,
       validation              = validation,
-      transformdataparameters = transform_params,    # réactif ✓
-      datastructuresfeatures  = data_struct_features, # réactif ✓
-      learningselect          = learning_select,       # réactif ✓
+      transformdataparameters = transform_params,   
+      datastructuresfeatures  = data_struct_features, 
+      learningselect          = learning_select,       
       models_to_run           = input$models_to_compare,
       threshold               = input$thresholdmodel
     )

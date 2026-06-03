@@ -1225,7 +1225,7 @@ shinyUI(fluidPage(
                                                                               c("Transformed data" = "transformed",
                                                                                 "Selected variables (test)" = "selected",
                                                                                 "Model variables" = "model"),
-                                                                              selected = "transformed")
+                                                                              selected = "model")
                                                           ),
                                                           column(4,
                                                                  numericInput("tsne_perplexity", "t-SNE perplexity", 30, min = 5, max = 100, step = 5),

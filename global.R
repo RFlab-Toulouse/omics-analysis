@@ -42,7 +42,8 @@ usePackage("survival")#for cox regression
 usePackage("xgboost")#for xgboost gradient boosting
 usePackage("lightgbm")#for lightgbm gradient boosting
 usePackage("class") #for k-nearest neighbors
-usePackage("Boruta") #for Boruta variables selection
+usePackage("Boruta") 
+#install.packages("Boruta", type = "binary")
 usePackage("Rtsne")
 usePackage("umap")
 usePackage("ggraph")
@@ -414,6 +415,80 @@ distributionvalues<-function(toto,prctvaluesselect,nvar,maintitle="Number of var
   }
 }
 
+# ============================================================================
+# replaceNA_fit : comme replaceNA, mais retourne aussi les paramètres appris
+# sur le train pour pouvoir les appliquer à la validation.
+# ============================================================================
+replaceNA_fit <- function(toto, rempNA="z", pos=FALSE, NAstructure=FALSE,
+                          thresholdstruct=0.05, maxvaluesgroupmin=100, minvaluesgroupmax=0){
+  imputation_params <- list(method=rempNA)
+  
+  if(NAstructure){
+    totoNAstruct <- replaceproptestNA(toto=toto, threshold=thresholdstruct,
+                                      rempNA=rempNA, maxvaluesgroupmin, minvaluesgroupmax)
+    toto[,colnames(totoNAstruct)] <- totoNAstruct
+  }
+  
+  if(rempNA == "none" | sum(is.na(toto))==0){ return(list(toto=toto, imputation_params=imputation_params)) }
+  
+  cnames  <- colnames(toto)
+  class   <- toto[,1]
+  cat_lev <- levels(class)
+  toto    <- as.data.frame(toto[,-1], optional=TRUE)
+  n       <- ncol(toto)
+  
+  if(rempNA == "z"){
+    toto[which(is.na(toto), arr.ind=TRUE)] <- 0
+  }
+  if(rempNA == "moy"){
+    # apprendre les moyennes sur le train
+    col_means <- colMeans(toto, na.rm=TRUE)
+    col_means[is.nan(col_means)] <- 0
+    imputation_params$col_means <- col_means
+    toto <- na.aggregate(toto)
+  }
+  if(rempNA == "moygr"){
+    group_means <- list()
+    for(i in seq_along(cat_lev)){
+      tab <- toto[which(class==cat_lev[i]), , drop=FALSE]
+      gm  <- colMeans(tab, na.rm=TRUE)
+      gm[is.nan(gm)] <- 0
+      group_means[[cat_lev[i]]] <- gm
+      tab <- na.aggregate(tab)
+      toto[which(class==cat_lev[i]),] <- tab
+    }
+    imputation_params$group_means <- group_means
+    toto[which(is.na(toto), arr.ind=TRUE)] <- 0
+  }
+  if(rempNA == "pca"){
+    nindiv <- nrow(toto)
+    prctnacol <- apply(X=toto, MARGIN=2, FUN=function(x){
+      if(sum(!is.na(x))<=0){ x<-rep(0, length=nindiv) } else { x }
+    })
+    pca_ncp  <- min(n-1, 5)                                   
+    pca_res  <- imputePCA(prctnacol, ncp=pca_ncp, method.cv="Kfold")
+    imputation_params$pca_res    <- pca_res
+    imputation_params$pca_ncp    <- pca_ncp                   
+    imputation_params$train_data <- prctnacol
+    toto <- as.data.frame(pca_res$completeObs)
+    if(pos){ toto[which(toto<0, arr.ind=TRUE)] <- 0 }
+  }
+  if(rempNA == "missforest"){
+    mf_res <- missForest(toto, maxiter=5)
+    imputation_params$mf_res    <- mf_res
+    imputation_params$train_data <- as.data.frame(mf_res$ximp) # train imputé
+    toto <- mf_res$ximp
+    if(pos){ toto[which(toto<0, arr.ind=TRUE)] <- 0 }
+  }
+  
+  toto <- cbind(class, toto)
+  toto[which(is.na(toto), arr.ind=TRUE)] <- 0
+  colnames(toto) <- cnames
+  
+  return(list(toto=toto, imputation_params=imputation_params))
+}
+
+
 proptestNA<-function(toto){
   group<-toto[,1]
   toto[,1]<-as.character(toto[,1])
@@ -454,7 +529,7 @@ testNAstructure<-function(toto,threshold=0.05,maxvaluesgroupmin=100,minvaluesgro
   return(list("varNAstructure"=totopropselect,"restestNAstructure"=resp))
 }
 
-transformdatafunction <- function(learningselect, 
+transformdatafunctionBinairy <- function(learningselect, 
                                   structuredfeatures, 
                                   datastructuresfeatures, 
                                   transformdataparameters) {
@@ -498,7 +573,7 @@ transformdatafunction <- function(learningselect,
   return(list(learningtransform = learningtransform, train_params = train_params))
 }
 
-# transformdatafunction<-function(learningselect,structuredfeatures,datastructuresfeatures,transformdataparameters){
+# transformdatafunctionBinairy<-function(learningselect,structuredfeatures,datastructuresfeatures,transformdataparameters){
 #   learningtransform<-learningselect
 #   if(!is.null(structuredfeatures)){
 #     for(i in 1:ncol(structuredfeatures)){
@@ -534,7 +609,13 @@ transformationlog<-function(x,logtype){
 
 histplot<-function(toto,graph=T){
   
-  data<-data.frame("values"=as.vector(as.matrix(toto[,-1])))
+  # data<-data.frame("values"=as.vector(as.matrix(toto[,-1])))
+  if(is.data.frame(toto) || is.matrix(toto)){
+    data<-data.frame("values"=as.vector(as.matrix(toto[,-1, drop=FALSE])))
+  } else {
+    data<-data.frame("values"=as.vector(toto))
+  }
+  
   if(graph==F){ return(datahistogram(data = data,nbclass = 20))}
   if(graph==T){
     ggplot(data=data,aes(x=values) )+ 
@@ -607,6 +688,8 @@ replaceNA<-function(toto,rempNA="z",pos=F,NAstructure=F,thresholdstruct=0.05,max
 }
 
 mdsplot<-function(toto,ggplot=T,maintitle="MDS representation of the individuals",graph=T){
+  # toto =  toto$learningtransform
+  if(!is.data.frame(toto) && !is.matrix(toto)) stop("mdsplot: toto doit être un data.frame ou une matrice")
   class<-toto[,1]
   toto<-toto[-1]
   d <- dist(toto) # euclidean distances between the rows
@@ -630,7 +713,12 @@ mdsplot<-function(toto,ggplot=T,maintitle="MDS representation of the individuals
 }
 
 heatmapplot<-function(toto,ggplot=T,maintitle="Heatmap of the transform data ",scale=F,graph=T){
-  row.names(toto)<-paste(toto[,1],1:length(toto[,1]))
+  print(str(toto))
+  # toto <- toto$learningtransform
+  cat("colnames of toto : \n")
+  print(colnames(toto))
+  row.names(toto)<- paste(toto[,1],1:length(toto[,1]))
+  
   toto<-as.matrix(toto[,-1])
   if(!graph){return(toto)}
   #colnames(toto)<-seq(1:ncol(toto))
@@ -2444,6 +2532,8 @@ modelfunction_V2 <- function(learningmodel,
         model$optimal_subsample <- subsample_param
         model$optimal_alpha <- alpha_param
         model$optimal_lambda <- lambda_param
+        model$optimal_subsample        <- subsample_param
+        model$optimal_min_child_weight <- min_child_weight_param
         cat("optimal_nrounds :  ", nrounds_param, "\n")
         cat("optimal_max_depth :  ", max_depth_param, "\n")
         cat("optimal_eta :  ", eta_param, "\n")
@@ -2589,6 +2679,30 @@ modelfunction_V2 <- function(learningmodel,
                                   "auc"                 = auc_val)
     } else {
       datavalidationmodel <- list()
+    }
+    
+    
+    if (modelparameters$modeltype == "randomforest") {
+      modelparameters$mtry     <- model$optimal_mtry
+      modelparameters$ntree    <- model$ntree_used
+      modelparameters$nodesize <- model$nodesize_used
+    } else if (modelparameters$modeltype == "svm") {
+      modelparameters$cost  <- model$cost
+      modelparameters$gamma <- model$gamma
+    } else if (modelparameters$modeltype == "knn") {
+      modelparameters$k_neighbors <- model$optimal_k
+    } else if (modelparameters$modeltype == "elasticnet") {
+      modelparameters$alpha  <- model$alpha
+      modelparameters$lambda <- model$lambda
+    } else if (modelparameters$modeltype == "xgboost") {
+      modelparameters$nrounds          <- model$optimal_nrounds
+      modelparameters$max_depth        <- model$optimal_max_depth
+      modelparameters$eta              <- model$optimal_eta
+      modelparameters$gamma_xgb        <- model$optimal_gamma
+      modelparameters$alpha_xgb        <- model$optimal_alpha
+      modelparameters$lambda_xgb       <- model$optimal_lambda
+      modelparameters$subsample_xgb    <- model$optimal_subsample
+      modelparameters$min_child_weight <- model$optimal_min_child_weight
     }
     
     # ── Retour ─────────────────────────────────────────────────────────────────
@@ -4144,7 +4258,7 @@ testparametersfunction<-function(learning,validation,tabparameters){
     if(!parameters$log){tabparameters[i,"logtype"]<-NA}
     transformdataparameters<<-list("log"=parameters$log,"logtype"=parameters$logtype,"standardization"=parameters$standardization,"arcsin"=parameters$arcsin,"rempNA"=parameters$rempNA)
     
-    learningtransform<-transformdatafunction(learningselect = resselectdata$learningselect,structuredfeatures = resselectdata$structuredfeatures,
+    learningtransform<-transformdatafunctionBinairy(learningselect = resselectdata$learningselect,structuredfeatures = resselectdata$structuredfeatures,
                                              datastructuresfeatures =   resselectdata$datastructuresfeatures,transformdataparameters = transformdataparameters)
     
     testparameters<<-list("SFtest"=FALSE,"test"=parameters$test,"adjustpval"=as.logical(parameters$adjustpv),"thresholdpv"=parameters$thresholdpv,"thresholdFC"=parameters$thresholdFC)
@@ -5766,14 +5880,14 @@ plot_radar_comparison <- function(metrics_summary, type = "validation") {
   
   if(type == "validation" && "Val_AUC" %in% colnames(metrics_summary)) {
     radar_data <- metrics_summary %>%
-      select(Model, Val_Accuracy, Val_Sensitivity, Val_Specificity, Val_AUC) %>%
-      rename(Accuracy = Val_Accuracy, Sensitivity = Val_Sensitivity,
-             Specificity = Val_Specificity, AUC = Val_AUC)
+      dplyr::select(Model, Val_Accuracy, Val_Sensitivity, Val_Specificity, Val_AUC) %>%
+      dplyr::rename(Accuracy = Val_Accuracy, Sensitivity = Val_Sensitivity,
+                    Specificity = Val_Specificity, AUC = Val_AUC)
   } else {
     radar_data <- metrics_summary %>%
-      select(Model, Train_Accuracy, Train_Sensitivity, Train_Specificity, Train_AUC) %>%
-      rename(Accuracy = Train_Accuracy, Sensitivity = Train_Sensitivity,
-             Specificity = Train_Specificity, AUC = Train_AUC)
+      dplyr::select(Model, Train_Accuracy, Train_Sensitivity, Train_Specificity, Train_AUC) %>%
+      dplyr::rename(Accuracy = Train_Accuracy, Sensitivity = Train_Sensitivity,
+                    Specificity = Train_Specificity, AUC = Train_AUC)
   }
   
   models <- radar_data$Model
@@ -6205,29 +6319,47 @@ learning_curve_binary <- function(learningmodel,
         y_bin  <- as.numeric(y_tr == lev[1])
         dtr    <- xgb.DMatrix(data = as.matrix(X_tr), label = y_bin)
         dte    <- xgb.DMatrix(data = as.matrix(X_te))
-        nrounds_p   <- if (!is.null(modelparameters$nrounds))    modelparameters$nrounds    else 100
-        max_depth_p <- if (!is.null(modelparameters$max_depth))  modelparameters$max_depth  else 6
-        eta_p       <- if (!is.null(modelparameters$eta))        modelparameters$eta        else 0.3
+        nrounds_p        <- if (!is.null(modelparameters$nrounds))          modelparameters$nrounds          else 100
+        max_depth_p      <- if (!is.null(modelparameters$max_depth))        modelparameters$max_depth        else 6
+        eta_p            <- if (!is.null(modelparameters$eta))              modelparameters$eta              else 0.3
+        gamma_p          <- if (!is.null(modelparameters$gamma_xgb))        modelparameters$gamma_xgb        else 0    
+        subsample_p      <- if (!is.null(modelparameters$subsample_xgb))    modelparameters$subsample_xgb    else 1.0  
+        min_child_p      <- if (!is.null(modelparameters$min_child_weight)) modelparameters$min_child_weight else 1    
+        alpha_p          <- if (!is.null(modelparameters$alpha_xgb))        modelparameters$alpha_xgb        else 0    
+        lambda_p         <- if (!is.null(modelparameters$lambda_xgb))       modelparameters$lambda_xgb       else 1    
         m <- xgboost::xgboost(
-          data      = dtr,
-          nrounds   = nrounds_p,
-          max_depth = max_depth_p,
-          eta       = eta_p,
-          objective = "binary:logistic",
-          verbose   = 0
+          data             = dtr,
+          nrounds          = nrounds_p,
+          max_depth        = max_depth_p,
+          eta              = eta_p,
+          gamma            = gamma_p,
+          subsample        = subsample_p,
+          min_child_weight = min_child_p,
+          alpha            = alpha_p,
+          lambda           = lambda_p,
+          objective        = "binary:logistic",
+          verbose          = 0
         )
         as.numeric(xgboost:::predict.xgb.Booster(m, dte))
-        
       } else if (mt == "naivebayes") {
         m <- e1071::naiveBayes(group ~ ., data = dat,
                                laplace = if (!is.null(modelparameters$laplace)) modelparameters$laplace else 0)
         as.numeric(e1071:::predict.naiveBayes(m, X_te, type = "raw")[, lev[1]])
         
       } else if (mt == "elasticnet") {
-        alpha_p  <- if (!is.null(modelparameters$alpha))  modelparameters$alpha  else 0.5
-        m <- glmnet::cv.glmnet(as.matrix(X_tr), y_tr, family = "binomial", alpha = alpha_p, nfolds = 5)
-        as.numeric(glmnet:::predict.cv.glmnet(m, as.matrix(X_te), s = "lambda.min", type = "response"))
-        
+        alpha_p     <- if (!is.null(modelparameters$alpha)) modelparameters$alpha else 0.5
+        nfolds_safe <- max(3, min(5, floor(length(y_tr) / 2)))   # bug ElasticNet petits n
+        m <- glmnet::cv.glmnet(as.matrix(X_tr), y_tr,
+                               family  = "binomial",
+                               alpha   = alpha_p,
+                               nfolds  = nfolds_safe)
+        prob <- as.numeric(glmnet:::predict.cv.glmnet(m, as.matrix(X_te),
+                                                      s = "lambda.min",
+                                                      type = "response"))
+        # glmnet retourne P(dernier niveau facteur), pas nécessairement lev[1]
+        glmnet_pos <- levels(y_tr)[2]   # classe encodée "1" par glmnet
+        if (glmnet_pos != lev[1]) prob <- 1 - prob   #  inversion
+        prob
       } else if (mt == "knn") {
         k_p <- if (!is.null(modelparameters$k_neighbors)) modelparameters$k_neighbors else 5
         sapply(seq_len(nrow(X_te)), function(i) {
@@ -6279,7 +6411,22 @@ learning_curve_binary <- function(learningmodel,
       y_te <- y[test_idx]
       
       score_te <- train_predict(X_tr, y_tr, X_te)
-      score_tr <- train_predict(X_tr, y_tr, X_tr)   # training score (bias diagnostic)
+      #score_tr <- train_predict(X_tr, y_tr, X_tr)  
+      if (modelparameters$modeltype == "randomforest") {
+        ntree_p    <- if (!is.null(modelparameters$ntree))    modelparameters$ntree    else 500
+        mtry_p     <- if (!is.null(modelparameters$mtry))     modelparameters$mtry     else floor(sqrt(ncol(X_tr)))
+        nodesize_p <- if (!is.null(modelparameters$nodesize)) modelparameters$nodesize else 1
+        m_oob <- randomForest::randomForest(
+          x        = X_tr,
+          y        = y_tr,
+          ntree    = ntree_p,
+          mtry     = mtry_p,
+          nodesize = nodesize_p
+        )
+        score_tr <- as.numeric(m_oob$votes[, lev[1]])
+      } else {
+        score_tr <- train_predict(X_tr, y_tr, X_tr)
+      }
       
       safe_auc <- function(truth, score) {
         tryCatch(
@@ -6287,8 +6434,9 @@ learning_curve_binary <- function(learningmodel,
           error = function(e) NA_real_
         )
       }
-      safe_acc <- function(truth, score) {
-        pred <- ifelse(score >= 0.5, lev[1], lev[2])
+      safe_acc <- function(truth, score, modeltype = "other") {
+        threshold <- if (modeltype == "svm") 0 else 0.5
+        pred <- ifelse(score >= threshold, lev[1], lev[2])
         mean(pred == as.character(truth), na.rm = TRUE)
       }
       
@@ -6298,8 +6446,8 @@ learning_curve_binary <- function(learningmodel,
         fold          = fold,
         train_auc     = safe_auc(y_tr, score_tr),
         cv_auc        = safe_auc(y_te, score_te),
-        train_acc     = safe_acc(y_tr, score_tr),
-        cv_acc        = safe_acc(y_te, score_te)
+        train_acc = safe_acc(y_tr, score_tr, modelparameters$modeltype),
+        cv_acc    = safe_acc(y_te, score_te, modelparameters$modeltype)
       )
     }
   }
