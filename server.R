@@ -2729,6 +2729,7 @@ output$radar_plot_val <- renderPlot({
   req(COMPARISON())
   plot_radar_comparison(COMPARISON()$metrics, type = "validation")
 })
+
 output$download_radar_val <- downloadHandler(
   filename = function() { paste('radar_validation.', input$paramdownplot, sep='') },
   content = function(file) {
@@ -2936,7 +2937,8 @@ output$calibration_plot <- renderPlot({
     plot_calibration(actual, as.matrix(scores))
   }, error = function(e) {
     ggplot() + annotate("text", x = 0.5, y = 0.5,
-                        label = paste("Calibration error:", e$message), size = 5, color = "red") +
+                        label = paste("Calibration error:", e$message), 
+                        size = 5, color = "red") +
       theme_void()
   })
 })

@@ -345,10 +345,14 @@ selectprctvalues<-function(toto,prctvalues=100,selectmethod="nogroup"){
       }  
     }
     if(selectmethod=="onegroup"){
-      vec<-apply(X = tabgroup,MARGIN = 2,FUN = function(x){(max (x) >= (prctvalues/100)) }) 
+      vec<-apply(X = tabgroup,
+                 MARGIN = 2,
+                 FUN = function(x){(max (x) >= (prctvalues/100)) }) 
     }
     if(selectmethod=="bothgroups"){
-      vec<-apply(X = tabgroup,MARGIN = 2,FUN = function(x){(min (x) >= (prctvalues/100)) }) 
+      vec<-apply(X = tabgroup,
+                 MARGIN = 2,
+                 FUN = function(x){(min (x) >= (prctvalues/100)) }) 
     }
   }
   totoselect<-toto[,as.logical(vec)]
