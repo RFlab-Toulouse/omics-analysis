@@ -6275,9 +6275,14 @@ learning_curve_binary <- function(learningmodel,
                                   n_folds     = 5) {
   
   colnames(learningmodel)[1] <- "group"
+  if (!is.null(modelparameters$invers) && modelparameters$invers) {
+    learningmodel[, 1] <- factor(learningmodel[, 1],
+                                 levels  = rev(levels(learningmodel[, 1])),
+                                 ordered = TRUE)
+  }
   y   <- learningmodel[, 1]
   X   <- learningmodel[, -1, drop = FALSE]
-  lev <- levels(y)               # c(positif, negatif) — same convention as modelfunction_V2
+  lev <- levels(y)              
   n   <- nrow(learningmodel)
   
   # Helper: train one model on X_tr / y_tr, return prob score on X_te
@@ -6287,7 +6292,7 @@ learning_curve_binary <- function(learningmodel,
     
     tryCatch({
       if (mt == "randomforest") {
-        ntree_p    <- if (!is.null(modelparameters$ntree))    modelparameters$ntree    else 500
+        ntree_p    <- if (!is.null(modelparameters$ntree))    modelparameters$ntree    else 1000  
         mtry_p     <- if (!is.null(modelparameters$mtry))     modelparameters$mtry     else floor(sqrt(ncol(X_tr)))
         nodesize_p <- if (!is.null(modelparameters$nodesize)) modelparameters$nodesize else 1
         m <- randomForest::randomForest(
@@ -6301,7 +6306,7 @@ learning_curve_binary <- function(learningmodel,
         
       } else if (mt == "svm") {
         cost_p   <- if (!is.null(modelparameters$cost))   modelparameters$cost   else 1
-        gamma_p  <- if (!is.null(modelparameters$gamma))  modelparameters$gamma  else 1 / ncol(X_tr)
+        gamma_p  <- if (!is.null(modelparameters$gamma))  modelparameters$gamma  else 0.1 
         kernel_p <- if (!is.null(modelparameters$kernel)) modelparameters$kernel else "radial"
         m <- e1071::svm(
           x               = X_tr,
@@ -6310,7 +6315,8 @@ learning_curve_binary <- function(learningmodel,
           gamma           = gamma_p,
           kernel          = kernel_p,
           decision.values = TRUE,
-          probability     = FALSE
+          type            = "C-classification",   
+          probability     = TRUE        
         )
         dv <- attr(e1071:::predict.svm(m, X_te, decision.values = TRUE), "decision.values")
         score <- as.numeric(dv)
@@ -6330,7 +6336,7 @@ learning_curve_binary <- function(learningmodel,
         subsample_p      <- if (!is.null(modelparameters$subsample_xgb))    modelparameters$subsample_xgb    else 1.0  
         min_child_p      <- if (!is.null(modelparameters$min_child_weight)) modelparameters$min_child_weight else 1    
         alpha_p          <- if (!is.null(modelparameters$alpha_xgb))        modelparameters$alpha_xgb        else 0    
-        lambda_p         <- if (!is.null(modelparameters$lambda_xgb))       modelparameters$lambda_xgb       else 1    
+        lambda_p         <- if (!is.null(modelparameters$lambda_xgb))       modelparameters$lambda_xgb       else 0    
         m <- xgboost::xgboost(
           data             = dtr,
           nrounds          = nrounds_p,
@@ -6416,21 +6422,26 @@ learning_curve_binary <- function(learningmodel,
       
       score_te <- train_predict(X_tr, y_tr, X_te)
       #score_tr <- train_predict(X_tr, y_tr, X_tr)  
-      if (modelparameters$modeltype == "randomforest") {
-        ntree_p    <- if (!is.null(modelparameters$ntree))    modelparameters$ntree    else 500
-        mtry_p     <- if (!is.null(modelparameters$mtry))     modelparameters$mtry     else floor(sqrt(ncol(X_tr)))
-        nodesize_p <- if (!is.null(modelparameters$nodesize)) modelparameters$nodesize else 1
-        m_oob <- randomForest::randomForest(
-          x        = X_tr,
-          y        = y_tr,
-          ntree    = ntree_p,
-          mtry     = mtry_p,
-          nodesize = nodesize_p
-        )
-        score_tr <- as.numeric(m_oob$votes[, lev[1]])
-      } else {
-        score_tr <- train_predict(X_tr, y_tr, X_tr)
-      }
+      # if (modelparameters$modeltype == "randomforest") {
+      #   ntree_p    <- if (!is.null(modelparameters$ntree))    modelparameters$ntree    else 1000  
+      #   mtry_p     <- if (!is.null(modelparameters$mtry))     modelparameters$mtry     else floor(sqrt(ncol(X_tr)))
+      #   nodesize_p <- if (!is.null(modelparameters$nodesize)) modelparameters$nodesize else 1
+      #   m_oob <- randomForest::randomForest(
+      #     x        = X_tr,
+      #     y        = y_tr,
+      #     ntree    = ntree_p,
+      #     mtry     = mtry_p,
+      #     nodesize = nodesize_p
+      #   )
+      #   score_tr <- as.numeric(m_oob$votes[, lev[1]])
+      # } else {
+      #   score_tr <- train_predict(X_tr, y_tr, X_tr)
+      # }
+      
+      # Score "Training" : sémantique uniforme (in-sample) pour TOUS les modèles,
+      # afin que la courbe Training soit comparable entre types de modèles.
+      # (l'OOB du RF n'est PLUS utilisé ici pour ne pas mélanger deux définitions)
+      score_tr <- train_predict(X_tr, y_tr, X_tr)
       
       safe_auc <- function(truth, score) {
         tryCatch(
@@ -6512,5 +6523,187 @@ plot_learning_curve_binary <- function(lc_data, metric = "auc", title = NULL) {
       axis.title      = element_text(size = 13, face = "bold"),
       legend.position = "top"
     )
+}
+
+
+applyTransformToValidation <- function(validation, transformdataparameters, train_params,
+                                       structuredfeatures = NULL, datastructuresfeatures = NULL) {
+  valtransform <- validation
+  
+  # 1. NAstructure
+  if(!is.null(structuredfeatures) && !is.null(datastructuresfeatures)){
+    common_struct <- intersect(colnames(structuredfeatures), colnames(valtransform))
+    for(i in seq_along(common_struct)){
+      feat <- common_struct[i]
+      lessgroup_row <- which(datastructuresfeatures[,"names"] == feat)
+      if(length(lessgroup_row) > 0){
+        lessgroup <- as.character(datastructuresfeatures[lessgroup_row, "lessgroup"])
+        na_idx <- which(is.na(valtransform[, feat]) & valtransform[,1] == lessgroup)
+        if(length(na_idx) > 0) valtransform[na_idx, feat] <- 0
+      }
+    }
+  }
+  
+  # 2. Log
+  if(transformdataparameters$log){
+    valtransform[,-1] <- transformationlog(x = valtransform[,-1] + 1, logtype = transformdataparameters$logtype)
+  }
+  
+  # 3. Arcsin — utiliser les min/max du train
+  if(transformdataparameters$arcsin){
+    arcsin_min <- train_params$arcsin_min
+    arcsin_max <- train_params$arcsin_max
+    for(col in names(arcsin_min)){
+      if(col %in% colnames(valtransform)){
+        rng <- arcsin_max[col] - arcsin_min[col]
+        if(rng == 0) rng <- 1
+        valtransform[, col] <- (valtransform[, col] - arcsin_min[col]) / rng
+        valtransform[, col] <- asin(sqrt(pmax(0, pmin(1, valtransform[, col]))))
+      }
+    }
+  }
+  
+  # 4. Imputation — utiliser les paramètres appris sur le train  
+  imp    <- train_params$imputation
+  rempNA <- imp$method
+  
+  if(!is.null(rempNA) && rempNA != "none" && sum(is.na(valtransform)) > 0){
+    cnames <- colnames(valtransform)
+    class  <- valtransform[,1]
+    toto   <- as.data.frame(valtransform[,-1], optional = TRUE)
+    
+    if(rempNA == "z"){
+      toto[which(is.na(toto), arr.ind = TRUE)] <- 0
+    }
+    if(rempNA == "moy"){
+      col_means <- imp$col_means
+      for(col in colnames(toto)){
+        na_idx <- which(is.na(toto[, col]))
+        if(length(na_idx) > 0 && col %in% names(col_means))
+          toto[na_idx, col] <- col_means[col]
+      }
+    }
+    if(rempNA == "moygr"){
+      cat_lev     <- levels(class)
+      group_means <- imp$group_means
+      for(grp in cat_lev){
+        if(!grp %in% names(group_means)) next
+        gm      <- group_means[[grp]]
+        grp_idx <- which(class == grp)
+        for(col in colnames(toto)){
+          na_idx <- intersect(which(is.na(toto[, col])), grp_idx)
+          if(length(na_idx) > 0 && col %in% names(gm))
+            toto[na_idx, col] <- gm[col]
+        }
+      }
+      toto[which(is.na(toto), arr.ind = TRUE)] <- 0
+    }
+    if(rempNA == "pca"){
+      # Projection sans fuite : les axes PCA sont appris UNIQUEMENT sur le train.
+      # On reconstruit chaque ligne de validation dans l'espace réduit du train,
+      # sans ré-estimer les composantes avec les données de validation.
+      common_cols_pca <- intersect(colnames(imp$train_data), colnames(toto))
+      
+      train_complete  <- imp$train_data[, common_cols_pca, drop = FALSE]
+      train_means     <- colMeans(train_complete, na.rm = TRUE)
+      
+      ncp_val <- imp$pca_ncp
+      if(is.null(ncp_val) || length(ncp_val) == 0){
+        ncp_val <- tryCatch(imp$pca_res$call$ncp, error = function(e) NULL)
+      }
+      if(is.null(ncp_val) || length(ncp_val) == 0){
+        ncp_val <- min(ncol(train_complete) - 1, 5)
+      }
+      
+      # Base orthonormée (loadings) apprise sur le train complété, figée.
+      train_centered <- scale(train_complete, center = train_means, scale = FALSE)
+      svd_train      <- svd(train_centered, nu = 0, nv = ncp_val)
+      V              <- svd_train$v   # axes principaux train (p x ncp)
+      
+      for(r in seq_len(nrow(toto))){
+        x_row   <- as.numeric(toto[r, common_cols_pca])
+        obs     <- which(!is.na(x_row))
+        if(length(obs) == 0){
+          toto[r, common_cols_pca] <- train_means
+          next
+        }
+        # Centrage avec la moyenne train
+        x_c     <- x_row - train_means
+        # Score projeté en n'utilisant que les coordonnées observées
+        # (moindres carrés sur les loadings restreints aux variables observées)
+        V_obs   <- V[obs, , drop = FALSE]
+        x_obs_c <- x_c[obs]
+        scores  <- tryCatch(
+          qr.solve(t(V_obs) %*% V_obs, t(V_obs) %*% x_obs_c),
+          error = function(e) MASS::ginv(t(V_obs) %*% V_obs) %*% (t(V_obs) %*% x_obs_c)
+        )
+        # Reconstruction des valeurs manquantes uniquement
+        recon   <- as.numeric(V %*% scores) + train_means
+        na_idx  <- which(is.na(x_row))
+        x_row[na_idx] <- recon[na_idx]
+        toto[r, common_cols_pca] <- x_row
+      }
+      toto[which(toto < 0, arr.ind = TRUE)] <- 0
+    }
+    if(rempNA == "missforest"){
+      # Imputation fidèle : pour chaque variable à compléter dans la validation,
+      # on entraîne une forêt sur le TRAIN complété (variable cible ~ autres variables)
+      # et on prédit les valeurs manquantes. Aucun re-fit conjoint train+validation.
+      common_cols_mf <- intersect(colnames(imp$train_data), colnames(toto))
+      train_complete <- as.data.frame(imp$train_data[, common_cols_mf, drop = FALSE])
+      train_medians  <- apply(train_complete, 2, median, na.rm = TRUE)
+      
+      cols_to_impute <- common_cols_mf[sapply(common_cols_mf, function(col){
+        any(is.na(toto[, col]))
+      })]
+      
+      for(col in cols_to_impute){
+        na_idx <- which(is.na(toto[, col]))
+        predictors <- setdiff(common_cols_mf, col)
+        if(length(predictors) == 0){
+          toto[na_idx, col] <- train_medians[col]
+          next
+        }
+        rf_fit <- tryCatch(
+          ranger::ranger(
+            x = train_complete[, predictors, drop = FALSE],
+            y = train_complete[[col]],
+            num.trees = 100, seed = 20011203
+          ),
+          error = function(e) NULL
+        )
+        if(is.null(rf_fit)){
+          toto[na_idx, col] <- train_medians[col]
+          next
+        }
+        # Les prédicteurs de validation peuvent eux-mêmes contenir des NA :
+        # repli médiane train pour permettre la prédiction.
+        newx <- toto[na_idx, predictors, drop = FALSE]
+        for(p in predictors){
+          pna <- which(is.na(newx[[p]]))
+          if(length(pna) > 0) newx[pna, p] <- train_medians[p]
+        }
+        toto[na_idx, col] <- predict(rf_fit, data = newx)$predictions
+      }
+      toto[which(is.na(toto), arr.ind = TRUE)] <- 0
+      toto[which(toto < 0, arr.ind = TRUE)] <- 0
+    }
+    
+    valtransform <- cbind(class, toto)
+    valtransform[which(is.na(valtransform), arr.ind = TRUE)] <- 0
+    colnames(valtransform) <- cnames
+  }
+  
+  # 5. Standardisation — utiliser le sd du train  
+  if(transformdataparameters$standardization && !is.null(train_params$sd_scale)){
+    sd_train    <- train_params$sd_scale
+    common_cols <- intersect(names(sd_train), colnames(valtransform)[-1])
+    sd_use      <- sd_train[common_cols]
+    sd_use[sd_use == 0] <- 1
+    valtransform[, common_cols] <- scale(valtransform[, common_cols, drop = FALSE],
+                                         center = FALSE, scale = sd_use)
+  }
+  
+  return(valtransform)
 }
 

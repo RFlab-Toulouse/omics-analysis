@@ -3072,6 +3072,14 @@ LEARNING_CURVE_DATA <- eventReactive(input$run_learning_curve, {
   cat("[LEARNING_CURVE] Computing for model type:", modelparameters$modeltype,
       "| steps:", length(train_sizes), "\n")
   
+  # Si une feature selection a eu lieu, restreindre aux colonnes réellement
+  # utilisées par le modèle (cohérence de périmètre avec la section Model)
+  fs_features <- tryCatch(colnames(MODEL()$MODEL$importance), error = function(e) NULL)
+  if (!is.null(modelparameters$fs) && isTRUE(modelparameters$fs) && !is.null(fs_features)) {
+    keep <- c(colnames(learningmodel)[1], intersect(fs_features, colnames(learningmodel)))
+    learningmodel <- learningmodel[, keep, drop = FALSE]
+  }
+  
   lc_data <- learning_curve_binary(
     learningmodel   = learningmodel,
     modelparameters = modelparameters,
