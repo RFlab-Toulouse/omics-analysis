@@ -1083,7 +1083,8 @@ MODEL_TRAIN <- reactive({
     modelparameters         = modelparameters,
     transformdataparameters = transformdataparameters,
     datastructuresfeatures  = datastructuresfeatures,
-    learningselect          = learningselect
+    learningselect          = learningselect,
+    train_params            = TRANSFORMDATA()$TRAIN_PARAMS
   )
   
   req(!is.null(resmodel))

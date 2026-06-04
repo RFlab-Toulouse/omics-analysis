@@ -51,6 +51,8 @@ usePackage("pheatmap")
 usePackage("caret")
 usePackage("iml")
 usePackage("lime")
+usePackage("ranger")
+usePackage("MASS")
 
 
 ##########################
@@ -628,6 +630,7 @@ histplot<-function(toto,graph=T){
       annotate("text",x=Inf,y=Inf,label=paste(nrow(data),"values"),size=6,vjust=2,hjust=1.5)
   }
 }
+
 datahistogram<-function(data,nbclass){
   dh<-hist(data[,1],nclass=nbclass,plot=F)
   minclass<-dh$breaks[-(length(dh$breaks))]
@@ -1889,6 +1892,7 @@ accuracy_error_fun <- function(true, pred) {
   accuracy <- mean(predicted_class == as.character(true))
   return(1 - accuracy)  #  minimise function
 }
+
 # Fonction custom AUC pour tune.svm 
 auc_error_fun <- function(true, pred) {
   if (is.matrix(pred)) {
@@ -1910,7 +1914,8 @@ modelfunction_V2 <- function(learningmodel,
                              modelparameters,
                              transformdataparameters,
                              datastructuresfeatures = NULL,
-                             learningselect) {
+                             learningselect,
+                             train_params = NULL) {
   
   if (modelparameters$modeltype != "nomodel") {
     
@@ -2564,50 +2569,18 @@ modelfunction_V2 <- function(learningmodel,
     # ── Validation ─────────────────────────────────────────────────────────────
     if (modelparameters$adjustval) {
       colnames(validation)[1] <- "group"
-      validationdiff <- validation[, which(colnames(validation) %in% colnames(learningmodel))]
-      learningselect2 <- learningselect
       
-      if (transformdataparameters$log) {
-        validationdiff[, -1]  <- transformationlog(x = validationdiff[, -1] + 1, logtype = transformdataparameters$logtype)
-        learningselect2[, -1] <- transformationlog(x = learningselect2[, -1] + 1, logtype = transformdataparameters$logtype)
-      }
-      if (transformdataparameters$arcsin) {
-        maxlearn <- apply(X = learningselect[, -1], MARGIN = 2, FUN = max, na.rm = TRUE)
-        minlearn <- apply(X = learningselect[, -1], MARGIN = 2, FUN = min, na.rm = TRUE)
-        for (i in 2:dim(validationdiff)[2]) {
-          validationdiff[, i] <- (validationdiff[, i] - minlearn[i - 1]) / (maxlearn[i - 1] - minlearn[i - 1])
-          validationdiff[which(validationdiff[, i] > 1), i] <- 1
-          validationdiff[which(validationdiff[, i] < 0), i] <- 0
-          validationdiff[, i] <- asin(sqrt(validationdiff[, i]))
-        }
-        learningselect2[, -1] <- apply(X = learningselect2[, -1], MARGIN = 2,
-                                       FUN = function(x) { (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) })
-        learningselect2[, -1] <- asin(sqrt(learningselect2[, -1]))
-      }
-      if (transformdataparameters$standardization) {
-        learningselectval <<- learningselect2
-        # Calculer sdselect uniquement sur les colonnes de features (excluant "group")
-        feat_cols_learning <- colnames(learningselect2)[colnames(learningselect2) %in% colnames(validationdiff) & colnames(learningselect2) != "group"]
-        sdselect <- apply(learningselect2[, feat_cols_learning, drop = FALSE], 2, sd, na.rm = TRUE)
-        print("sdselect"); print(sdselect)
-        # Aligner avec les colonnes de features de validationdiff (col 1 est "group")
-        feat_cols       <- colnames(validationdiff)[-1]
-        sdselect_aligned <- sdselect[feat_cols]
-        if (length(sdselect_aligned) != length(feat_cols) || any(is.na(sdselect_aligned))) {
-          warning("sdselect_aligned contient des NA ou longueur incorrecte — vérifier la correspondance des colonnes entre learningselect2 et validationdiff")
-        }
-        validationdiff[, -1] <- scale(as.matrix(validationdiff[, -1]), center = FALSE, scale = sdselect_aligned)
-      }
-      if (!is.null(datastructuresfeatures)) {
-        validationdiff[which(is.na(validationdiff), arr.ind = TRUE)[
-          which(which(is.na(validationdiff), arr.ind = TRUE)[, 2] %in%
-                  which(colnames(validationdiff) %in% datastructuresfeatures$names)), ]] <- 0
-      }
-      validationmodel <<- replaceNAvalidation(as.data.frame(validationdiff[, -1]),
-                                              toto   = as.data.frame(learningmodel[, -1]),
-                                              rempNA = transformdataparameters$rempNA)
-      colnames(validationmodel) <- colnames(validationdiff)[-1]
-      rownames(validationmodel) <- rownames(validationdiff)
+      valtransform <- applyTransformToValidation(
+        validation              = validation[, which(colnames(validation) %in% colnames(learningmodel))],
+        transformdataparameters = transformdataparameters,
+        train_params            = train_params,
+        structuredfeatures      = NULL,
+        datastructuresfeatures  = datastructuresfeatures
+      )
+      validationdiff   <- valtransform
+      validationmodel  <<- as.data.frame(valtransform[, -1, drop = FALSE])
+      colnames(validationmodel) <- colnames(valtransform)[-1]
+      rownames(validationmodel) <- rownames(valtransform)
       
       # ── Scores bruts validation selon le type de modèle ──────────────────────
       if (modelparameters$modeltype == "randomforest") {
@@ -2726,7 +2699,8 @@ modelfunction <- function(learningmodel,
                           modelparameters,
                           transformdataparameters,
                           datastructuresfeatures=NULL,
-                          learningselect){
+                          learningselect,
+                          train_params=NULL){
   if(modelparameters$modeltype!="nomodel"){
     colnames(learningmodel)[1]<-"group"
     
@@ -3651,45 +3625,18 @@ modelfunction <- function(learningmodel,
     if (modelparameters$adjustval){
       #Validation
       colnames(validation)[1]<-"group"
-      validationdiff<-validation[,which(colnames(validation)%in%colnames(learningmodel))]
-      learningselect2<-learningselect
-      if(transformdataparameters$log) {
-        validationdiff[,-1]<-transformationlog(x = validationdiff[,-1]+1,logtype =transformdataparameters$logtype )
-        learningselect2[,-1]<-transformationlog(x = learningselect2[,-1]+1,logtype=transformdataparameters$logtype)}
-      if(transformdataparameters$arcsin){
-        maxlearn<-apply(X = learningselect[,-1],MARGIN = 2,FUN = max,na.rm=T)
-        minlearn<-apply(X = learningselect[,-1],MARGIN = 2,FUN = min,na.rm=T)
-        for (i in 2:dim(validationdiff)[2]){
-          validationdiff[,i]<-(validationdiff[,i]-minlearn[i-1])/(maxlearn[i-1]-minlearn[i-1])
-          #validationdiff[,-1]<-apply(X = as.data.frame(validationdiff[,-1]),MARGIN = 2,FUN = function(x){{(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))}})
-          validationdiff[which(validationdiff[,i]>1),i]<-1
-          validationdiff[which(validationdiff[,i]<0),i]<-0
-          validationdiff[,i]<-asin(sqrt(validationdiff[,i]))
-        }
-        learningselect2[,-1]<-apply(X = learningselect2[,-1],MARGIN = 2,FUN = function(x){{(x-min(x,na.rm = T))/(max(x,na.rm = T)-min(x,na.rm = T))}})
-        learningselect2[,-1]<-asin(sqrt(learningselect2[,-1]))
-      }
-      if(transformdataparameters$standardization){
-        learningselectval<<-learningselect2
-        # Calculer sdselect uniquement sur les colonnes de features (excluant "group")
-        feat_cols_learning <- colnames(learningselect2)[colnames(learningselect2) %in% colnames(validationdiff) & colnames(learningselect2) != "group"]
-        sdselect<-apply(learningselect2[, feat_cols_learning, drop = FALSE], 2, sd,na.rm=T)
-        print('sdselect')
-        print(sdselect)
-        # Aligner avec les colonnes de features de validationdiff
-        feat_cols <- colnames(validationdiff)[-1]
-        sdselect_aligned <- sdselect[feat_cols]
-        validationdiff[,-1]<-scale(as.matrix(validationdiff[,-1]),center=F,scale=sdselect_aligned)
-      }
-      
-      #NAstructure if NA ->0
-      if(!is.null(datastructuresfeatures)){
-        validationdiff[which(is.na(validationdiff),arr.ind = T)[which(which(is.na(validationdiff),arr.ind = T)[,2]%in%which(colnames(validationdiff)%in%datastructuresfeatures$names)),]]<-0
-      }
-      #
-      validationmodel<<- replaceNAvalidation(as.data.frame(validationdiff[,-1]),toto=as.data.frame(learningmodel[,-1]),rempNA=transformdataparameters$rempNA)
-      colnames(validationmodel)<-colnames(validationdiff)[-1]
-      rownames(validationmodel)<-rownames(validationdiff)
+      # Preprocessing validation unifié, paramètres figés sur le train (aucune fuite)
+      valtransform <- applyTransformToValidation(
+        validation              = validation[, which(colnames(validation)%in%colnames(learningmodel))],
+        transformdataparameters = transformdataparameters,
+        train_params            = train_params,
+        structuredfeatures      = NULL,
+        datastructuresfeatures  = datastructuresfeatures
+      )
+      validationdiff  <- valtransform
+      validationmodel <<- as.data.frame(valtransform[,-1, drop = FALSE])
+      colnames(validationmodel)<-colnames(valtransform)[-1]
+      rownames(validationmodel)<-rownames(valtransform)
       
       #prediction a partir du model
       
@@ -4262,8 +4209,13 @@ testparametersfunction<-function(learning,validation,tabparameters){
     if(!parameters$log){tabparameters[i,"logtype"]<-NA}
     transformdataparameters<<-list("log"=parameters$log,"logtype"=parameters$logtype,"standardization"=parameters$standardization,"arcsin"=parameters$arcsin,"rempNA"=parameters$rempNA)
     
-    learningtransform<-transformdatafunctionBinairy(learningselect = resselectdata$learningselect,structuredfeatures = resselectdata$structuredfeatures,
-                                             datastructuresfeatures =   resselectdata$datastructuresfeatures,transformdataparameters = transformdataparameters)
+    # learningtransform<-transformdatafunctionBinairy(learningselect = resselectdata$learningselect,structuredfeatures = resselectdata$structuredfeatures,
+    #                                          datastructuresfeatures =   resselectdata$datastructuresfeatures,transformdataparameters = transformdataparameters)
+    # 
+    res_transform_param <- transformdatafunctionBinairy(learningselect = resselectdata$learningselect,structuredfeatures = resselectdata$structuredfeatures,
+                                                        datastructuresfeatures =   resselectdata$datastructuresfeatures,transformdataparameters = transformdataparameters)
+    learningtransform <- res_transform_param$learningtransform
+    train_params      <- res_transform_param$train_params
     
     testparameters<<-list("SFtest"=FALSE,"test"=parameters$test,"adjustpval"=as.logical(parameters$adjustpv),"thresholdpv"=parameters$thresholdpv,"thresholdFC"=parameters$thresholdFC)
     restest<<-testfunction(tabtransform = learningtransform,testparameters = testparameters)
@@ -4302,13 +4254,22 @@ testparametersfunction<-function(learning,validation,tabparameters){
       
       #resmodel<<-modelfunction(learningmodel = learningmodel,validation = validation,modelparameters = modelparameters,
       #                         transformdataparameters = transformdataparameters,datastructuresfeatures =  datastructuresfeatures)
+      # out<- tryCatch(modelfunction(learningmodel = learningmodel,
+      #                              validation = validation,
+      #                              modelparameters = modelparameters,
+      #                              transformdataparameters = transformdataparameters,
+      #                              datastructuresfeatures =  datastructuresfeatures,
+      #                              learningselect = resselectdata$learningselect), 
+      #                error = function(e) e)
       out<- tryCatch(modelfunction(learningmodel = learningmodel,
                                    validation = validation,
                                    modelparameters = modelparameters,
                                    transformdataparameters = transformdataparameters,
                                    datastructuresfeatures =  datastructuresfeatures,
-                                   learningselect = resselectdata$learningselect), 
+                                   learningselect = resselectdata$learningselect,
+                                   train_params = train_params), 
                      error = function(e) e)
+      
       if(any(class(out)=="error"))parameters$model<-"nomodel"
       else{
         
