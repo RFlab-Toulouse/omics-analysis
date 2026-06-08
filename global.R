@@ -536,9 +536,9 @@ testNAstructure<-function(toto,threshold=0.05,maxvaluesgroupmin=100,minvaluesgro
 }
 
 transformdatafunctionBinairy <- function(learningselect, 
-                                  structuredfeatures, 
-                                  datastructuresfeatures, 
-                                  transformdataparameters) {
+                                         structuredfeatures, 
+                                         datastructuresfeatures, 
+                                         transformdataparameters) {
   learningtransform <- learningselect
   train_params <- list()
   
@@ -2280,7 +2280,7 @@ modelfunction_V2 <- function(learningmodel,
             accuracies <- sapply(knn_folds, function(test_idx) {
               train_idx <- setdiff(1:nrow(learningmodel), test_idx)
               pred <- class::knn(train = learningmodel[train_idx, -1], test = learningmodel[test_idx, -1],
-                          cl = learningmodel[train_idx, 1], k = k_test)
+                                 cl = learningmodel[train_idx, 1], k = k_test)
               mean(pred == learningmodel[test_idx, 1])
             })
             avg_acc <- mean(accuracies)
@@ -3804,7 +3804,7 @@ replaceNAoneline<-function(lineNA,toto,rempNA){
   if(rempNA=="moygr"){ 
     #print("impossible de remplacer les NA par la moyenne par group pour la validation")
     linessNA<-replaceNA(toto = cbind(rep(0,nrow(alldata)),alldata),rempNA ="moy")[1,-1]       
-     }
+  }
   
   else{linessNA<-replaceNA(toto = cbind(rep(0,nrow(alldata)),alldata),rempNA =rempNA)[1,-1]}
   
@@ -4478,7 +4478,7 @@ importanceplot<-function(model,learningmodel,modeltype,graph=T){
       ggtitle("Importance of variables in the model")+
       scale_fill_grey()
     
-
+    
   }
   if(modeltype=="elasticnet"){
     # Extract coefficients from elasticnet model
@@ -4876,7 +4876,7 @@ cv_model <- function(learningmodel, trained_model, modelparameters, threshold = 
         mod <- randomForest(x = X_train, y = y_train,
                             ntree = rf_ntree, mtry = rf_mtry,
                             nodesize = 1, importance = FALSE)
-       randomForest:::predict.randomForest(mod, X_test, type = "prob")[, lev["positif"]]
+        randomForest:::predict.randomForest(mod, X_test, type = "prob")[, lev["positif"]]
         
       } else if (mt == "svm") {
         mod <- svm(x = X_train, y = y_train,
@@ -5115,16 +5115,16 @@ plot_clustered_heatmap <- function(data, y, n_top = 30, title = "Clustered Heatm
   
   tryCatch({
     p =  pheatmap(t(X_scaled),
-             annotation_col = annotation_row,
-             annotation_colors = ann_colors,
-             clustering_method = "ward.D2",
-             show_colnames = FALSE,
-             main = title,
-             fontsize_row = 10,
-             width = 12,
-             height = 8,
-             fontweight_row = "bold",
-             color = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100))
+                  annotation_col = annotation_row,
+                  annotation_colors = ann_colors,
+                  clustering_method = "ward.D2",
+                  show_colnames = FALSE,
+                  main = title,
+                  fontsize_row = 10,
+                  width = 12,
+                  height = 8,
+                  fontweight_row = "bold",
+                  color = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100))
     
     gt <- p$gtable
     
@@ -5327,8 +5327,8 @@ plot_calibration <- function(actual, predicted_probs, n_bins = 10, title = "Cali
 # BINAIRE
 # -----------------------------
 plot_calibration_binary <- function(actual, predicted_probs,
-                             n_bins = 10,
-                             title = "Calibration Plot") {
+                                    n_bins = 10,
+                                    title = "Calibration Plot") {
   
   binary_actual <- as.numeric(actual == levels(actual)[1])
   
@@ -5593,6 +5593,7 @@ run_all_models <- function(learningmodel, validation, transformdataparameters,
     metrics = metrics_summary
   ))
 }
+
 # run_all_models <- function(learningmodel, validation, transformdataparameters,
 #                            datastructuresfeatures, learningselect,
 #                            models_to_run = NULL, threshold = 0.5) {
@@ -6667,4 +6668,3 @@ applyTransformToValidation <- function(validation, transformdataparameters, trai
   
   return(valtransform)
 }
-
