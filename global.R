@@ -55,6 +55,12 @@ usePackage("ranger")
 usePackage("MASS")
 
 
+# catboost n'est disponible sur cran :
+#install.packages("catboost", repos = "https://catboost-releases.s3.amazonaws.com/r/CRAN/any/")
+# ou depuis GitHub :
+#devtools::install_url("https://github.com/catboost/catboost/releases/download/v1.2.7/catboost-R-Windows-1.2.7.tgz", INSTALL_opts = c("--no-multiarch", "--no-test-load"))
+
+
 ##########################
 importfile<-function (datapath,extension,NAstring="NA",sheet=1,skiplines=0,dec=".",sep=","){
   # datapath: path of the file
@@ -846,6 +852,35 @@ testfunction<-function(tabtransform,testparameters){
                              "mean1"=datatest$mean_group1,
                              "mean2"=datatest$mean_group2)
     }
+  } else if (testparameters$test == "stabselect") {
+    cat("Running Stability Selection Lasso...\n")
+    n_bootstrap     <- if (!is.null(testparameters$n_bootstrap))    testparameters$n_bootstrap    else 100
+    pi_threshold    <- if (!is.null(testparameters$pi_threshold))   testparameters$pi_threshold   else 0.7
+    sample_fraction <- if (!is.null(testparameters$sample_fraction)) testparameters$sample_fraction else 0.5
+    weakness        <- if (!is.null(testparameters$weakness))       testparameters$weakness       else 0.5
+    use_cv          <- if (!is.null(testparameters$use_cv))         testparameters$use_cv         else TRUE
+
+    multivariateresults <- stabselSelection(
+      toto = tabtransform, n_bootstrap = n_bootstrap,
+      sample_fraction = sample_fraction, pi_threshold = pi_threshold,
+      weakness = weakness, use_cv = use_cv
+    )
+    datatest <- multivariateresults$results
+    cat("number of selected variables: ", length(multivariateresults$selected_vars), "\n")
+
+    if (nrow(datatest) == 0) {
+      print("no variables selected by Stability Selection")
+      tabdiff  <<- data.frame()
+      useddata <- NULL
+    } else {
+      selected_vars <- multivariateresults$selected_vars
+      indvar        <- (colnames(tabtransform) %in% selected_vars)
+      indvar[1]     <- TRUE
+      tabdiff      <<- tabtransform[, indvar]
+      useddata <- data.frame("names" = datatest$name,
+                             "mean1" = datatest$mean_group1,
+                             "mean2" = datatest$mean_group2)
+    }
   }
   else{
     # Univariate tests (Wtest, Ttest)
@@ -1350,6 +1385,261 @@ borutaSelection =  function(toto, maxRuns = 100, seed = 123) {
     mean_group1 = mlev1,
     mean_group2 = mlev2
   ))
+}
+
+
+##########################
+# Stability Selection Lasso
+##########################
+
+stability_selection_lasso_cv <- function(X, y,
+                                         family = "binomial",
+                                         n_bootstrap = 100,
+                                         sample_fraction = 0.5,
+                                         lambda = NULL,
+                                         n_lambda = 50,
+                                         pi_threshold = 0.7,
+                                         randomize = TRUE,
+                                         weakness = 0.5,
+                                         standardize = TRUE,
+                                         nfolds = 5,
+                                         seed = NULL) {
+  if (!is.null(seed)) set.seed(seed)
+  X <- as.matrix(X)
+  n <- nrow(X)
+  p <- ncol(X)
+  var_names <- colnames(X)
+  if (is.null(var_names)) var_names <- paste0("V", seq_len(p))
+  colnames(X) <- var_names
+
+  if (is.null(lambda)) {
+    fit_full   <- glmnet::glmnet(X, y, family = family, nlambda = n_lambda, standardize = standardize)
+    lambda_seq <- fit_full$lambda
+  } else {
+    lambda_seq <- lambda
+  }
+
+  select_count   <- numeric(p)
+  names(select_count) <- var_names
+  lambda_history <- rep(NA_real_, n_bootstrap)
+  size_sub       <- floor(sample_fraction * n)
+
+  for (b in seq_len(n_bootstrap)) {
+    idx   <- sample(seq_len(n), size = size_sub, replace = FALSE)
+    X_sub <- X[idx, , drop = FALSE]
+    y_sub <- y[idx]
+
+    if (randomize) {
+      w              <- runif(p, min = weakness, max = 1)
+      penalty_factor <- 1 / w
+    } else {
+      penalty_factor <- rep(1, p)
+    }
+
+    fit <- tryCatch(
+      glmnet::cv.glmnet(X_sub, y_sub, family = family, lambda = lambda_seq,
+                        penalty.factor = penalty_factor, standardize = standardize,
+                        nfolds = nfolds),
+      error = function(e) NULL
+    )
+    if (is.null(fit)) next
+
+    best_lambda        <- fit$lambda.min
+    lambda_history[b]  <- best_lambda
+    coefs              <- as.matrix(coef(fit, s = "lambda.min"))
+    coefs              <- coefs[-1, , drop = FALSE]
+    selected           <- as.numeric(coefs != 0)
+    select_count       <- select_count + selected
+  }
+
+  n_valid <- sum(!is.na(lambda_history))
+  if (n_valid == 0) {
+    warning("Aucune iteration de bootstrap n'a reussi.")
+    selection_freq <- select_count
+  } else {
+    selection_freq <- select_count / n_valid
+  }
+
+  selected_variables <- var_names[selection_freq >= pi_threshold]
+  list(
+    selected_variables = selected_variables,
+    selection_freq     = sort(selection_freq, decreasing = TRUE),
+    lambda_history     = lambda_history,
+    lambda_mean        = mean(lambda_history, na.rm = TRUE),
+    lambda_median      = median(lambda_history, na.rm = TRUE),
+    lambda_seq         = lambda_seq,
+    n_valid_bootstrap  = n_valid
+  )
+}
+
+
+stability_selection_lasso <- function(X, y,
+                                      family = "binomial",
+                                      n_bootstrap = 100,
+                                      sample_fraction = 0.5,
+                                      lambda = NULL,
+                                      n_lambda = 50,
+                                      pi_threshold = 0.7,
+                                      randomize = TRUE,
+                                      weakness = 0.5,
+                                      standardize = TRUE,
+                                      seed = NULL) {
+  if (!is.null(seed)) set.seed(seed)
+  X <- as.matrix(X)
+  n <- nrow(X)
+  p <- ncol(X)
+  var_names <- colnames(X)
+  if (is.null(var_names)) var_names <- paste0("V", seq_len(p))
+  colnames(X) <- var_names
+
+  if (is.null(lambda)) {
+    fit_full   <- glmnet::glmnet(X, y, family = family, nlambda = n_lambda,
+                                 lambda.min.ratio = 0.0733, standardize = standardize)
+    lambda_seq <- fit_full$lambda
+  } else {
+    lambda_seq <- lambda
+  }
+  n_lambda_used <- length(lambda_seq)
+
+  select_count <- matrix(0, nrow = n_lambda_used, ncol = p, dimnames = list(NULL, var_names))
+  size_sub     <- floor(sample_fraction * n)
+
+  for (b in seq_len(n_bootstrap)) {
+    idx   <- sample(seq_len(n), size = size_sub, replace = FALSE)
+    X_sub <- X[idx, , drop = FALSE]
+    y_sub <- y[idx]
+
+    if (randomize) {
+      w              <- runif(p, min = weakness, max = 1)
+      penalty_factor <- 1 / w
+    } else {
+      penalty_factor <- rep(1, p)
+    }
+
+    fit <- tryCatch(
+      glmnet::glmnet(X_sub, y_sub, family = family, lambda = lambda_seq,
+                     penalty.factor = penalty_factor, standardize = standardize),
+      error = function(e) NULL
+    )
+    if (is.null(fit)) next
+
+    coefs        <- as.matrix(coef(fit, s = lambda_seq))
+    coefs        <- coefs[-1, , drop = FALSE]
+    selected     <- t(coefs != 0)
+    select_count <- select_count + selected
+  }
+
+  freq_matrix    <- select_count / n_bootstrap
+  selection_freq <- apply(freq_matrix, 2, max)
+
+  selected_variables <- var_names[selection_freq >= pi_threshold]
+  list(
+    selected_variables = selected_variables,
+    selection_freq     = sort(selection_freq, decreasing = TRUE),
+    freq_matrix        = freq_matrix,
+    lambda_seq         = lambda_seq
+  )
+}
+
+
+plot_stability_selection <- function(res,
+                                     pi_threshold = 0.7,
+                                     top_n = NULL,
+                                     main_title = "Stability Selection - Lasso",
+                                     main_subtitle = "Selection frequency per variable",
+                                     horizontal = TRUE) {
+  freq <- res$selection_freq
+  df   <- data.frame(variable = names(freq), freq = as.numeric(freq), stringsAsFactors = FALSE)
+  df   <- df[order(-df$freq), ]
+
+  if (!is.null(top_n)) df <- head(df, top_n)
+
+  df$selected <- ifelse(df$freq >= pi_threshold, "Selected", "Not Selected")
+  df$variable <- factor(df$variable, levels = rev(df$variable))
+
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = variable, y = freq, fill = selected)) +
+    ggplot2::geom_col(width = 0.7) +
+    ggplot2::geom_hline(yintercept = pi_threshold, linetype = "dashed", color = "black", linewidth = 0.6) +
+    ggplot2::annotate("text", x = 2, y = min(pi_threshold + 0.06, 0.96),
+                      label = paste0("Threshold ", pi_threshold * 100, "%"),
+                      color = "black", size = 3) +
+    ggplot2::scale_fill_manual(values = c("Selected" = "#2166AC", "Not Selected" = "#B2182B")) +
+    ggplot2::labs(title = main_title, subtitle = main_subtitle,
+                  x = "", y = "Selection frequency", fill = NULL) +
+    ggplot2::scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold"),
+                   legend.position = "top",
+                   panel.grid.minor = ggplot2::element_blank())
+
+  if (horizontal) p <- p + ggplot2::coord_flip() else
+    p <- p + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 60, hjust = 1))
+  p
+}
+
+
+stabselSelection <- function(toto, n_bootstrap = 100, sample_fraction = 0.5,
+                             pi_threshold = 0.7, weakness = 0.5,
+                             use_cv = TRUE, nfolds = 5, seed = 123) {
+  set.seed(seed)
+  lev <- levels(toto[, 1])
+  y   <- ifelse(toto[, 1] == lev[1], 1, 0)
+  X   <- as.matrix(toto[, -1])
+
+  if (use_cv) {
+    stabsel_result <- stability_selection_lasso_cv(
+      X = X, y = y, family = "binomial",
+      n_bootstrap = n_bootstrap, sample_fraction = sample_fraction,
+      pi_threshold = pi_threshold, randomize = TRUE,
+      weakness = weakness, nfolds = nfolds, seed = seed
+    )
+  } else {
+    stabsel_result <- stability_selection_lasso(
+      X = X, y = y, family = "binomial",
+      n_bootstrap = n_bootstrap, sample_fraction = sample_fraction,
+      pi_threshold = pi_threshold, randomize = TRUE,
+      weakness = weakness, seed = seed
+    )
+  }
+
+  selected_vars <- stabsel_result$selected_variables
+  cat("Stability Selection: ", length(selected_vars), " variables selected\n")
+
+  if (length(selected_vars) > 0) {
+    X_sel <- toto[, selected_vars, drop = FALSE]
+    mlev1 <- apply(X_sel[toto[, 1] == lev[1], , drop = FALSE], 2, mean, na.rm = TRUE)
+    mlev2 <- apply(X_sel[toto[, 1] == lev[2], , drop = FALSE], 2, mean, na.rm = TRUE)
+    FC    <- mlev1 / (mlev2 + 1e-9)
+    logFC <- log2(abs(FC) + 1e-6)
+    sel_freq <- stabsel_result$selection_freq[selected_vars]
+
+    auc_vec <- sapply(selected_vars, function(v) {
+      tryCatch(as.numeric(pROC::auc(pROC::roc(as.integer(y), toto[, v], quiet = TRUE))),
+               error = function(e) NA_real_)
+    })
+
+    results <- data.frame(
+      name           = selected_vars,
+      selection_freq = round(as.numeric(sel_freq), 3),
+      AUC            = round(auc_vec, 3),
+      FoldChange     = round(FC, 3),
+      logFoldChange  = round(logFC, 3),
+      mean_group1    = round(mlev1, 3),
+      mean_group2    = round(mlev2, 3),
+      stringsAsFactors = FALSE
+    )
+    results <- results[order(-results$selection_freq), ]
+  } else {
+    results <- data.frame()
+  }
+
+  list(
+    results        = results,
+    selected_vars  = selected_vars,
+    selection_freq = stabsel_result$selection_freq,
+    stabsel_result = stabsel_result,
+    method         = "stabselect"
+  )
 }
 
 
@@ -2479,6 +2769,13 @@ modelfunction_V2 <- function(learningmodel,
                                         folds = xgb_folds,
                                         early_stopping_rounds = 10, verbose = 0)
               optimal_nrounds <- cv_results$best_iteration
+              if (is.null(optimal_nrounds) || length(optimal_nrounds) == 0 || is.na(optimal_nrounds)) {
+                if (!is.null(cv_results$evaluation_log$test_auc_mean)) {
+                  optimal_nrounds <- which.max(cv_results$evaluation_log$test_auc_mean)
+                } else {
+                  optimal_nrounds <- 100
+                }
+              }
             }, error = function(e) { optimal_nrounds <<- 20 })
             model <- xgb.train(params = best_params, data = dtrain, nrounds = optimal_nrounds, verbose = 0)
             model$optimal_nrounds          <- optimal_nrounds
@@ -2503,6 +2800,13 @@ modelfunction_V2 <- function(learningmodel,
                                     folds = xgb_folds,
                                     early_stopping_rounds = 10, verbose = 0)
           optimal_nrounds <- cv_results$best_iteration
+          if (is.null(optimal_nrounds) || length(optimal_nrounds) == 0 || is.na(optimal_nrounds)) {
+            if (!is.null(cv_results$evaluation_log$test_auc_mean)) {
+              optimal_nrounds <- which.max(cv_results$evaluation_log$test_auc_mean)
+            } else {
+              optimal_nrounds <- 100
+            }
+          }
           cat("best parameters\n"); print(best_params)
           cat("optimal rounds : ", optimal_nrounds, "\n")
           model <- xgb.train(params = best_params, data = dtrain, nrounds = optimal_nrounds, verbose = 0)
@@ -2556,7 +2860,77 @@ modelfunction_V2 <- function(learningmodel,
       scorelearning <- data.frame(xgboost:::predict.xgb.Booster(model, x))
       colnames(scorelearning) <- paste(lev[1], "/", lev[2], sep = "")
     }
-    
+
+    # ── CatBoost ───────────────────────────────────────────────────────────────
+    if (modelparameters$modeltype == "catboost") {
+      if (!requireNamespace("catboost", quietly = TRUE)) {
+        stop("Le package 'catboost' est requis. Installez-le depuis : https://catboost.ai/docs/concepts/r-installation")
+      }
+      x          <- as.matrix(learningmodel[, -1])
+      y          <- ifelse(learningmodel[, 1] == lev["positif"], 1, 0)
+      learn_pool <- catboost::catboost.load_pool(data = x, label = y)
+
+      if (is.null(modelparameters$autotunecatboost) || modelparameters$autotunecatboost) {
+        cat("CatBoost: auto mode avec early stopping\n")
+        n_folds_cb <- min(5, nrow(learningmodel) - 1)
+        cv_params  <- list(
+          iterations    = 500,
+          learning_rate = 0.03,
+          depth         = 6,
+          loss_function = "Logloss",
+          eval_metric   = "AUC",
+          od_type       = "Iter",
+          od_wait       = 30,
+          random_seed   = 20011203,
+          verbose       = 0
+        )
+        cv_result <- tryCatch(
+          catboost::catboost.cv(pool = learn_pool, params = cv_params, fold_count = n_folds_cb),
+          error = function(e) { cat("CatBoost CV failed:", e$message, "\n"); NULL }
+        )
+        if (!is.null(cv_result) && "test.AUC.mean" %in% colnames(cv_result)) {
+          best_iter <- which.max(cv_result$test.AUC.mean)
+        } else {
+          best_iter <- 300
+        }
+        train_params <- list(
+          iterations    = best_iter,
+          learning_rate = 0.03,
+          depth         = 6,
+          loss_function = "Logloss",
+          eval_metric   = "AUC",
+          random_seed   = 20011203,
+          verbose       = 0
+        )
+      } else {
+        cat("CatBoost: parametres manuels\n")
+        best_iter     <- ifelse(is.null(modelparameters$iterations_cb),   500,  modelparameters$iterations_cb)
+        depth_param   <- ifelse(is.null(modelparameters$depth_cb),          6,  modelparameters$depth_cb)
+        lr_param      <- ifelse(is.null(modelparameters$learning_rate_cb), 0.03, modelparameters$learning_rate_cb)
+        train_params  <- list(
+          iterations    = best_iter,
+          learning_rate = lr_param,
+          depth         = depth_param,
+          loss_function = "Logloss",
+          eval_metric   = "AUC",
+          random_seed   = 20011203,
+          verbose       = 0
+        )
+      }
+
+      model <- catboost::catboost.train(learn_pool = learn_pool, params = train_params)
+      model$optimal_iterations    <- train_params$iterations
+      model$optimal_depth         <- train_params$depth
+      model$optimal_learning_rate <- train_params$learning_rate
+
+      cat("CatBoost optimal iterations:", model$optimal_iterations, "\n")
+
+      scorelearning <- data.frame(
+        catboost::catboost.predict(model, learn_pool, prediction_type = "Probability")
+      )
+      colnames(scorelearning) <- paste(lev[1], "/", lev[2], sep = "")
+    }
+
     # ── Assemblage du résultat learning ────────────────────────────────────────
     # NOTE : predictclasslearning intentionnellement absent ici ;
     # il sera ajouté par apply_threshold() dans le reactive MODEL.
@@ -2616,6 +2990,11 @@ modelfunction_V2 <- function(learningmodel,
         dval     <- xgb.DMatrix(data = x_val)
         scoreval <- xgboost:::predict.xgb.Booster(model, dval)
       }
+      if (modelparameters$modeltype == "catboost") {
+        x_val    <- as.matrix(validationmodel)
+        val_pool <- catboost::catboost.load_pool(data = x_val)
+        scoreval <- catboost::catboost.predict(model, val_pool, prediction_type = "Probability")
+      }
       if (modelparameters$modeltype == "lightgbm") {
         x_val    <- as.matrix(validationmodel)
         scoreval <- predict(model, x_val)
@@ -2648,7 +3027,9 @@ modelfunction_V2 <- function(learningmodel,
       colnames(resvalidationmodel) <- c("classval", "scoreval")
       
       # AUC ne dépend pas du seuil → calculé ici une seule fois
-      auc_val <- pROC::auc(pROC::roc(as.vector(classval), as.vector(scoreval), quiet = TRUE))
+      auc_val <- pROC::auc(pROC::roc(as.vector(classval), as.vector(scoreval),
+                                     levels    = c(lev["negatif"], lev["positif"]),
+                                     direction = "<", quiet = TRUE))
       
       datavalidationmodel <- list("validationdiff"      = validationdiff,
                                   "validationmodel"     = validationmodel,
@@ -2680,6 +3061,10 @@ modelfunction_V2 <- function(learningmodel,
       modelparameters$lambda_xgb       <- model$optimal_lambda
       modelparameters$subsample_xgb    <- model$optimal_subsample
       modelparameters$min_child_weight <- model$optimal_min_child_weight
+    } else if (modelparameters$modeltype == "catboost") {
+      modelparameters$iterations_cb    <- model$optimal_iterations
+      modelparameters$depth_cb         <- model$optimal_depth
+      modelparameters$learning_rate_cb <- model$optimal_learning_rate
     }
     
     # ── Retour ─────────────────────────────────────────────────────────────────
@@ -3826,6 +4211,12 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
     x<-rev(data$specificities)
     roc<-data.frame(x,y)
     auc<-as.numeric(pROC::auc(data))
+    ci_auc <- tryCatch(as.numeric(pROC::ci.auc(data, conf.level = 0.95)),
+                       error = function(e) c(NA, auc, NA))
+    auc_label <- paste0(
+      "AUC = ", round(auc, 3),
+      "\n95% CI [", round(ci_auc[1], 3), " - ", round(ci_auc[3], 3), "]"
+    )
     
     col<-gg_color_hue(3)
     roccol<-col[1]
@@ -3845,12 +4236,325 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
             axis.title.y =  element_text(size = 18 , face = 'bold')
       ) + 
       labs(y = "Sensitivity", x = "1 - Specificity", title = maintitle) +
-      annotate("text",x=0.2,y=0.1,label=paste("AUC = ",as.character(round(auc,digits = 3))),size=7,colour= roccol)+
+      annotate("text", x = 0.5, y = 0.1, label = auc_label, 
+               size = 6, colour = roccol, hjust = 0) +
       scale_x_reverse()
     
     f
   }
 }
+
+plot_decision_curve <- function(labels, predictions,
+                               main_title  = "Decision Curve Analysis") {
+  if (is.factor(labels)) {
+    lev        <- levels(labels)
+    labels_bin <- ifelse(labels == lev[length(lev)], 1, 0)
+  } else {
+    labels_bin <- as.integer(as.character(labels))
+  }
+
+  n          <- length(labels_bin)
+  prevalence <- mean(labels_bin, na.rm = TRUE)
+
+  pred_range <- range(predictions, na.rm = TRUE)
+  rescaled_dca <- pred_range[2] > 1 || pred_range[1] < 0
+  if (rescaled_dca) {
+    predictions <- (predictions - pred_range[1]) / (pred_range[2] - pred_range[1] + 1e-9)
+  }
+
+  pt_max     <- min(quantile(predictions, 0.99, na.rm = TRUE), 0.99)
+  pt_max     <- max(pt_max, 0.05)
+  thresholds <- seq(0.001, pt_max, length.out = 200)
+
+  nb_model <- sapply(thresholds, function(pt) {
+    pred_pos <- predictions >= pt
+    tp       <- sum(pred_pos & labels_bin == 1, na.rm = TRUE)
+    fp       <- sum(pred_pos & labels_bin == 0, na.rm = TRUE)
+    (tp / n) - (fp / n) * (pt / (1 - pt))
+  })
+
+  nb_all  <- sapply(thresholds, function(pt) prevalence - (1 - prevalence) * (pt / (1 - pt)))
+  nb_none <- rep(0, length(thresholds))
+
+  y_max <- max(c(nb_model, nb_all, 0), na.rm = TRUE) + 0.05
+  y_min <- max(-0.1, min(c(nb_model, nb_all), na.rm = TRUE) - 0.02)
+
+  df <- data.frame(
+    threshold   = rep(thresholds, 3),
+    net_benefit = c(nb_model, nb_all, nb_none),
+    strategy    = factor(rep(c("Model", "Treat All", "Treat None"), each = length(thresholds)),
+                         levels = c("Model", "Treat All", "Treat None"))
+  )
+
+  ggplot2::ggplot(df, ggplot2::aes(x = threshold, y = net_benefit,
+                                   color = strategy, linetype = strategy)) +
+    ggplot2::geom_line(linewidth = 1) +
+    ggplot2::scale_color_manual(values = c("Model"     = "#2166AC",
+                                           "Treat All" = "#D73027",
+                                           "Treat None"= "#888888")) +
+    ggplot2::scale_linetype_manual(values = c("Model"     = "solid",
+                                              "Treat All" = "dashed",
+                                              "Treat None"= "dotted")) +
+    ggplot2::coord_cartesian(xlim = c(0, pt_max), ylim = c(y_min, y_max)) +
+    ggplot2::labs(title    = main_title,
+                  subtitle = if (rescaled_dca) "Scores non-probabilistes normalis\u00e9s (min-max)\nLa courbe de d\u00e9cision n\u2019a pas d\u2019interpr\u00e9tation clinique directe (calibration requise)" else NULL,
+                  x        = "Threshold probability",
+                  y        = "Net benefit",
+                  color    = NULL,
+                  linetype = NULL) +
+    ggplot2::scale_x_continuous(labels = scales::percent) +
+    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme(plot.title          = ggplot2::element_text(face = "bold", size = 15),
+                   legend.position     = "top",
+                   axis.text.y =  element_text(size  = 12 , face ='bold'),
+                   axis.text.x  =  element_text(size = 12 , face =  'bold'),
+                   legend.text  =  element_text(size =  12 , face =  'bold'),
+                   axis.title.x  =  element_text(size = 14 , face =  'bold'),
+                   axis.title.y   =  element_text(size = 14 , face =  "bold"), 
+                   panel.grid.minor = ggplot2::element_blank())
+}
+
+
+ggroc_auc_binary <- function(roc_obj,
+                             title    = "ROC Curve",
+                             subtitle = "") {
+  auc_val   <- as.numeric(pROC::auc(roc_obj))
+  ci_val    <- tryCatch(pROC::ci.auc(roc_obj), error = function(e) NULL)
+  if (!is.null(ci_val)) {
+    auc_label <- sprintf("AUC = %.3f\n[95%% CI : %.3f\u2013%.3f]", auc_val, ci_val[1], ci_val[3])
+  } else {
+    auc_label <- sprintf("AUC = %.3f", auc_val)
+  }
+
+  pROC::ggroc(roc_obj, colour = "#D42633", linewidth = 1) +
+    ggplot2::geom_segment(ggplot2::aes(x = 1, xend = 0, y = 0, yend = 1),
+                          color = "grey50", linetype = "dashed", linewidth = 0.7) +
+    ggplot2::annotate("text", x = 0.3, y = 0.15,
+                      label = auc_label, size = 5,
+                      color = "#D42633", fontface = "bold") +
+    ggplot2::scale_x_reverse(
+      breaks = seq(0, 1, 0.25),
+      labels = sprintf("%.2f", 1 - seq(0, 1, 0.25)),
+      limits = c(1, 0), expand = c(0, 0)
+    ) +
+    ggplot2::scale_y_continuous(
+      breaks = seq(0, 1, 0.25), limits = c(0, 1), expand = c(0, 0)
+    ) +
+    ggplot2::coord_cartesian(clip = "off") +
+    ggplot2::labs(title = title, subtitle = subtitle,
+                  x = "1 \u2212 Specificity", y = "Sensitivity") +
+    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme(
+      legend.position = "none",
+      plot.title      = ggplot2::element_text(face = "bold", size = 16, hjust = 0.5),
+      plot.subtitle   = ggplot2::element_text(hjust = 0.5, color = "grey40"),
+      axis.title      = ggplot2::element_text(face = "bold", size = 14),
+      axis.text       = ggplot2::element_text(face = "bold", size = 11),
+      axis.line       = ggplot2::element_line(color = "black", linewidth = 0.7),
+      axis.ticks      = ggplot2::element_line(color = "black", linewidth = 0.7),
+      axis.ticks.length = ggplot2::unit(0.2, "cm"),
+      panel.grid      = ggplot2::element_blank()
+    )
+}
+
+
+wilson_ci <- function(successes, n, conf_level = 0.95) {
+  if (n == 0) return(c(lower = NA, upper = NA))
+  z          <- qnorm(1 - (1 - conf_level) / 2)
+  p_hat      <- successes / n
+  denom      <- 1 + z^2 / n
+  center     <- (p_hat + z^2 / (2 * n)) / denom
+  half_width <- (z / denom) * sqrt((p_hat * (1 - p_hat) / n) + (z^2 / (4 * n^2)))
+  lower      <- max(0, center - half_width) * 100
+  upper      <- min(1, center + half_width) * 100
+  c(lower = lower, upper = upper)
+}
+
+calculate_sensitivity_specificity <- function(target, score, seuil) {
+  y_pred <- as.integer(score > seuil)
+  tp <- sum(target == 1 & y_pred == 1)
+  fn <- sum(target == 1 & y_pred == 0)
+  tn <- sum(target == 0 & y_pred == 0)
+  fp <- sum(target == 0 & y_pred == 1)
+  ci_se <- wilson_ci(tp, tp + fn)
+  ci_sp <- wilson_ci(tn, tn + fp)
+  list(tp = tp, fp = fp, tn = tn, fn = fn,
+       ci_lowerSe = ci_se["lower"], ci_upperSe = ci_se["upper"],
+       ci_lowerSp = ci_sp["lower"], ci_upperSp = ci_sp["upper"])
+}
+
+simple_plot_matrix_binaire <- function(target, risque, seuil,
+                                       auc_obj = NULL,
+                                       x_label = "model", types = "Train",
+                                       group_labels = c("N\u00e9gatif", "Positif")) {
+    
+    stopifnot(length(target) == length(risque))
+    
+    data <- data.frame(
+        new_group = as.integer(target),
+        score = as.numeric(risque)
+    )
+    
+    # Fix 1.2 — bornes dynamiques (scores SVM hors [0,1] non éliminés)
+    y_lo      <- min(0, min(data$score, na.rm = TRUE))
+    y_hi      <- max(1, max(data$score, na.rm = TRUE))
+    y_pad     <- (y_hi - y_lo) * 0.04
+    y_lo      <- y_lo - y_pad
+    y_hi      <- y_hi + y_pad
+    is_prob   <- (min(data$score, na.rm = TRUE) >= -0.01 && max(data$score, na.rm = TRUE) <= 1.01)
+    y_breaks  <- if (is_prob) seq(0, 1, 0.2) else pretty(data$score, n = 5)
+    y_ax_labs <- if (is_prob) as.character(seq(0L, 100L, 20L)) else as.character(round(y_breaks, 2))
+    y_ax_title <- if (is_prob) "Score de risque (%)\n" else "Score de risque\n"
+    
+    cat(paste(rep("-", 50), collapse = ""), "\n")
+    cat(sprintf("-Nombre de patients : %d\n", nrow(data)))
+    cat("-Nombre de négatifs / positifs : \n")
+    print(table(data$new_group))
+    
+    optimal_threshold <- seuil
+    cm_stats <- calculate_sensitivity_specificity(data$new_group, data$score, optimal_threshold)
+    tp <- cm_stats$tp; fp <- cm_stats$fp; tn <- cm_stats$tn; fn <- cm_stats$fn
+    
+    sensitivity <- if ((tp + fn) > 0) tp / (tp + fn) * 100 else 0
+    specificity <- if ((tn + fp) > 0) tn / (tn + fp) * 100 else 0
+    ci_lowerSe <- cm_stats$ci_lowerSe; ci_upperSe <- cm_stats$ci_upperSe
+    ci_lowerSp <- cm_stats$ci_lowerSp; ci_upperSp <- cm_stats$ci_upperSp
+    
+    auc_val <- tryCatch(
+        as.numeric(pROC::auc(pROC::roc(data$new_group, data$score,
+                                       levels = c(0, 1), direction = "<", quiet = TRUE))),
+        error = function(e) NA_real_
+    )
+    cat(sprintf("auc = %s\n", auc_val))
+    
+    # -------------------------------------------------------------------------
+    # Test statistique (Shapiro -> Bartlett -> Student/Welch, sinon Mann-Whitney)
+    # -------------------------------------------------------------------------
+    negatifs <- data[data$new_group == 0, ]
+    positifs <- data[data$new_group == 1, ]
+    
+    p_value <- NA_real_
+    type_test <- "no test possible"
+    
+    if (min(nrow(positifs), nrow(negatifs)) >= 3) {
+        p_shapiro_pos <- shapiro.test(positifs$score)$p.value
+        p_shapiro_neg <- shapiro.test(negatifs$score)$p.value
+        
+        if (min(p_shapiro_pos, p_shapiro_neg) > 0.05) {
+            bartlett_p <- bartlett.test(list(positifs$score, negatifs$score))$p.value
+            if (bartlett_p > 0.05) {
+                type_test <- "Student T-test"
+                res <- t.test(positifs$score, negatifs$score, var.equal = TRUE)
+            } else {
+                type_test <- "Welch T-test"
+                res <- t.test(positifs$score, negatifs$score, var.equal = FALSE)
+            }
+            cat(sprintf("%s: Statistique = %s, Valeur p = %s\n", type_test, res$statistic, res$p.value))
+            p_value <- res$p.value
+        } else {
+            type_test <- "Wilcoxon-Mann-Whitney test"
+            res <- wilcox.test(positifs$score, negatifs$score)
+            cat(sprintf("Wilcoxon-Mann-Whitney: Statistique = %s, Valeur p = %s\n", res$statistic, res$p.value))
+            p_value <- res$p.value
+        }
+    } else {
+        cat("Les tailles des échantillons sont insuffisantes pour effectuer les tests.\n")
+    }
+    
+    # -------------------------------------------------------------------------
+    # Construction du plot
+    # -------------------------------------------------------------------------
+    data$new_group_f <- factor(data$new_group, levels = c(0, 1), labels = group_labels)
+    
+    jitter_width <- 0.08
+    
+    p <- ggplot() +
+        geom_boxplot(data = data, aes(x = new_group_f, y = score),
+                     color = "black", fill = "white", width = 0.6,
+                     outlier.shape = NA, linewidth = 1.2) +
+        geom_jitter(data = data[data$new_group == 0, ],
+                    aes(x = new_group_f, y = score),
+                    shape = 21, fill = "white", color = "#D42633",
+                    stroke = 1.2, size = 4, width = jitter_width, height = 0) +
+        geom_jitter(data = data[data$new_group == 1, ],
+                    aes(x = new_group_f, y = score),
+                    shape = 21, fill = "#D42633", color = "#D42633",
+                    stroke = 1.2, size = 4, width = jitter_width, height = 0) +
+        annotate("segment", x = 0.7, xend = 2.3,
+                 y = seuil, yend = seuil,
+                 linetype = "dashed", color = "black", linewidth = 1.2) +
+        labs(x = NULL, y = y_ax_title,
+             title   = paste0(x_label, " ", types),
+             caption = if (types == "Learning") "Note\u202f: test statistique et AUC sur donn\u00e9es d\u2019entra\u00eenement (resubstitution \u2014 r\u00e9sultat sur validation externe fait r\u00e9f\u00e9rence)" else NULL) +
+        scale_y_continuous(breaks = y_breaks,
+                           labels = y_ax_labs,
+                           expand = c(0.05, 0)) +
+        theme_classic(base_size = 20) +
+        theme(
+            axis.title.y = element_text(face = "bold", size = 24),
+            axis.text.y = element_text(face = "bold", size = 20),
+            axis.text.x = element_text(face = "bold", size = 24),
+            plot.title = element_text(face = "bold", size = 20),
+            axis.ticks.x = element_blank(),
+            axis.line.x = element_blank(),
+            panel.grid = element_blank()
+        )
+    
+    # Barre de significativité + p-value (position fixe en haut)
+    if (!is.na(p_value)) {
+        bracket_y      <- y_hi - (y_hi - y_lo) * 0.10
+        bracket_height <- (y_hi - y_lo) * 0.025
+        text_y         <- bracket_y + bracket_height + (y_hi - y_lo) * 0.015
+        
+        bracket_df <- data.frame(
+            x = c(1, 1, 2, 2),
+            y = c(bracket_y, bracket_y + bracket_height, bracket_y + bracket_height, bracket_y)
+        )
+        
+        p_label <- if (p_value < 0.0001) "p<0.0001" else sprintf("p=%.4f", p_value)
+        
+        p <- p +
+            geom_path(data = bracket_df, aes(x = x, y = y), linewidth = 1.2, color = "black") +
+            annotate("text", x = 1.5, y = text_y, label = p_label,
+                     fontface = "bold", size = 6, hjust = 0.5, vjust = 0)
+    }
+    
+    # Annotation AUC / Sensibilité / Spécificité
+    # (l'AUC n'est affichée que si auc_obj est fourni, comme dans la version
+    # Python d'origine — sinon on affiche seulement sensibilité/spécificité)
+    if (is.null(auc_obj)) {
+        annot_text <- sprintf(
+            "Sensitivity (%%)\n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
+            sensitivity, ci_lowerSe, ci_upperSe,
+            specificity, ci_lowerSp, ci_upperSp
+        )
+    } else {
+        annot_text <- sprintf(
+            "AUC (%%) \n%.1f [%.2f - %.1f]\n\nSensitivity (%%) \n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
+            auc_obj$auc * 100, auc_obj$ci_lower * 100, auc_obj$ci_upper * 100,
+            sensitivity, ci_lowerSe, ci_upperSe,
+            specificity, ci_lowerSp, ci_upperSp
+        )
+    }
+    
+    y_annot <- y_lo + (y_hi - y_lo) * 0.75
+
+    p <- p +
+        annotate("text", x = 2.6, y = y_annot, label = annot_text,
+                 hjust = 0, vjust = 0.5, size = 6, fontface = "bold") +
+        coord_cartesian(xlim = c(0.5, 3.5), ylim = c(y_lo, y_hi), clip = "off") +
+        theme()
+    
+    print(p)
+    
+    list(
+        plot        = p,
+        sensitivity = sensitivity, ci_lowerSe = ci_lowerSe, ci_upperSe = ci_upperSe,
+        specificity = specificity, ci_lowerSp = ci_lowerSp, ci_upperSp = ci_upperSp,
+        auc = auc_val, p_value = p_value, type_test = type_test
+    )
+}
+
 
 scoremodelplot<-function(class,score,names,threshold,type,graph,printnames,jitter, maintitle = "Score representation train"){
   class<-factor(class,levels =rev(levels(class)))
@@ -3973,6 +4677,7 @@ jitter_boxlpot =  function(class, score , names , threshold, maintitle =  "score
   
   p
 }
+
 palet<-function(predtype,multiple=FALSE){
   if(multiple){col<-as.character(predtype)}
   else{col<-sort(unique(as.character(predtype)))}
@@ -4949,7 +5654,9 @@ cv_model <- function(learningmodel, trained_model, modelparameters, threshold = 
     
     # ── Métriques du fold ──────────────────────────────────────────────────────
     auc_val <- tryCatch(
-      as.numeric(pROC::auc(pROC::roc(as.vector(y_test), as.vector(score), quiet = TRUE))),
+      as.numeric(pROC::auc(pROC::roc(as.vector(y_test), as.vector(score),
+                                     levels    = c(lev["negatif"], lev["positif"]),
+                                     direction = "<", quiet = TRUE))),
       error = function(e) NA_real_
     )
     

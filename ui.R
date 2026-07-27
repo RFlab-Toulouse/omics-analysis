@@ -273,7 +273,8 @@ shinyUI(fluidPage(
                                                                     "Student Test (univariate)" = "Ttest",
                                                                     "Lasso (multivariate)" = "lasso",
                                                                     "ElasticNet (multivariate)" = "elasticnet",
-                                                                    "Boruta selection" = "boruta"
+                                                                    "Boruta selection" = "boruta",
+                                                                    "Stability Selection Lasso" = "stabselect"
                                                                     # ,
                                                                     # "Ridge (multivariate)" = "ridge"
                                                                     )
@@ -306,6 +307,18 @@ shinyUI(fluidPage(
                                                                       conditionalPanel(condition ="input.help",helpText("Minimum proportion of bootstrap iterations a variable must be selected to be included in final results.")),
                                                                       checkboxInput("preprocessclustenet","Preprocess variables",TRUE),
                                                                       conditionalPanel(condition ="input.help",helpText("Filter low variance and low frequency variables before clustering."))
+                                                     ),
+                                                     conditionalPanel(condition ="input.test=='stabselect'",
+                                                                      h5("Stability Selection Parameters"),
+                                                                      numericInput("stabsel_nbootstrap", "Bootstrap iterations", 100, min = 50, max = 1000, step = 50),
+                                                                      conditionalPanel(condition ="input.help", helpText("Number of sub-samples drawn to estimate selection frequencies.")),
+                                                                      sliderInput("stabsel_pi", "Selection threshold (\u03c0)", min = 0.5, max = 0.95, value = 0.7, step = 0.05),
+                                                                      conditionalPanel(condition ="input.help", helpText("A variable is selected if its frequency >= \u03c0.")),
+                                                                      sliderInput("stabsel_fraction", "Sample fraction per bootstrap", min = 0.3, max = 0.9, value = 0.5, step = 0.05),
+                                                                      sliderInput("stabsel_weakness", "Weakness (randomization strength)", min = 0.1, max = 1.0, value = 0.5, step = 0.05),
+                                                                      conditionalPanel(condition ="input.help", helpText("Lower values increase randomization of penalty weights.")),
+                                                                      checkboxInput("stabsel_use_cv", "Use cross-validation to select lambda", value = TRUE),
+                                                                      conditionalPanel(condition ="input.help", helpText("CV selects optimal lambda per bootstrap; unchecked uses a shared lambda grid."))
                                                      ),
                                                      conditionalPanel(condition ="input.test=='lasso' || input.test=='elasticnet' || input.test=='ridge'",
                                                                       h5("Regularization Parameters"),
@@ -385,6 +398,21 @@ shinyUI(fluidPage(
                                                        textOutput("nbborutaselected",inline=T), " variables selected",br(),br(),
                                                        dataTableOutput("borutaresultstable")%>% withSpinner(color="#0dc5c1",type = 1),
                                                        p(downloadButton('downloadborutaresults', 'Download Boruta results'),align="center")
+                                                )
+                                              )
+                                            ),
+                                            conditionalPanel(
+                                              condition = "input.test=='stabselect'",
+                                              fluidRow(
+                                                column(12,
+                                                       h4("Stability Selection Results"),
+                                                       textOutput("nbstabselselected", inline = TRUE), " variables selected", br(), br(),
+                                                       plotOutput("stabselplot", width = "100%", height = 500) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                       p(downloadButton("downloadstabselplot", "Download plot"),
+                                                         downloadButton("downloadstabselresults", "Download results"),
+                                                         align = "center"),
+                                                       br(),
+                                                       dataTableOutput("stabselresultstable") %>% withSpinner(color = "#0dc5c1", type = 1)
                                                 )
                                               )
                                             )
@@ -528,6 +556,7 @@ shinyUI(fluidPage(
                                                                     "Penalized Logistic Regression (ElasticNet)"="elasticnet",
                                                                     "XGBoost"="xgboost",
                                                                     #"LightGBM"="lightgbm",
+                                                                    "CatBoost"="catboost",
                                                                     "Naive Bayes"="naivebayes",
                                                                     "K-Nearest Neighbors (KNN)"="knn"))
                                                      #,
@@ -731,6 +760,17 @@ shinyUI(fluidPage(
                                                                       )
                                                      ),
                                                      
+                                                     conditionalPanel(condition ="input.model=='catboost'",
+                                                                      h5("CatBoost Hyperparameters"),
+                                                                      checkboxInput("autotunecatboost", "Automatic hyperparameter tuning", value = TRUE),
+                                                                      conditionalPanel(condition ="input.help", helpText("Auto: uses early stopping with default parameters. Manual: set iterations, depth, and learning rate.")),
+                                                                      conditionalPanel(condition ="!input.autotunecatboost",
+                                                                                       numericInput("iterations_cb", "Iterations", 500, min = 50, max = 5000, step = 50),
+                                                                                       numericInput("depth_cb", "Tree depth", 6, min = 1, max = 16, step = 1),
+                                                                                       numericInput("learningrate_cb", "Learning rate", 0.03, min = 0.001, max = 0.5, step = 0.005),
+                                                                                       conditionalPanel(condition ="input.help", helpText("Manually set CatBoost hyperparameters"))
+                                                                      )
+                                                     ),
                                                      conditionalPanel(condition ="input.model=='naivebayes'",
                                                                       h5("Naive Bayes Hyperparameters"),
                                                                       radioButtons("tuning_method_nb", "Tuning method:",
@@ -975,6 +1015,7 @@ shinyUI(fluidPage(
                                                                                
                                                                         )
                                                                       ),
+                                                                      # hr(),
                                                                       hr(),
                                                                       # ── Cross-Validation ───────────────────────────────────────
                                                                       # conditionalPanel(condition = "input.model != 'nomodel'",
@@ -1035,16 +1076,73 @@ shinyUI(fluidPage(
                                                                                                 
                                                                                          )
                                                                                        )
+                                                                                      #  ,
+                                                                                      #  hr()
                                                                       )
                                                      )
                                                      ),
-                                              tabPanel("Details of the model", icon =  shiny::icon("file-alt"),
+                                  tabPanel("Details of the model", icon =  shiny::icon("file-alt"),
                                                        h3("Summary of the model"),
                                                        verbatimTextOutput("summarymodel"),
                                                        plotOutput("plotimportance"),
                                                        p(downloadButton("downloadplotimportance","Download plot"),
                                                          downloadButton('downloaddataplotimportance', 'Download raw data'),align="center")
                                               ),
+                                  tabPanel("decsion curve analysis",
+                                            fluidRow(
+                                              column(6,
+                                                    h4("Decision Curve Analysis - Validation"),
+                                                    plotOutput("plotdcaval", width = "100%", height = 350) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                    p(downloadButton("downloadplotdcaval", "Download plot"), align = "center")
+                                              ),
+                                              column(
+                                                width = 6 ,
+                                                    h4("Decision Curve Analysis - Learning"),
+                                                    plotOutput("plotdcalearning", width = "100%", height = 350) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                    p(downloadButton("downloadplotdcalearning", "Download plot"), align = "center")
+                                              )
+                                            )
+                                  ),
+                                   tabPanel("Advanced Visualization", icon = icon("chart-area"),
+                                            br(),
+                                            h3("Advanced Visualization"),
+                                            conditionalPanel(condition = "input.model != 'nomodel'",
+                                              tabsetPanel(
+                                                tabPanel("Learning",
+                                                  br(),
+                                                  fluidRow(
+                                                    column(6,
+                                                           h4("ROC Curve - Learning"),
+                                                           plotOutput("plotggroc_learning", height = 400) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                           p(downloadButton("downloadggroc_learning", "Download plot"), align = "center")
+                                                    ),
+                                                    column(6,
+                                                           h4("Score Distribution - Learning"),
+                                                           plotOutput("plotdotplot_learning", height = 400) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                           p(downloadButton("downloaddotplot_learning", "Download plot"), align = "center")
+                                                    )
+                                                  )
+                                                ),
+                                                conditionalPanel(condition = "input.adjustval == true",
+                                                  tabPanel("Validation",
+                                                    br(),
+                                                    fluidRow(
+                                                      column(6,
+                                                             h4("ROC Curve - Validation"),
+                                                             plotOutput("plotggroc_val", height = 400) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                             p(downloadButton("downloadggroc_val", "Download plot"), align = "center")
+                                                      ),
+                                                      column(6,
+                                                             h4("Score Distribution - Validation"),
+                                                             plotOutput("plotdotplot_val", height = 400) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                                             p(downloadButton("downloaddotplot_val", "Download plot"), align = "center")
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                   ),
                                    tabPanel(
                                      "Learning Curve", icon = icon("chart-line"),
                                      br(),

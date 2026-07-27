@@ -541,12 +541,27 @@ TEST<-reactive({
     min_patients_param <- 20
   }
 
+  stabsel_pi_param       <- NULL
+  stabsel_fraction_param <- NULL
+  stabsel_weakness_param <- NULL
+  stabsel_use_cv_param   <- NULL
+
+  if (input$test == "stabselect") {
+    n_bootstrap_param      <- input$stabsel_nbootstrap
+    stabsel_pi_param       <- input$stabsel_pi
+    stabsel_fraction_param <- input$stabsel_fraction
+    stabsel_weakness_param <- input$stabsel_weakness
+    stabsel_use_cv_param   <- input$stabsel_use_cv
+  }
+
   testparameters<<-list("SFtest"=input$SFtest,"test"=input$test,"adjustpval"=input$adjustpv,"thresholdpv"=input$thresholdpv,
                         "thresholdFC"=input$thresholdFC,"invers"=input$invers,
                         "lambda"=lambda_param,"alpha"=alpha_param,
                         "n_clusters"=n_clusters_param,"n_bootstrap"=n_bootstrap_param,
                         "min_selection_freq"=min_selection_freq_param,
-                        "preprocess"=preprocess_param,"min_patients"=min_patients_param  )
+                        "preprocess"=preprocess_param,"min_patients"=min_patients_param,
+                        "pi_threshold"=stabsel_pi_param,"sample_fraction"=stabsel_fraction_param,
+                        "weakness"=stabsel_weakness_param,"use_cv"=stabsel_use_cv_param)
   learningtransform<<-TRANSFORMDATA()$LEARNINGTRANSFORM
   restest<<-testfunction(tabtransform = learningtransform,testparameters = testparameters )
   shiny::validate(need(testparameters$thresholdFC>=0,"threshold Foldchange has to be positive"))
@@ -743,6 +758,57 @@ output$downloadborutaresults =  downloadHandler(
     if(!is.null(multivariateresults) && multivariateresults$method == "boruta"){
       downloaddataset(multivariateresults$results, file)
     }
+  }
+)
+
+
+output$nbstabselselected <- renderText({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if (!is.null(multivariateresults) && !is.null(multivariateresults$method) &&
+      multivariateresults$method == "stabselect") {
+    length(multivariateresults$selected_vars)
+  } else { 0 }
+})
+
+output$stabselplot <- renderPlot({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  req(!is.null(multivariateresults) && !is.null(multivariateresults$method) &&
+        multivariateresults$method == "stabselect")
+  plot_stability_selection(
+    res          = multivariateresults$stabsel_result,
+    pi_threshold = input$stabsel_pi
+  )
+})
+
+output$stabselresultstable <- renderDataTable({
+  multivariateresults <- TEST()$MULTIVARIATERESULTS
+  if (!is.null(multivariateresults) && !is.null(multivariateresults$method) &&
+      multivariateresults$method == "stabselect" && nrow(multivariateresults$results) > 0) {
+    tryCatch({
+      res <- multivariateresults$results
+      res$selection_freq <- round(res$selection_freq, 3)
+      res
+    }, error = function(e) data.frame())
+  } else { data.frame() }
+}, options = list("orderClasses" = FALSE, "responsive" = FALSE, "pageLength" = 10))
+
+output$downloadstabselplot <- downloadHandler(
+  filename = function() { paste('stability_selection_plot', '.', input$paramdownplot, sep = '') },
+  content  = function(file) {
+    multivariateresults <- TEST()$MULTIVARIATERESULTS
+    ggsave(file,
+           plot   = plot_stability_selection(multivariateresults$stabsel_result,
+                                             pi_threshold = input$stabsel_pi),
+           device = input$paramdownplot)
+  },
+  contentType = NA
+)
+
+output$downloadstabselresults <- downloadHandler(
+  filename = function() { paste('stability_selection_results', '.', input$paramdowntable, sep = '') },
+  content  = function(file) {
+    multivariateresults <- TEST()$MULTIVARIATERESULTS
+    if (!is.null(multivariateresults)) downloaddataset(multivariateresults$results, file)
   }
 )
 
@@ -1016,6 +1082,20 @@ MODEL_TRAIN <- reactive({
       learning_rate_lgb_model <- input$learningratelgb
     }
   }
+
+  autotunecatboost_param <- TRUE
+  iterations_cb_model    <- NULL
+  depth_cb_model         <- NULL
+  learningrate_cb_model  <- NULL
+
+  if (input$model == "catboost") {
+    autotunecatboost_param <- input$autotunecatboost
+    if (!input$autotunecatboost) {
+      iterations_cb_model   <- input$iterations_cb
+      depth_cb_model        <- input$depth_cb
+      learningrate_cb_model <- input$learningrate_cb
+    }
+  }
   
   autotuneknn_param  <- TRUE
   k_neighbors_model  <- NULL
@@ -1071,7 +1151,11 @@ MODEL_TRAIN <- reactive({
     "alpha_xgb"       = alpha_xgb_model,
     "subsample_xgb" = if(!is.null(input$subsamplexgb)) input$subsamplexgb else NULL,
     "num_leaves"     = num_leaves_model,  "learning_rate_lgb" = learning_rate_lgb_model,
-    "autotuneknn"    = autotuneknn_param, "k_neighbors"   = k_neighbors_model
+    "autotuneknn"    = autotuneknn_param, "k_neighbors"   = k_neighbors_model,
+    "autotunecatboost" = autotunecatboost_param,
+    "iterations_cb"   = iterations_cb_model,
+    "depth_cb"        = depth_cb_model,
+    "learning_rate_cb" = learningrate_cb_model
   )
   
   shiny::validate(need(ncol(learningmodel) > 1, "Not enough features"))
@@ -1264,6 +1348,7 @@ observe({
   else if (input$model=="lightgbm"){  updateNumericInput(session, "thresholdmodel", value = 0.5)}
   else if (input$model=="naivebayes"){  updateNumericInput(session, "thresholdmodel", value = 0.5)}
   else if (input$model=="knn"){  updateNumericInput(session, "thresholdmodel", value = 0.5)}
+  else if (input$model=="catboost"){ updateNumericInput(session, "thresholdmodel", value = 0.5)}
 })
 
 # Display optimal hyperparameters for models
@@ -1491,6 +1576,28 @@ output$plotmodeldecouvroc <- renderPlot({
            decisionvalues =  datalearningmodel$reslearningmodel$scorelearning, maintitle = "ROC Curve - Learning Model")
            
 })
+output$plotdcalearning <- renderPlot({
+  datalearningmodel <- MODEL()$DATALEARNINGMODEL
+  req(!is.null(datalearningmodel))
+  plot_decision_curve(
+    labels      = datalearningmodel$reslearningmodel$classlearning,
+    predictions = as.numeric(datalearningmodel$reslearningmodel$scorelearning),
+    main_title  = "Decision Curve Analysis - Learning"
+  )
+})
+
+output$downloadplotdcalearning <- downloadHandler(
+  filename = function() { paste("dca_learning", ".", input$paramdownplot, sep = "") },
+  content  = function(file) {
+    datalearningmodel <- MODEL()$DATALEARNINGMODEL
+    ggsave(file,
+           plot   = plot_decision_curve(datalearningmodel$reslearningmodel$classlearning,
+                                        as.numeric(datalearningmodel$reslearningmodel$scorelearning),
+                                        main_title = "Decision Curve Analysis - Learning"),
+           device = input$paramdownplot)
+  }, contentType = NA
+)
+
 output$youndendecouv<-renderTable({
   datalearningmodel<<-MODEL()$DATALEARNINGMODEL
   resyounden<-younden(datalearningmodel$reslearningmodel$classlearning, datalearningmodel$reslearningmodel$scorelearning)
@@ -1615,6 +1722,28 @@ output$plotmodelvalroc <- renderPlot({
            )
 })
 
+output$plotdcaval <- renderPlot({
+  datavalidationmodel <- MODEL()$DATAVALIDATIONMODEL
+  req(!is.null(datavalidationmodel) && !is.null(datavalidationmodel$resvalidationmodel))
+  plot_decision_curve(
+    labels      = datavalidationmodel$resvalidationmodel$classval,
+    predictions = as.numeric(datavalidationmodel$resvalidationmodel$scoreval),
+    main_title  = "Decision Curve Analysis - Validation"
+  )
+})
+
+output$downloadplotdcaval <- downloadHandler(
+  filename = function() { paste("dca_validation", ".", input$paramdownplot, sep = "") },
+  content  = function(file) {
+    datavalidationmodel <- MODEL()$DATAVALIDATIONMODEL
+    ggsave(file,
+           plot   = plot_decision_curve(datavalidationmodel$resvalidationmodel$classval,
+                                        as.numeric(datavalidationmodel$resvalidationmodel$scoreval),
+                                        main_title = "Decision Curve Analysis - Validation"),
+           device = input$paramdownplot)
+  }, contentType = NA
+)
+
 output$downloadplotvalroc = downloadHandler(
   filename = function() {paste('graph','.',input$paramdownplot, sep='')},
   content = function(file) {
@@ -1628,6 +1757,106 @@ output$downloaddatavalroc <- downloadHandler(
   content = function(file) {
     downloaddataset(   ROCcurve(validation =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$classval,decisionvalues =  MODEL()$DATAVALIDATIONMODEL$resvalidationmodel$scoreval,graph=F ), file) 
     })
+
+output$plotggroc_learning <- renderPlot({
+  dl <- MODEL()$DATALEARNINGMODEL
+  req(!is.null(dl))
+  roc_obj <- pROC::roc(as.vector(dl$reslearningmodel$classlearning),
+                       as.numeric(dl$reslearningmodel$scorelearning), quiet = TRUE)
+  ggroc_auc_binary(roc_obj,
+                   title    = paste("ROC Curve \u2014", input$model, "(Learning)"),
+                   subtitle = paste(MODEL()$GROUPS["positif"], "vs", MODEL()$GROUPS["negatif"]))
+})
+
+output$downloadggroc_learning <- downloadHandler(
+  filename = function() { paste("roc_learning.", input$paramdownplot, sep = "") },
+  content  = function(file) {
+    dl  <- MODEL()$DATALEARNINGMODEL
+    roc <- pROC::roc(as.vector(dl$reslearningmodel$classlearning),
+                     as.numeric(dl$reslearningmodel$scorelearning), quiet = TRUE)
+    ggsave(file, plot = ggroc_auc_binary(roc, title = paste("ROC Curve \u2014", input$model, "(Learning)")),
+           device = input$paramdownplot)
+  }, contentType = NA)
+
+output$plotdotplot_learning <- renderPlot({
+  dl <- MODEL()$DATALEARNINGMODEL
+  req(!is.null(dl))
+  lf     <- factor(dl$reslearningmodel$classlearning)
+  target <- as.integer(lf == levels(lf)[1])
+  simple_plot_matrix_binaire(
+    target       = target,
+    risque       = as.numeric(dl$reslearningmodel$scorelearning),
+    seuil        = input$thresholdmodel,
+    x_label      = input$model,
+    types        = "Learning",
+    group_labels = c(levels(lf)[2], levels(lf)[1])
+  )$plot
+})
+
+output$downloaddotplot_learning <- downloadHandler(
+  filename = function() { paste("dotplot_learning.", input$paramdownplot, sep = "") },
+  content  = function(file) {
+    dl     <- MODEL()$DATALEARNINGMODEL
+    lf     <- factor(dl$reslearningmodel$classlearning)
+    target <- as.integer(lf == levels(lf)[1])
+    ggsave(file, plot = simple_plot_matrix_binaire(
+      target       = target,
+      risque       = as.numeric(dl$reslearningmodel$scorelearning),
+      seuil        = input$thresholdmodel,
+      x_label      = input$model, types = "Learning",
+      group_labels = c(levels(lf)[2], levels(lf)[1]))$plot,
+           device = input$paramdownplot)
+  }, contentType = NA)
+
+output$plotggroc_val <- renderPlot({
+  dv <- MODEL()$DATAVALIDATIONMODEL
+  req(!is.null(dv) && !is.null(dv$resvalidationmodel))
+  roc_obj <- pROC::roc(as.vector(dv$resvalidationmodel$classval),
+                       as.numeric(dv$resvalidationmodel$scoreval), quiet = TRUE)
+  ggroc_auc_binary(roc_obj,
+                   title    = paste("ROC Curve \u2014", input$model, "(Validation)"),
+                   subtitle = paste(MODEL()$GROUPS["positif"], "vs", MODEL()$GROUPS["negatif"]))
+})
+
+output$downloadggroc_val <- downloadHandler(
+  filename = function() { paste("roc_validation.", input$paramdownplot, sep = "") },
+  content  = function(file) {
+    dv  <- MODEL()$DATAVALIDATIONMODEL
+    roc <- pROC::roc(as.vector(dv$resvalidationmodel$classval),
+                     as.numeric(dv$resvalidationmodel$scoreval), quiet = TRUE)
+    ggsave(file, plot = ggroc_auc_binary(roc, title = paste("ROC Curve \u2014", input$model, "(Validation)")),
+           device = input$paramdownplot)
+  }, contentType = NA)
+
+output$plotdotplot_val <- renderPlot({
+  dv <- MODEL()$DATAVALIDATIONMODEL
+  req(!is.null(dv) && !is.null(dv$resvalidationmodel))
+  lf     <- factor(dv$resvalidationmodel$classval)
+  target <- as.integer(lf == levels(lf)[1])
+  simple_plot_matrix_binaire(
+    target       = target,
+    risque       = as.numeric(dv$resvalidationmodel$scoreval),
+    seuil        = input$thresholdmodel,
+    x_label      = input$model,
+    types        = "Validation",
+    group_labels = c(levels(lf)[2], levels(lf)[1])
+  )$plot
+})
+
+output$downloaddotplot_val <- downloadHandler(
+  filename = function() { paste("dotplot_validation.", input$paramdownplot, sep = "") },
+  content  = function(file) {
+    dv     <- MODEL()$DATAVALIDATIONMODEL
+    lf     <- factor(dv$resvalidationmodel$classval)
+    target <- as.integer(lf == levels(lf)[1])
+    ggsave(file, plot = simple_plot_matrix_binaire(
+      target       = target,
+      risque       = as.numeric(dv$resvalidationmodel$scoreval),
+      seuil        = input$thresholdmodel,
+      x_label      = input$model, types = "Validation",
+      group_labels = c(levels(lf)[2], levels(lf)[1]))$plot,
+           device = input$paramdownplot)
+  }, contentType = NA)
 
 output$plotmodelvalbp <- renderPlot({
   datavalidationmodel<-MODEL()$DATAVALIDATIONMODEL
