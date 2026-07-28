@@ -2466,9 +2466,10 @@ modelfunction_V2 <- function(learningmodel,
         optimal_nrounds <- cv_results$best_iter
         model <- lgb.train(params = best_params, data = dtrain,
                            nrounds = optimal_nrounds, verbose = -1)
-        model$optimal_nrounds      <- optimal_nrounds
-        model$optimal_num_leaves   <- best_params$num_leaves
-        model$optimal_learning_rate <- best_params$learning_rate
+        model <- set_model_meta(model,
+                                optimal_nrounds       = optimal_nrounds,
+                                optimal_num_leaves    = best_params$num_leaves,
+                                optimal_learning_rate = best_params$learning_rate)
       } else {
         nrounds_param      <- ifelse(is.null(modelparameters$nrounds_lgb),    100,  modelparameters$nrounds_lgb)
         num_leaves_param   <- ifelse(is.null(modelparameters$num_leaves),      31,  modelparameters$num_leaves)
@@ -2478,9 +2479,10 @@ modelfunction_V2 <- function(learningmodel,
                        feature_fraction = 0.9, bagging_fraction = 0.8,
                        bagging_freq = 5, verbose = -1)
         model <- lgb.train(params = params, data = dtrain, nrounds = nrounds_param, verbose = -1)
-        model$optimal_nrounds       <- nrounds_param
-        model$optimal_num_leaves    <- num_leaves_param
-        model$optimal_learning_rate <- learning_rate_param
+        model <- set_model_meta(model,
+                                optimal_nrounds       = nrounds_param,
+                                optimal_num_leaves    = num_leaves_param,
+                                optimal_learning_rate = learning_rate_param)
       }
       
       # ← Scores bruts seulement
@@ -2747,12 +2749,15 @@ modelfunction_V2 <- function(learningmodel,
                                  lambda = optimal_lambda, alpha = optimal_alpha,
                                  min_child_weight = optimal_min_child_weight)
             model <- xgb.train(params = final_params, data = dtrain, nrounds = optimal_nrounds, verbose = 0)
-            model$optimal_nrounds          <- optimal_nrounds
-            model$optimal_max_depth        <- optimal_max_depth
-            model$optimal_eta              <- optimal_eta
-            model$optimal_gamma            <- optimal_gamma
-            model$optimal_subsample        <- optimal_subsample
-            model$optimal_min_child_weight <- optimal_min_child_weight
+            model <- set_model_meta(model,
+                                    optimal_nrounds          = optimal_nrounds,
+                                    optimal_max_depth        = optimal_max_depth,
+                                    optimal_eta              = optimal_eta,
+                                    optimal_gamma            = optimal_gamma,
+                                    optimal_subsample        = optimal_subsample,
+                                    optimal_min_child_weight = optimal_min_child_weight,
+                                    optimal_alpha            = optimal_alpha,
+                                    optimal_lambda           = optimal_lambda)
           } else {
             alpha_param   <- ifelse(is.null(modelparameters$alpha_xgb),   0, modelparameters$alpha_xgb)
             lambda_param  <- ifelse(is.null(modelparameters$lambda_xgb),  0, modelparameters$lambda_xgb)
@@ -2778,12 +2783,15 @@ modelfunction_V2 <- function(learningmodel,
               }
             }, error = function(e) { optimal_nrounds <<- 20 })
             model <- xgb.train(params = best_params, data = dtrain, nrounds = optimal_nrounds, verbose = 0)
-            model$optimal_nrounds          <- optimal_nrounds
-            model$optimal_max_depth        <- best_params$max_depth
-            model$optimal_eta              <- best_params$eta
-            model$optimal_min_child_weight <- best_params$min_child_weight
-            model$optimal_gamma            <- best_params$gamma
-            model$optimal_subsample        <- best_params$subsample
+            model <- set_model_meta(model,
+                                    optimal_nrounds          = optimal_nrounds,
+                                    optimal_max_depth        = best_params$max_depth,
+                                    optimal_eta              = best_params$eta,
+                                    optimal_min_child_weight = best_params$min_child_weight,
+                                    optimal_gamma            = best_params$gamma,
+                                    optimal_subsample        = best_params$subsample,
+                                    optimal_alpha            = best_params$alpha,
+                                    optimal_lambda           = best_params$lambda)
           }
         } else {
           set.seed(20011203)
@@ -2810,12 +2818,15 @@ modelfunction_V2 <- function(learningmodel,
           cat("best parameters\n"); print(best_params)
           cat("optimal rounds : ", optimal_nrounds, "\n")
           model <- xgb.train(params = best_params, data = dtrain, nrounds = optimal_nrounds, verbose = 0)
-          model$optimal_nrounds          <- optimal_nrounds
-          model$optimal_max_depth        <- best_params$max_depth
-          model$optimal_eta              <- best_params$eta
-          model$optimal_min_child_weight <- best_params$min_child_weight
-          model$optimal_gamma            <- best_params$gamma
-          model$optimal_subsample        <- best_params$subsample
+          model <- set_model_meta(model,
+                                  optimal_nrounds          = optimal_nrounds,
+                                  optimal_max_depth        = best_params$max_depth,
+                                  optimal_eta              = best_params$eta,
+                                  optimal_min_child_weight = best_params$min_child_weight,
+                                  optimal_gamma            = best_params$gamma,
+                                  optimal_subsample        = best_params$subsample,
+                                  optimal_alpha            = best_params$alpha,
+                                  optimal_lambda           = best_params$lambda)
         }
       } else {
         
@@ -2836,17 +2847,15 @@ modelfunction_V2 <- function(learningmodel,
                        gamma =  gamma_param,min_child_weight = min_child_weight_param,
                        max_depth = max_depth_param, eta = eta_param, min_child_weight = 1)
         model <- xgb.train(params = params, data = dtrain, nrounds = nrounds_param, verbose = 0)
-        model$optimal_nrounds          <- nrounds_param
-        model$optimal_max_depth        <- max_depth_param
-        model$optimal_eta              <- eta_param
-        
-        model$optimal_min_child_weight <- min_child_weight_param
-        model$optimal_gamma <- gamma_param
-        model$optimal_subsample <- subsample_param
-        model$optimal_alpha <- alpha_param
-        model$optimal_lambda <- lambda_param
-        model$optimal_subsample        <- subsample_param
-        model$optimal_min_child_weight <- min_child_weight_param
+        model <- set_model_meta(model,
+                                optimal_nrounds          = nrounds_param,
+                                optimal_max_depth        = max_depth_param,
+                                optimal_eta              = eta_param,
+                                optimal_min_child_weight = min_child_weight_param,
+                                optimal_gamma            = gamma_param,
+                                optimal_subsample        = subsample_param,
+                                optimal_alpha            = alpha_param,
+                                optimal_lambda           = lambda_param)
         cat("optimal_nrounds :  ", nrounds_param, "\n")
         cat("optimal_max_depth :  ", max_depth_param, "\n")
         cat("optimal_eta :  ", eta_param, "\n")
@@ -3053,14 +3062,14 @@ modelfunction_V2 <- function(learningmodel,
       modelparameters$alpha  <- model$alpha
       modelparameters$lambda <- model$lambda
     } else if (modelparameters$modeltype == "xgboost") {
-      modelparameters$nrounds          <- model$optimal_nrounds
-      modelparameters$max_depth        <- model$optimal_max_depth
-      modelparameters$eta              <- model$optimal_eta
-      modelparameters$gamma_xgb        <- model$optimal_gamma
-      modelparameters$alpha_xgb        <- model$optimal_alpha
-      modelparameters$lambda_xgb       <- model$optimal_lambda
-      modelparameters$subsample_xgb    <- model$optimal_subsample
-      modelparameters$min_child_weight <- model$optimal_min_child_weight
+      modelparameters$nrounds          <- get_model_meta(model, "optimal_nrounds")
+      modelparameters$max_depth        <- get_model_meta(model, "optimal_max_depth")
+      modelparameters$eta              <- get_model_meta(model, "optimal_eta")
+      modelparameters$gamma_xgb        <- get_model_meta(model, "optimal_gamma")
+      modelparameters$alpha_xgb        <- get_model_meta(model, "optimal_alpha")
+      modelparameters$lambda_xgb       <- get_model_meta(model, "optimal_lambda")
+      modelparameters$subsample_xgb    <- get_model_meta(model, "optimal_subsample")
+      modelparameters$min_child_weight <- get_model_meta(model, "optimal_min_child_weight")
     } else if (modelparameters$modeltype == "catboost") {
       modelparameters$iterations_cb    <- model$optimal_iterations
       modelparameters$depth_cb         <- model$optimal_depth
@@ -4381,6 +4390,24 @@ calculate_sensitivity_specificity <- function(target, score, seuil) {
   list(tp = tp, fp = fp, tn = tn, fn = fn,
        ci_lowerSe = ci_se["lower"], ci_upperSe = ci_se["upper"],
        ci_lowerSp = ci_sp["lower"], ci_upperSp = ci_sp["upper"])
+}
+
+# Helpers pour stocker/lire des métadonnées sur les objets modèles.
+# xgboost >= 2.x retourne un booster ALTREP : `model$x <- val` échoue
+# ("ALTLIST classes must provide a Set_elt method"). Fallback sur attr().
+set_model_meta <- function(model, ...) {
+  meta <- list(...)
+  for (nm in names(meta)) {
+    model <- tryCatch({ model[[nm]] <- meta[[nm]]; model },
+                      error = function(e) { attr(model, nm) <- meta[[nm]]; model })
+  }
+  model
+}
+
+get_model_meta <- function(model, name) {
+  v <- tryCatch(model[[name]], error = function(e) NULL)
+  if (is.null(v)) v <- attr(model, name, exact = TRUE)
+  v
 }
 
 simple_plot_matrix_binaire <- function(target, risque, seuil,

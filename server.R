@@ -1481,7 +1481,7 @@ output$optiTuning_K = renderText({
 
 output$xgbnrounds<-renderText({
   if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
-    MODEL()$MODEL$optimal_nrounds
+    get_model_meta(MODEL()$MODEL, "optimal_nrounds")
   } else {
     "N/A"
   }
@@ -1489,7 +1489,7 @@ output$xgbnrounds<-renderText({
 
 output$xgbmaxdepth<-renderText({
   if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
-    MODEL()$MODEL$optimal_max_depth
+    get_model_meta(MODEL()$MODEL, "optimal_max_depth")
   } else {
     "N/A"
   }
@@ -1497,7 +1497,7 @@ output$xgbmaxdepth<-renderText({
 
 output$xgbeta<-renderText({
   if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
-    format(MODEL()$MODEL$optimal_eta, digits = 3)
+    format(get_model_meta(MODEL()$MODEL, "optimal_eta"), digits = 3)
   } else {
     "N/A"
   }
@@ -1505,7 +1505,7 @@ output$xgbeta<-renderText({
 
 output$xgbminchild<-renderText({
   if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
-    MODEL()$MODEL$optimal_min_child_weight
+    get_model_meta(MODEL()$MODEL, "optimal_min_child_weight")
   } else {
     "N/A"
   }
@@ -1514,7 +1514,7 @@ output$xgbminchild<-renderText({
 
 output$xgbgamma<-renderText({
   if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
-    format(MODEL()$MODEL$optimal_gamma, digits = 3)
+    format(get_model_meta(MODEL()$MODEL, "optimal_gamma"), digits = 3)
   } else {
     "N/A"
   }
@@ -1522,7 +1522,7 @@ output$xgbgamma<-renderText({
 
 output$xgbsubsample<-renderText({
   if(input$model=="xgboost" && !is.null(MODEL()$MODEL)){
-    format(MODEL()$MODEL$optimal_subsample, digits = 3)
+    format(get_model_meta(MODEL()$MODEL, "optimal_subsample"), digits = 3)
   } else {
     "N/A"
   }
@@ -1530,7 +1530,7 @@ output$xgbsubsample<-renderText({
 
 output$lgbnrounds<-renderText({
   if(input$model=="lightgbm" && !is.null(MODEL()$MODEL)){
-    MODEL()$MODEL$optimal_nrounds
+    get_model_meta(MODEL()$MODEL, "optimal_nrounds")
   } else {
     "N/A"
   }
@@ -1538,7 +1538,7 @@ output$lgbnrounds<-renderText({
 
 output$lgbnumleaves<-renderText({
   if(input$model=="lightgbm" && !is.null(MODEL()$MODEL)){
-    MODEL()$MODEL$optimal_num_leaves
+    get_model_meta(MODEL()$MODEL, "optimal_num_leaves")
   } else {
     "N/A"
   }
@@ -1547,7 +1547,7 @@ output$lgbnumleaves<-renderText({
 
 output$lgblearningrate<-renderText({
   if(input$model=="lightgbm" && !is.null(MODEL()$MODEL)){
-    format(MODEL()$MODEL$optimal_learning_rate, digits = 3)
+    format(get_model_meta(MODEL()$MODEL, "optimal_learning_rate"), digits = 3)
   } else {
     "N/A"
   }
