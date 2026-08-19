@@ -1721,7 +1721,8 @@ volcanoplot<-function(logFC,pval,thresholdFC=0,thresholdpv=0.05,graph=T,maintitl
   g
 } 
 
-barplottest<-function(feature,logFC,levels,pval,mean1,mean2,thresholdpv=0.05,thresholdFC=1,graph=T,maintitle="Mean by group for differentially expressed variables"){
+barplottest<-function(feature,logFC,levels,pval,mean1,mean2,thresholdpv=0.05,thresholdFC=1,graph=T,
+                      maintitle="Mean by group for differentially expressed variables"){
   feature<-rep(feature,each=2)
   group<-rep(c(levels[1],levels[2]),times=(length(feature)/2))
   group<-factor(group,levels =c(levels[1],levels[2]))
