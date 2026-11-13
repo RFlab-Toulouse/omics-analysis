@@ -1576,16 +1576,29 @@ output$plotmodeldecouvroc <- renderPlot({
            decisionvalues =  datalearningmodel$reslearningmodel$scorelearning, maintitle = "ROC Curve - Learning Model")
            
 })
+# output$plotdcalearning <- renderPlot({
+#   datalearningmodel <- MODEL()$DATALEARNINGMODEL
+#   req(!is.null(datalearningmodel))
+#   plot_decision_curve(
+#     labels      = datalearningmodel$reslearningmodel$classlearning,
+#     predictions = as.numeric(datalearningmodel$reslearningmodel$scorelearning),
+#     
+#     main_title  = "Decision Curve Analysis - Learning"
+#   )
+# })
+
+
 output$plotdcalearning <- renderPlot({
   datalearningmodel <- MODEL()$DATALEARNINGMODEL
   req(!is.null(datalearningmodel))
+  cl <- datalearningmodel$reslearningmodel$classlearning
   plot_decision_curve(
-    labels      = datalearningmodel$reslearningmodel$classlearning,
+    labels      = cl,
     predictions = as.numeric(datalearningmodel$reslearningmodel$scorelearning),
+    positive    = levels(cl)[1],
     main_title  = "Decision Curve Analysis - Learning"
   )
 })
-
 output$downloadplotdcalearning <- downloadHandler(
   filename = function() { paste("dca_learning", ".", input$paramdownplot, sep = "") },
   content  = function(file) {

@@ -1090,11 +1090,11 @@ shinyUI(fluidPage(
                                               ),
                                   tabPanel("decsion curve analysis",
                                             fluidRow(
-                                              column(6,
-                                                    h4("Decision Curve Analysis - Validation"),
-                                                    plotOutput("plotdcaval", width = "100%", height = 350) %>% withSpinner(color = "#0dc5c1", type = 1),
-                                                    p(downloadButton("downloadplotdcaval", "Download plot"), align = "center")
-                                              ),
+                                              # column(6,
+                                              #       h4("Decision Curve Analysis - Validation"),
+                                              #       plotOutput("plotdcaval", width = "100%", height = 350) %>% withSpinner(color = "#0dc5c1", type = 1),
+                                              #       p(downloadButton("downloadplotdcaval", "Download plot"), align = "center")
+                                              # ),
                                               column(
                                                 width = 6 ,
                                                     h4("Decision Curve Analysis - Learning"),

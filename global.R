@@ -4254,11 +4254,18 @@ ROCcurve<-function(validation,decisionvalues,maintitle="Roc curve",graph=T,ggplo
   }
 }
 
-plot_decision_curve <- function(labels, predictions,
+plot_decision_curve <- function(labels, predictions,positive = NULL,
                                main_title  = "Decision Curve Analysis") {
+  # if (is.factor(labels)) {
+  #   lev        <- levels(labels)
+  #   labels_bin <- ifelse(labels == lev[length(lev)], 1, 0)
+  # } else {
+  #   labels_bin <- as.integer(as.character(labels))
+  # }
+  
   if (is.factor(labels)) {
-    lev        <- levels(labels)
-    labels_bin <- ifelse(labels == lev[length(lev)], 1, 0)
+    if (is.null(positive)) positive <- levels(labels)[1]  
+    labels_bin <- as.integer(labels == positive)
   } else {
     labels_bin <- as.integer(as.character(labels))
   }
