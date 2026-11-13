@@ -1787,8 +1787,8 @@ output$plotdotplot_learning <- renderPlot({
     target       = target,
     risque       = as.numeric(dl$reslearningmodel$scorelearning),
     seuil        = input$thresholdmodel,
-    x_label      = input$model,
-    types        = "Learning",
+    x_label      = "" , #input$model,
+    types        = "" , #"Learning",
     group_labels = c(levels(lf)[2], levels(lf)[1])
   )$plot
 })
@@ -1803,7 +1803,8 @@ output$downloaddotplot_learning <- downloadHandler(
       target       = target,
       risque       = as.numeric(dl$reslearningmodel$scorelearning),
       seuil        = input$thresholdmodel,
-      x_label      = input$model, types = "Learning",
+      x_label      = "" , #input$model,
+      types        = "" , #"Learning",
       group_labels = c(levels(lf)[2], levels(lf)[1]))$plot,
            device = input$paramdownplot)
   }, contentType = NA)
@@ -1837,8 +1838,8 @@ output$plotdotplot_val <- renderPlot({
     target       = target,
     risque       = as.numeric(dv$resvalidationmodel$scoreval),
     seuil        = input$thresholdmodel,
-    x_label      = input$model,
-    types        = "Validation",
+    x_label      = "" , #input$model,
+    types        = "" , #"Learning",
     group_labels = c(levels(lf)[2], levels(lf)[1])
   )$plot
 })
@@ -1853,7 +1854,8 @@ output$downloaddotplot_val <- downloadHandler(
       target       = target,
       risque       = as.numeric(dv$resvalidationmodel$scoreval),
       seuil        = input$thresholdmodel,
-      x_label      = input$model, types = "Validation",
+      x_label      = "" , #input$model,
+      types        = "" , #"Learning",
       group_labels = c(levels(lf)[2], levels(lf)[1]))$plot,
            device = input$paramdownplot)
   }, contentType = NA)

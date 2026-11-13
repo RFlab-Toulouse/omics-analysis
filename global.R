@@ -4325,46 +4325,150 @@ plot_decision_curve <- function(labels, predictions,
 }
 
 
-ggroc_auc_binary <- function(roc_obj,
-                             title    = "ROC Curve",
-                             subtitle = "") {
-  auc_val   <- as.numeric(pROC::auc(roc_obj))
-  ci_val    <- tryCatch(pROC::ci.auc(roc_obj), error = function(e) NULL)
-  if (!is.null(ci_val)) {
-    auc_label <- sprintf("AUC = %.3f\n[95%% CI : %.3f\u2013%.3f]", auc_val, ci_val[1], ci_val[3])
-  } else {
-    auc_label <- sprintf("AUC = %.3f", auc_val)
-  }
+# ggroc_auc_binary <- function(roc_obj,
+#                              title    = "ROC Curve",
+#                              subtitle = "") {
+#   auc_val   <- as.numeric(pROC::auc(roc_obj))
+#   ci_val    <- tryCatch(pROC::ci.auc(roc_obj), error = function(e) NULL)
+#   if (!is.null(ci_val)) {
+#     auc_label <- sprintf("AUC = %.3f\n[95%% CI : %.3f\u2013%.3f]", auc_val, ci_val[1], ci_val[3])
+#   } else {
+#     auc_label <- sprintf("AUC = %.3f", auc_val)
+#   }
+# 
+#   pROC::ggroc(roc_obj, colour = "#D42633", linewidth = 1) +
+#     ggplot2::geom_segment(ggplot2::aes(x = 1, xend = 0, y = 0, yend = 1),
+#                           color = "grey50", linetype = "dashed", linewidth = 0.7) +
+#     ggplot2::annotate("text", x = 0.3, y = 0.15,
+#                       label = auc_label, size = 5,
+#                       color = "#D42633", fontface = "bold") +
+#     ggplot2::scale_x_reverse(
+#       breaks = seq(0, 1, 0.25),
+#       labels = sprintf("%.2f", 1 - seq(0, 1, 0.25)),
+#       limits = c(1, 0), expand = c(0, 0)
+#     ) +
+#     ggplot2::scale_y_continuous(
+#       breaks = seq(0, 1, 0.25), limits = c(0, 1), expand = c(0, 0)
+#     ) +
+#     ggplot2::coord_cartesian(clip = "off") +
+#     ggplot2::labs(title = title, subtitle = subtitle,
+#                   x = "1 \u2212 Specificity", y = "Sensitivity") +
+#     ggplot2::theme_minimal(base_size = 13) +
+#     ggplot2::theme(
+#       legend.position = "none",
+#       plot.title      = ggplot2::element_text(face = "bold", size = 16, hjust = 0.5),
+#       plot.subtitle   = ggplot2::element_text(hjust = 0.5, color = "grey40"),
+#       axis.title      = ggplot2::element_text(face = "bold", size = 14),
+#       axis.text       = ggplot2::element_text(face = "bold", size = 11),
+#       axis.line       = ggplot2::element_line(color = "black", linewidth = 0.7),
+#       axis.ticks      = ggplot2::element_line(color = "black", linewidth = 0.7),
+#       axis.ticks.length = ggplot2::unit(0.2, "cm"),
+#       panel.grid      = ggplot2::element_blank()
+#     )
+# }
 
-  pROC::ggroc(roc_obj, colour = "#D42633", linewidth = 1) +
-    ggplot2::geom_segment(ggplot2::aes(x = 1, xend = 0, y = 0, yend = 1),
-                          color = "grey50", linetype = "dashed", linewidth = 0.7) +
-    ggplot2::annotate("text", x = 0.3, y = 0.15,
-                      label = auc_label, size = 5,
-                      color = "#D42633", fontface = "bold") +
-    ggplot2::scale_x_reverse(
-      breaks = seq(0, 1, 0.25),
-      labels = sprintf("%.2f", 1 - seq(0, 1, 0.25)),
-      limits = c(1, 0), expand = c(0, 0)
+
+ggroc_auc_binary <- function(roc1,
+         title = "Diagnostic performance of the urinary CXCL9 ratio",
+         subtitle = "ICI-AIN vs No-AIN",
+         export = TRUE,
+         c_main = "#D42633",
+         output_dir = ".",
+         width = 8, height = 6, dpi = 300) {
+  
+  TXT_ANNOT <- 6
+  LW_CURVE <- 1.2
+  LW_AXIS <- 0.8
+  
+  theme_publication <- function(base_size = 20) {
+    theme_classic(base_size = base_size, base_family = FONT_FAMILY) +
+      theme(
+        # Texte global
+        text = element_text(family = FONT_FAMILY, colour = "black"),
+        
+        # Titre et sous-titre
+        plot.title    = element_text(face = "bold", size = 20, hjust = 0.5,
+                                     margin = ggplot2::margin(b = 8)),
+        plot.subtitle = element_text(size = 14, hjust = 0.5,
+                                     margin = ggplot2::margin(b = 8)),
+        plot.caption  = element_text(size = 12, hjust = 1, face = "italic"),
+        
+        # Titres des axes
+        axis.title.x  = element_text(face = "bold", size = 24,
+                                     margin = ggplot2::margin(t = 8)),
+        axis.title.y  = element_text(face = "bold", size = 24,
+                                     margin = ggplot2::margin(r = 8)),
+        
+        # Graduations
+        axis.text.x   = element_text(face = "bold", size = 20, colour = "black"),
+        axis.text.y   = element_text(face = "bold", size = 20, colour = "black"),
+        
+        # Axes et traits
+        axis.line     = element_line(colour = "black", linewidth = LW_AXIS),
+        axis.ticks    = element_line(colour = "black", linewidth = LW_AXIS),
+        axis.ticks.length = unit(0.25, "cm"),
+        
+        # Grille et fond
+        panel.grid       = element_blank(),
+        panel.background = element_rect(fill = "white", colour = NA),
+        plot.background  = element_rect(fill = "white", colour = NA),
+        
+        # Légende
+        legend.position = "none",
+        
+        # Marges
+        plot.margin = ggplot2::margin(t = 40, r = 20, b = 10, l = 10, unit = "pt")
+      )
+  }
+  
+  auc_val <- as.numeric(pROC::auc(roc1)) * 100
+  ci_val  <- pROC::ci.auc(roc1)
+  ci_low  <- ci_val[1] * 100
+  ci_high <- ci_val[3] * 100
+  
+  auc_label <- sprintf("AUC = %.2f\n[95%% CI: %.2f–%.2f]", auc_val, ci_low, ci_high)
+  
+  p <- pROC::ggroc(roc1, colour = c_main, linewidth = LW_CURVE) +
+    geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1),
+                 colour = "grey", linetype = "dashed", linewidth = LW_AXIS / 2) +
+    annotate("text", x = 0.25, y = 0.15, label = auc_label,
+             size = TXT_ANNOT, colour = c_main, fontface = "bold",
+             family = FONT_FAMILY, hjust = 0.5) +
+    # Axe X : 1 − Specificity en %, de 0 à 100
+    scale_x_reverse(
+      breaks = seq(0, 1, 0.2),
+      labels = function(b) sprintf("%d", round((1 - b) * 100)),
+      limits = c(1, 0),
+      expand = c(0, 0)
     ) +
-    ggplot2::scale_y_continuous(
-      breaks = seq(0, 1, 0.25), limits = c(0, 1), expand = c(0, 0)
+    # Axe Y : Sensitivity en %, de 0 à 100
+    scale_y_continuous(
+      breaks = seq(0, 1, 0.2),
+      labels = function(y) sprintf("%d", round(y * 100)),
+      limits = c(0, 1),
+      expand = c(0, 0)
     ) +
-    ggplot2::coord_cartesian(clip = "off") +
-    ggplot2::labs(title = title, subtitle = subtitle,
-                  x = "1 \u2212 Specificity", y = "Sensitivity") +
-    ggplot2::theme_minimal(base_size = 13) +
-    ggplot2::theme(
-      legend.position = "none",
-      plot.title      = ggplot2::element_text(face = "bold", size = 16, hjust = 0.5),
-      plot.subtitle   = ggplot2::element_text(hjust = 0.5, color = "grey40"),
-      axis.title      = ggplot2::element_text(face = "bold", size = 14),
-      axis.text       = ggplot2::element_text(face = "bold", size = 11),
-      axis.line       = ggplot2::element_line(color = "black", linewidth = 0.7),
-      axis.ticks      = ggplot2::element_line(color = "black", linewidth = 0.7),
-      axis.ticks.length = ggplot2::unit(0.2, "cm"),
-      panel.grid      = ggplot2::element_blank()
-    )
+    coord_cartesian(clip = "off") +
+    labs(title = title,
+         subtitle = subtitle,
+         x = "100 \u2212 Specificity (%)",
+         y = "Sensitivity (%)") +
+    theme_publication() +
+    theme(plot.margin = ggplot2::margin(t = 5, r = 20, b = 5, l = 10, unit = "pt"))
+  
+  if (export) {
+    file_name <- gsub("[^A-Za-z0-9_-]+", "_", title)
+    file_name <- gsub("_+", "_", file_name)
+    file_name <- trimws(file_name, whitespace = "_")
+    file_path <- file.path(output_dir, paste0(file_name, ".png"))
+    
+    ggsave(filename = file_path, plot = p,
+           width = width, height = height, dpi = dpi,
+           device = ragg::agg_png)
+    message("Figure exportée : ", file_path)
+  }
+  
+  p
 }
 
 
@@ -4411,176 +4515,381 @@ get_model_meta <- function(model, name) {
   v
 }
 
+# simple_plot_matrix_binaire <- function(target, risque, seuil,
+#                                        auc_obj = NULL,
+#                                        x_label = "model", types = "Train",
+#                                        group_labels = c("N\u00e9gatif", "Positif")) {
+#     
+#     stopifnot(length(target) == length(risque))
+#     
+#     data <- data.frame(
+#         new_group = as.integer(target),
+#         score = as.numeric(risque)
+#     )
+#     
+#     # Fix 1.2 — bornes dynamiques (scores SVM hors [0,1] non éliminés)
+#     y_lo      <- min(0, min(data$score, na.rm = TRUE))
+#     y_hi      <- max(1, max(data$score, na.rm = TRUE))
+#     y_pad     <- (y_hi - y_lo) * 0.04
+#     y_lo      <- y_lo - y_pad
+#     y_hi      <- y_hi + y_pad
+#     is_prob   <- (min(data$score, na.rm = TRUE) >= -0.01 && max(data$score, na.rm = TRUE) <= 1.01)
+#     y_breaks  <- if (is_prob) seq(0, 1, 0.2) else pretty(data$score, n = 5)
+#     y_ax_labs <- if (is_prob) as.character(seq(0L, 100L, 20L)) else as.character(round(y_breaks, 2))
+#     y_ax_title <- if (is_prob) "Score de risque (%)\n" else "Score de risque\n"
+#     
+#     cat(paste(rep("-", 50), collapse = ""), "\n")
+#     cat(sprintf("-Nombre de patients : %d\n", nrow(data)))
+#     cat("-Nombre de négatifs / positifs : \n")
+#     print(table(data$new_group))
+#     
+#     optimal_threshold <- seuil
+#     cm_stats <- calculate_sensitivity_specificity(data$new_group, data$score, optimal_threshold)
+#     tp <- cm_stats$tp; fp <- cm_stats$fp; tn <- cm_stats$tn; fn <- cm_stats$fn
+#     
+#     sensitivity <- if ((tp + fn) > 0) tp / (tp + fn) * 100 else 0
+#     specificity <- if ((tn + fp) > 0) tn / (tn + fp) * 100 else 0
+#     ci_lowerSe <- cm_stats$ci_lowerSe; ci_upperSe <- cm_stats$ci_upperSe
+#     ci_lowerSp <- cm_stats$ci_lowerSp; ci_upperSp <- cm_stats$ci_upperSp
+#     
+#     auc_val <- tryCatch(
+#         as.numeric(pROC::auc(pROC::roc(data$new_group, data$score,
+#                                        levels = c(0, 1), direction = "<", quiet = TRUE))),
+#         error = function(e) NA_real_
+#     )
+#     cat(sprintf("auc = %s\n", auc_val))
+#     
+#     # -------------------------------------------------------------------------
+#     # Test statistique (Shapiro -> Bartlett -> Student/Welch, sinon Mann-Whitney)
+#     # -------------------------------------------------------------------------
+#     negatifs <- data[data$new_group == 0, ]
+#     positifs <- data[data$new_group == 1, ]
+#     
+#     p_value <- NA_real_
+#     type_test <- "no test possible"
+#     
+#     if (min(nrow(positifs), nrow(negatifs)) >= 3) {
+#         p_shapiro_pos <- shapiro.test(positifs$score)$p.value
+#         p_shapiro_neg <- shapiro.test(negatifs$score)$p.value
+#         
+#         if (min(p_shapiro_pos, p_shapiro_neg) > 0.05) {
+#             bartlett_p <- bartlett.test(list(positifs$score, negatifs$score))$p.value
+#             if (bartlett_p > 0.05) {
+#                 type_test <- "Student T-test"
+#                 res <- t.test(positifs$score, negatifs$score, var.equal = TRUE)
+#             } else {
+#                 type_test <- "Welch T-test"
+#                 res <- t.test(positifs$score, negatifs$score, var.equal = FALSE)
+#             }
+#             cat(sprintf("%s: Statistique = %s, Valeur p = %s\n", type_test, res$statistic, res$p.value))
+#             p_value <- res$p.value
+#         } else {
+#             type_test <- "Wilcoxon-Mann-Whitney test"
+#             res <- wilcox.test(positifs$score, negatifs$score)
+#             cat(sprintf("Wilcoxon-Mann-Whitney: Statistique = %s, Valeur p = %s\n", res$statistic, res$p.value))
+#             p_value <- res$p.value
+#         }
+#     } else {
+#         cat("Les tailles des échantillons sont insuffisantes pour effectuer les tests.\n")
+#     }
+#     
+#     # -------------------------------------------------------------------------
+#     # Construction du plot
+#     # -------------------------------------------------------------------------
+#     data$new_group_f <- factor(data$new_group, levels = c(0, 1), labels = group_labels)
+#     
+#     jitter_width <- 0.08
+#     
+#     p <- ggplot() +
+#         geom_boxplot(data = data, aes(x = new_group_f, y = score),
+#                      color = "black", fill = "white", width = 0.6,
+#                      outlier.shape = NA, linewidth = 1.2) +
+#         geom_jitter(data = data[data$new_group == 0, ],
+#                     aes(x = new_group_f, y = score),
+#                     shape = 21, fill = "white", color = "#D42633",
+#                     stroke = 1.2, size = 4, width = jitter_width, height = 0) +
+#         geom_jitter(data = data[data$new_group == 1, ],
+#                     aes(x = new_group_f, y = score),
+#                     shape = 21, fill = "#D42633", color = "#D42633",
+#                     stroke = 1.2, size = 4, width = jitter_width, height = 0) +
+#         annotate("segment", x = 0.7, xend = 2.3,
+#                  y = seuil, yend = seuil,
+#                  linetype = "dashed", color = "black", linewidth = 1.2) +
+#         labs(x = NULL, y = y_ax_title,
+#              title   = paste0(x_label, " ", types),
+#              caption = if (types == "Learning") "Note\u202f: test statistique et AUC sur donn\u00e9es d\u2019entra\u00eenement (resubstitution \u2014 r\u00e9sultat sur validation externe fait r\u00e9f\u00e9rence)" else NULL) +
+#         scale_y_continuous(breaks = y_breaks,
+#                            labels = y_ax_labs,
+#                            expand = c(0.05, 0)) +
+#         theme_classic(base_size = 20) +
+#         theme(
+#             axis.title.y = element_text(face = "bold", size = 24),
+#             axis.text.y = element_text(face = "bold", size = 20),
+#             axis.text.x = element_text(face = "bold", size = 24),
+#             plot.title = element_text(face = "bold", size = 20),
+#             axis.ticks.x = element_blank(),
+#             axis.line.x = element_blank(),
+#             panel.grid = element_blank()
+#         )
+#     
+#     # Barre de significativité + p-value (position fixe en haut)
+#     if (!is.na(p_value)) {
+#         bracket_y      <- y_hi - (y_hi - y_lo) * 0.10
+#         bracket_height <- (y_hi - y_lo) * 0.025
+#         text_y         <- bracket_y + bracket_height + (y_hi - y_lo) * 0.015
+#         
+#         bracket_df <- data.frame(
+#             x = c(1, 1, 2, 2),
+#             y = c(bracket_y, bracket_y + bracket_height, bracket_y + bracket_height, bracket_y)
+#         )
+#         
+#         p_label <- if (p_value < 0.0001) "p<0.0001" else sprintf("p=%.4f", p_value)
+#         
+#         p <- p +
+#             geom_path(data = bracket_df, aes(x = x, y = y), linewidth = 1.2, color = "black") +
+#             annotate("text", x = 1.5, y = text_y, label = p_label,
+#                      fontface = "bold", size = 6, hjust = 0.5, vjust = 0)
+#     }
+#     
+#     # Annotation AUC / Sensibilité / Spécificité
+#     # (l'AUC n'est affichée que si auc_obj est fourni, comme dans la version
+#     # Python d'origine — sinon on affiche seulement sensibilité/spécificité)
+#     if (is.null(auc_obj)) {
+#         annot_text <- sprintf(
+#             "Sensitivity (%%)\n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
+#             sensitivity, ci_lowerSe, ci_upperSe,
+#             specificity, ci_lowerSp, ci_upperSp
+#         )
+#     } else {
+#         annot_text <- sprintf(
+#             "AUC (%%) \n%.1f [%.2f - %.1f]\n\nSensitivity (%%) \n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
+#             auc_obj$auc * 100, auc_obj$ci_lower * 100, auc_obj$ci_upper * 100,
+#             sensitivity, ci_lowerSe, ci_upperSe,
+#             specificity, ci_lowerSp, ci_upperSp
+#         )
+#     }
+#     
+#     y_annot <- y_lo + (y_hi - y_lo) * 0.75
+# 
+#     p <- p +
+#         annotate("text", x = 2.6, y = y_annot, label = annot_text,
+#                  hjust = 0, vjust = 0.5, size = 6, fontface = "bold") +
+#         coord_cartesian(xlim = c(0.5, 3.5), ylim = c(y_lo, y_hi), clip = "off") +
+#         theme()
+#     
+#     print(p)
+#     
+#     list(
+#         plot        = p,
+#         sensitivity = sensitivity, ci_lowerSe = ci_lowerSe, ci_upperSe = ci_upperSe,
+#         specificity = specificity, ci_lowerSp = ci_lowerSp, ci_upperSp = ci_upperSp,
+#         auc = auc_val, p_value = p_value, type_test = type_test
+#     )
+# }
+# 
+
 simple_plot_matrix_binaire <- function(target, risque, seuil,
-                                       auc_obj = NULL,
-                                       x_label = "model", types = "Train",
-                                       group_labels = c("N\u00e9gatif", "Positif")) {
-    
-    stopifnot(length(target) == length(risque))
-    
-    data <- data.frame(
-        new_group = as.integer(target),
-        score = as.numeric(risque)
-    )
-    
-    # Fix 1.2 — bornes dynamiques (scores SVM hors [0,1] non éliminés)
-    y_lo      <- min(0, min(data$score, na.rm = TRUE))
-    y_hi      <- max(1, max(data$score, na.rm = TRUE))
-    y_pad     <- (y_hi - y_lo) * 0.04
-    y_lo      <- y_lo - y_pad
-    y_hi      <- y_hi + y_pad
+         auc_obj = NULL,
+         main_c = "#D42633",
+         x_label = "model", types = "Train",
+         group_labels = c("N\u00e9gatif", "Positif"),
+         log_scale = FALSE) {
+  
+  stopifnot(length(target) == length(risque))
+  
+  data <- data.frame(
+    new_group = as.integer(target),
+    score = as.numeric(risque)
+  )
+  
+  # ---- Fix : échelle log pour les scores très asymétriques (ex. CXCL9) ----
+  if (log_scale) {
+    stopifnot(all(data$score > 0, na.rm = TRUE))  # log10 exige des valeurs strictement positives
+    plot_score <- log10(data$score)
+    plot_seuil <- log10(seuil)
+    is_prob <- FALSE
+    raw_range <- range(data$score, na.rm = TRUE)
+    y_breaks_raw <- scales::breaks_log(n = 6)(raw_range)
+    y_breaks  <- log10(y_breaks_raw)
+    y_ax_labs <- format(y_breaks_raw, big.mark = " ", trim = TRUE, scientific = FALSE)
+    y_ax_title <- "CXCL9 ratio (\u00e9chelle log)\n"
+    y_lo <- min(plot_score, na.rm = TRUE)
+    y_hi <- max(plot_score, na.rm = TRUE)
+    y_pad <- (y_hi - y_lo) * 0.06
+    y_lo <- y_lo - y_pad; y_hi <- y_hi + y_pad
+  } else {
+    plot_score <- data$score
+    plot_seuil <- seuil
     is_prob   <- (min(data$score, na.rm = TRUE) >= -0.01 && max(data$score, na.rm = TRUE) <= 1.01)
+    if (is_prob) {
+      y_lo <- 0
+      y_hi <- 1
+    } else {
+      y_lo  <- min(0, min(data$score, na.rm = TRUE))
+      y_hi  <- max(1, max(data$score, na.rm = TRUE))
+      y_pad <- (y_hi - y_lo) * 0.04
+      y_lo  <- y_lo - y_pad
+      y_hi  <- y_hi + y_pad
+    }
     y_breaks  <- if (is_prob) seq(0, 1, 0.2) else pretty(data$score, n = 5)
     y_ax_labs <- if (is_prob) as.character(seq(0L, 100L, 20L)) else as.character(round(y_breaks, 2))
-    y_ax_title <- if (is_prob) "Score de risque (%)\n" else "Score de risque\n"
-    
-    cat(paste(rep("-", 50), collapse = ""), "\n")
-    cat(sprintf("-Nombre de patients : %d\n", nrow(data)))
-    cat("-Nombre de négatifs / positifs : \n")
-    print(table(data$new_group))
-    
-    optimal_threshold <- seuil
-    cm_stats <- calculate_sensitivity_specificity(data$new_group, data$score, optimal_threshold)
-    tp <- cm_stats$tp; fp <- cm_stats$fp; tn <- cm_stats$tn; fn <- cm_stats$fn
-    
-    sensitivity <- if ((tp + fn) > 0) tp / (tp + fn) * 100 else 0
-    specificity <- if ((tn + fp) > 0) tn / (tn + fp) * 100 else 0
-    ci_lowerSe <- cm_stats$ci_lowerSe; ci_upperSe <- cm_stats$ci_upperSe
-    ci_lowerSp <- cm_stats$ci_lowerSp; ci_upperSp <- cm_stats$ci_upperSp
-    
-    auc_val <- tryCatch(
-        as.numeric(pROC::auc(pROC::roc(data$new_group, data$score,
-                                       levels = c(0, 1), direction = "<", quiet = TRUE))),
-        error = function(e) NA_real_
+    y_ax_title <- if (is_prob) "Risk score (%)\n" else "Decision values\n"
+  }
+  
+  data$score <- plot_score  # remplace la colonne utilisée pour tout le reste (boxplot, jitter, tests)
+  
+  cat(paste(rep("-", 50), collapse = ""), "\n")
+  cat(sprintf("-Nombre de patients : %d\n", nrow(data)))
+  cat("-Nombre de négatifs / positifs : \n")
+  print(table(data$new_group))
+  
+  optimal_threshold <- plot_seuil
+  cm_stats <- calculate_sensitivity_specificity(data$new_group, data$score, optimal_threshold)
+  tp <- cm_stats$tp; fp <- cm_stats$fp; tn <- cm_stats$tn; fn <- cm_stats$fn
+  
+  sensitivity <- if ((tp + fn) > 0) tp / (tp + fn) * 100 else 0
+  specificity <- if ((tn + fp) > 0) tn / (tn + fp) * 100 else 0
+  ci_lowerSe <- cm_stats$ci_lowerSe; ci_upperSe <- cm_stats$ci_upperSe
+  ci_lowerSp <- cm_stats$ci_lowerSp; ci_upperSp <- cm_stats$ci_upperSp
+  
+  auc_val <- tryCatch(
+    as.numeric(pROC::auc(pROC::roc(data$new_group, data$score,
+                                   levels = c(0, 1), direction = "<", quiet = TRUE))),
+    error = function(e) NA_real_
+  )
+  cat(sprintf("auc = %s\n", auc_val))
+  
+  # -------------------------------------------------------------------------
+  # Test statistique (Shapiro -> Bartlett -> Student/Welch, sinon Mann-Whitney)
+  # -------------------------------------------------------------------------
+  negatifs <- data[data$new_group == 0, ]
+  positifs <- data[data$new_group == 1, ]
+  
+  p_value <- NA_real_
+  type_test <- "no test possible"
+  
+  # if (min(nrow(positifs), nrow(negatifs)) >= 3) {
+  #   p_shapiro_pos <- shapiro.test(positifs$score)$p.value
+  #   p_shapiro_neg <- shapiro.test(negatifs$score)$p.value
+  #   
+  #   if (min(p_shapiro_pos, p_shapiro_neg) > 0.05) {
+  #     bartlett_p <- bartlett.test(list(positifs$score, negatifs$score))$p.value
+  #     if (bartlett_p > 0.05) {
+  #       type_test <- "Student T-test"
+  #       res <- t.test(positifs$score, negatifs$score, var.equal = TRUE)
+  #     } else {
+  #       type_test <- "Welch T-test"
+  #       res <- t.test(positifs$score, negatifs$score, var.equal = FALSE)
+  #     }
+  #     cat(sprintf("%s: Statistique = %s, Valeur p = %s\n", type_test, res$statistic, res$p.value))
+  #     p_value <- res$p.value
+  #   } else {
+  #     type_test <- "Wilcoxon-Mann-Whitney test"
+  #     res <- wilcox.test(positifs$score, negatifs$score)
+  #     cat(sprintf("Wilcoxon-Mann-Whitney: Statistique = %s, Valeur p = %s\n", res$statistic, res$p.value))
+  #     p_value <- res$p.value
+  #   }
+  # } else {
+  #   cat("Les tailles des échantillons sont insuffisantes pour effectuer les tests.\n")
+  # }
+  
+  type_test <- "Wilcoxon-Mann-Whitney test"
+  res <- wilcox.test(positifs$score, negatifs$score)
+  cat(sprintf("Wilcoxon-Mann-Whitney: Statistique = %s, Valeur p = %s\n", res$statistic, res$p.value))
+  p_value <- res$p.value
+  
+  # -------------------------------------------------------------------------
+  # Construction du plot
+  # -------------------------------------------------------------------------
+  data$new_group_f <- factor(data$new_group, levels = c(0, 1), labels = group_labels)
+  
+  jitter_width <- 0.2
+  
+  p <- ggplot() +
+    geom_boxplot(data = data, aes(x = new_group_f, y = score),
+                 color = "black", fill = "white", width = 0.6,
+                 outlier.shape = NA, linewidth = 1.2) +
+    geom_jitter(data = data[data$new_group == 0, ],
+                aes(x = new_group_f, y = score),
+                shape = 21, fill = "white", color = main_c,
+                stroke = 1.2, size = 3, width = jitter_width, height = 0) +
+    geom_jitter(data = data[data$new_group == 1, ],
+                aes(x = new_group_f, y = score),
+                shape = 21, fill = main_c, color = main_c,
+                stroke = 1.2, size = 3, width = jitter_width, height = 0) +
+    annotate("segment", x = 0.35, xend = 2.3,
+             y = optimal_threshold, yend = optimal_threshold,
+             linetype = "dashed", color = "black", linewidth = 0.8) +
+    labs(x = NULL, y = y_ax_title,
+         title   = paste0(x_label, " ", types),
+         caption = if (types == "Learning") "Note\u202f: test statistique et AUC sur donn\u00e9es d\u2019entra\u00eenement (resubstitution \u2014 r\u00e9sultat sur validation externe fait r\u00e9f\u00e9rence)" else NULL) +
+    scale_y_continuous(breaks = y_breaks,
+                       labels = y_ax_labs,
+                       expand = c(0, 0)) +
+    scale_x_discrete(expand = c(0.08, 0)) +
+    theme_classic(base_size = 20) +
+    theme(
+      axis.title.y = element_text(face = "bold", size = 24),
+      axis.text.y = element_text(face = "bold", size = 20),
+      axis.text.x = element_text(face = "bold", size = 24),
+      plot.title = element_text(face = "bold", size = 20),
+      axis.ticks.x = element_blank(),
+      axis.line.x = element_blank(),
+      panel.grid = element_blank()
+      
     )
-    cat(sprintf("auc = %s\n", auc_val))
+  
+  # Barre de significativité + p-value (dépasse au-dessus de y_hi, comme sur le graphique de référence)
+  if (!is.na(p_value)) {
+    bracket_y      <- y_hi + (y_hi - y_lo) * 0.06
+    bracket_height <- (y_hi - y_lo) * 0.03
+    text_y         <- bracket_y + bracket_height + (y_hi - y_lo) * 0.02
     
-    # -------------------------------------------------------------------------
-    # Test statistique (Shapiro -> Bartlett -> Student/Welch, sinon Mann-Whitney)
-    # -------------------------------------------------------------------------
-    negatifs <- data[data$new_group == 0, ]
-    positifs <- data[data$new_group == 1, ]
+    bracket_df <- data.frame(
+      x = c(1, 1, 2, 2),
+      y = c(bracket_y, bracket_y + bracket_height, bracket_y + bracket_height, bracket_y)
+    )
     
-    p_value <- NA_real_
-    type_test <- "no test possible"
+    p_label <- if (p_value < 0.0001) "p<0.0001" else sprintf("p=%.4f", p_value)
     
-    if (min(nrow(positifs), nrow(negatifs)) >= 3) {
-        p_shapiro_pos <- shapiro.test(positifs$score)$p.value
-        p_shapiro_neg <- shapiro.test(negatifs$score)$p.value
-        
-        if (min(p_shapiro_pos, p_shapiro_neg) > 0.05) {
-            bartlett_p <- bartlett.test(list(positifs$score, negatifs$score))$p.value
-            if (bartlett_p > 0.05) {
-                type_test <- "Student T-test"
-                res <- t.test(positifs$score, negatifs$score, var.equal = TRUE)
-            } else {
-                type_test <- "Welch T-test"
-                res <- t.test(positifs$score, negatifs$score, var.equal = FALSE)
-            }
-            cat(sprintf("%s: Statistique = %s, Valeur p = %s\n", type_test, res$statistic, res$p.value))
-            p_value <- res$p.value
-        } else {
-            type_test <- "Wilcoxon-Mann-Whitney test"
-            res <- wilcox.test(positifs$score, negatifs$score)
-            cat(sprintf("Wilcoxon-Mann-Whitney: Statistique = %s, Valeur p = %s\n", res$statistic, res$p.value))
-            p_value <- res$p.value
-        }
-    } else {
-        cat("Les tailles des échantillons sont insuffisantes pour effectuer les tests.\n")
-    }
-    
-    # -------------------------------------------------------------------------
-    # Construction du plot
-    # -------------------------------------------------------------------------
-    data$new_group_f <- factor(data$new_group, levels = c(0, 1), labels = group_labels)
-    
-    jitter_width <- 0.08
-    
-    p <- ggplot() +
-        geom_boxplot(data = data, aes(x = new_group_f, y = score),
-                     color = "black", fill = "white", width = 0.6,
-                     outlier.shape = NA, linewidth = 1.2) +
-        geom_jitter(data = data[data$new_group == 0, ],
-                    aes(x = new_group_f, y = score),
-                    shape = 21, fill = "white", color = "#D42633",
-                    stroke = 1.2, size = 4, width = jitter_width, height = 0) +
-        geom_jitter(data = data[data$new_group == 1, ],
-                    aes(x = new_group_f, y = score),
-                    shape = 21, fill = "#D42633", color = "#D42633",
-                    stroke = 1.2, size = 4, width = jitter_width, height = 0) +
-        annotate("segment", x = 0.7, xend = 2.3,
-                 y = seuil, yend = seuil,
-                 linetype = "dashed", color = "black", linewidth = 1.2) +
-        labs(x = NULL, y = y_ax_title,
-             title   = paste0(x_label, " ", types),
-             caption = if (types == "Learning") "Note\u202f: test statistique et AUC sur donn\u00e9es d\u2019entra\u00eenement (resubstitution \u2014 r\u00e9sultat sur validation externe fait r\u00e9f\u00e9rence)" else NULL) +
-        scale_y_continuous(breaks = y_breaks,
-                           labels = y_ax_labs,
-                           expand = c(0.05, 0)) +
-        theme_classic(base_size = 20) +
-        theme(
-            axis.title.y = element_text(face = "bold", size = 24),
-            axis.text.y = element_text(face = "bold", size = 20),
-            axis.text.x = element_text(face = "bold", size = 24),
-            plot.title = element_text(face = "bold", size = 20),
-            axis.ticks.x = element_blank(),
-            axis.line.x = element_blank(),
-            panel.grid = element_blank()
-        )
-    
-    # Barre de significativité + p-value (position fixe en haut)
-    if (!is.na(p_value)) {
-        bracket_y      <- y_hi - (y_hi - y_lo) * 0.10
-        bracket_height <- (y_hi - y_lo) * 0.025
-        text_y         <- bracket_y + bracket_height + (y_hi - y_lo) * 0.015
-        
-        bracket_df <- data.frame(
-            x = c(1, 1, 2, 2),
-            y = c(bracket_y, bracket_y + bracket_height, bracket_y + bracket_height, bracket_y)
-        )
-        
-        p_label <- if (p_value < 0.0001) "p<0.0001" else sprintf("p=%.4f", p_value)
-        
-        p <- p +
-            geom_path(data = bracket_df, aes(x = x, y = y), linewidth = 1.2, color = "black") +
-            annotate("text", x = 1.5, y = text_y, label = p_label,
-                     fontface = "bold", size = 6, hjust = 0.5, vjust = 0)
-    }
-    
-    # Annotation AUC / Sensibilité / Spécificité
-    # (l'AUC n'est affichée que si auc_obj est fourni, comme dans la version
-    # Python d'origine — sinon on affiche seulement sensibilité/spécificité)
-    if (is.null(auc_obj)) {
-        annot_text <- sprintf(
-            "Sensitivity (%%)\n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
-            sensitivity, ci_lowerSe, ci_upperSe,
-            specificity, ci_lowerSp, ci_upperSp
-        )
-    } else {
-        annot_text <- sprintf(
-            "AUC (%%) \n%.1f [%.2f - %.1f]\n\nSensitivity (%%) \n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
-            auc_obj$auc * 100, auc_obj$ci_lower * 100, auc_obj$ci_upper * 100,
-            sensitivity, ci_lowerSe, ci_upperSe,
-            specificity, ci_lowerSp, ci_upperSp
-        )
-    }
-    
-    y_annot <- y_lo + (y_hi - y_lo) * 0.75
-
     p <- p +
-        annotate("text", x = 2.6, y = y_annot, label = annot_text,
-                 hjust = 0, vjust = 0.5, size = 6, fontface = "bold") +
-        coord_cartesian(xlim = c(0.5, 3.5), ylim = c(y_lo, y_hi), clip = "off") +
-        theme()
-    
-    print(p)
-    
-    list(
-        plot        = p,
-        sensitivity = sensitivity, ci_lowerSe = ci_lowerSe, ci_upperSe = ci_upperSe,
-        specificity = specificity, ci_lowerSp = ci_lowerSp, ci_upperSp = ci_upperSp,
-        auc = auc_val, p_value = p_value, type_test = type_test
+      geom_path(data = bracket_df, aes(x = x, y = y), linewidth = 1.2, color = "black") +
+      annotate("text", x = 1.5, y = text_y, label = p_label,
+               fontface = "bold", size = 6, hjust = 0.5, vjust = 0)
+  }
+  
+  # Annotation AUC / Sensibilité / Spécificité
+  if (is.null(auc_obj)) {
+    annot_text <- sprintf(
+      "Sensitivity (%%)\n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
+      sensitivity, ci_lowerSe, ci_upperSe,
+      specificity, ci_lowerSp, ci_upperSp
     )
+  } else {
+    annot_text <- sprintf(
+      "AUC (%%) \n%.1f [%.2f - %.1f]\n\nSensitivity (%%) \n%.2f [%.2f - %.2f]\n\nSpecificity (%%) \n%.2f [%.2f - %.2f]",
+      auc_obj$auc * 100, auc_obj$ci_lower * 100, auc_obj$ci_upper * 100,
+      sensitivity, ci_lowerSe, ci_upperSe,
+      specificity, ci_lowerSp, ci_upperSp
+    )
+  }
+  
+  y_annot <- y_lo + (y_hi - y_lo) * 0.75
+  
+  p <- p +
+    annotate("text", x = 2.6, y = y_annot, label = annot_text,
+             hjust = 0, vjust = 0.5, size = 6, fontface = "bold") +
+    coord_cartesian(xlim = c(0.55, 3.5), ylim = c(y_lo, y_hi), clip = "off") +
+    theme(plot.margin = ggplot2::margin(t = 40, r = 10, b = 10, l = 10))
+  
+  print(p)
+  
+  list(
+    plot        = p,
+    sensitivity = sensitivity, ci_lowerSe = ci_lowerSe, ci_upperSe = ci_upperSe,
+    specificity = specificity, ci_lowerSp = ci_lowerSp, ci_upperSp = ci_upperSp,
+    auc = auc_val, p_value = p_value, type_test = type_test
+  )
 }
 
 
